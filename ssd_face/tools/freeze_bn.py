@@ -1,0 +1,31 @@
+import mxnet as mx
+import numpy as np
+
+def freeze_bn(model_prefix, num_epoch, res_prefix):
+    net, arg_params, aux_params = mx.model.load_checkpoint(model_prefix, num_epoch)
+
+    import ipdb
+    ipdb.set_trace()
+
+    for k in aux_params:
+        if k.endswith('_moving_var'):
+            mm = k.replace('_moving_var', '_moving_mean')
+            gamma = k.replace('_moving_var', '_gamma')
+            beta = k.replace('_moving_var', '_beta')
+            arg_params[gamma] /= aux_params[k]
+            arg_params[beta] -= aux_params[mm] / aux_params[k]
+            aux_params[k] = mx.nd.ones(aux_params[k].shape)
+            aux_params[mm] = mx.nd.zeros(aux_params[mm].shape)
+
+    mx.model.save_checkpoint(res_prefix, num_epoch, net, arg_params, aux_params)
+
+if __name__ == '__main__':
+    model_prefix = '/home/hyunjoon/github/model_mxnet/pva910/pva910_preAct'
+    num_epoch = 0
+    res_prefix = model_prefix + '_bn_freezed'
+
+    freeze_bn(model_prefix, num_epoch, res_prefix)
+
+    _, arg_params, aux_params = mx.model.load_checkpoint(res_prefix, num_epoch)
+    import ipdb
+    ipdb.set_trace()
