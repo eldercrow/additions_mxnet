@@ -5,10 +5,11 @@ import sys
 import os
 import importlib
 from initializer import ScaleInitializer
-from metric import MultiBoxMetric
+from metric import MultiBoxMetric, FaceMetric
 from dataset.iterator import DetIter
+from dataset.patch_iterator import PatchIter
 from dataset.pascal_voc import PascalVoc
-from dataset.wider import Wider
+from dataset.wider_patch import WiderPatch
 from dataset.concat_db import ConcatDB
 from config.config import cfg
 
@@ -34,7 +35,7 @@ def load_wider(image_set, devkit_path, shuffle=False):
 
     imdbs = []
     for s in image_set:
-        imdbs.append(Wider(s, devkit_path, shuffle, is_train=True))
+        imdbs.append(WiderPatch(s, devkit_path, shuffle, is_train=True))
     if len(imdbs) > 1:
         return ConcatDB(imdbs, shuffle)
     else:
@@ -78,28 +79,28 @@ def load_wider(image_set, devkit_path, shuffle=False):
 #         return ConcatDB(imdbs, shuffle)
 #     else:
 #         return imdbs[0]
-
-def convert_pretrained(name, args):
-    """
-    Special operations need to be made due to name inconsistance, etc
-
-    Parameters:
-    ---------
-    args : dict
-        loaded arguments
-
-    Returns:
-    ---------
-    processed arguments as dict
-    """
-    if name == 'vgg16_reduced':
-        args['conv6_bias'] = args.pop('fc6_bias')
-        args['conv6_weight'] = args.pop('fc6_weight')
-        args['conv7_bias'] = args.pop('fc7_bias')
-        args['conv7_weight'] = args.pop('fc7_weight')
-        del args['fc8_weight']
-        del args['fc8_bias']
-    return args
+#
+# def convert_pretrained(name, args):
+#     """
+#     Special operations need to be made due to name inconsistance, etc
+#
+#     Parameters:
+#     ---------
+#     args : dict
+#         loaded arguments
+#
+#     Returns:
+#     ---------
+#     processed arguments as dict
+#     """
+#     if name == 'vgg16_reduced':
+#         args['conv6_bias'] = args.pop('fc6_bias')
+#         args['conv6_weight'] = args.pop('fc6_weight')
+#         args['conv7_bias'] = args.pop('fc7_bias')
+#         args['conv7_weight'] = args.pop('fc7_weight')
+#         del args['fc8_weight']
+#         del args['fc8_bias']
+#     return args
 
 def train_net(net, dataset, image_set, devkit_path, batch_size,
                data_shape, mean_pixels, resume, finetune, pretrained, from_scratch, epoch, prefix,
@@ -206,10 +207,14 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         raise NotImplementedError("Dataset " + dataset + " not supported")
 
     # init data iterator
-    train_iter = DetIter(imdb, batch_size, data_shape, mean_pixels,
+    train_iter = PatchIter(imdb, batch_size, data_shape, mean_pixels, 
                          cfg.TRAIN.RAND_SAMPLERS, cfg.TRAIN.RAND_MIRROR,
                          cfg.TRAIN.EPOCH_SHUFFLE, cfg.TRAIN.RAND_SEED,
                          is_train=True)
+    # train_iter = DetIter(imdb, batch_size, data_shape, mean_pixels,
+    #                      cfg.TRAIN.RAND_SAMPLERS, cfg.TRAIN.RAND_MIRROR,
+    #                      cfg.TRAIN.EPOCH_SHUFFLE, cfg.TRAIN.RAND_SEED,
+    #                      is_train=True)
     # save per N epoch, avoid saving too frequently
     resize_epoch = int(cfg.TRAIN.RESIZE_EPOCH)
     if resize_epoch > 1:
@@ -217,10 +222,14 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         train_iter = mx.io.ResizeIter(train_iter, batches_per_epoch)
     # train_iter = mx.io.PrefetchingIter(train_iter)
     if val_imdb:
-        val_iter = DetIter(val_imdb, batch_size, data_shape, mean_pixels,
+        val_iter = PatchIter(val_imdb, batch_size, data_shape, mean_pixels,
                            cfg.VALID.RAND_SAMPLERS, cfg.VALID.RAND_MIRROR,
                            cfg.VALID.EPOCH_SHUFFLE, cfg.VALID.RAND_SEED,
                            is_train=True)
+        # val_iter = DetIter(val_imdb, batch_size, data_shape, mean_pixels,
+        #                    cfg.VALID.RAND_SAMPLERS, cfg.VALID.RAND_MIRROR,
+        #                    cfg.VALID.EPOCH_SHUFFLE, cfg.VALID.RAND_SEED,
+        #                    is_train=True)
         # val_iter = mx.io.PrefetchingIter(val_iter)
     else:
         val_iter = None
@@ -282,21 +291,26 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     iter_refactor = lr_refactor_epoch * imdb.num_images // train_iter.batch_size
     lr_scheduler = mx.lr_scheduler.FactorScheduler(iter_refactor, lr_refactor_ratio)
     optimizer_params={'learning_rate':learning_rate,
-                      'momentum':momentum,
                       'wd':weight_decay,
                       'lr_scheduler':lr_scheduler,
                       'clip_gradient':4.0,
                       'rescale_grad': 1.0}
+    # optimizer_params={'learning_rate':learning_rate,
+    #                   'momentum':momentum,
+    #                   'wd':weight_decay,
+    #                   'lr_scheduler':lr_scheduler,
+    #                   'clip_gradient':4.0,
+    #                   'rescale_grad': 1.0}
     monitor = mx.mon.Monitor(iter_monitor, pattern=".*") if iter_monitor > 0 else None
     initializer = mx.init.Mixed([".*scale", ".*"], \
         [ScaleInitializer(), mx.init.Xavier(magnitude=1)])
 
     mod.fit(train_iter,
             eval_data=val_iter,
-            eval_metric=MultiBoxMetric(),
+            eval_metric=FaceMetric(), # MultiBoxMetric(),
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
-            optimizer='sgd',
+            optimizer='rmsprop',
             optimizer_params=optimizer_params,
             kvstore = kv,
             begin_epoch=begin_epoch,

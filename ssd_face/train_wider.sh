@@ -22,12 +22,13 @@ python train.py \
     --image-set train \
     --val-image-set val \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
-    --network hjnet \
+    --network hjnet_preact \
     --batch-size 24 \
     --from-scratch 1 \
     --gpu 0 \
     --prefix hjnet_face \
-    --data-shape 200 \
-    --monitor 100 \
-    --lr 0.01 \
+    --data-shape 192 \
+    --frequent 100 \
+    --monitor 0 \
+    --lr 0.001 \
     --wd 0.0001

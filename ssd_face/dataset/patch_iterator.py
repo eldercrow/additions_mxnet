@@ -50,7 +50,7 @@ class PatchIter(mx.io.DataIter):
         self.batch_size = batch_size
         if isinstance(patch_shape, int):
             patch_shape = (patch_shape, patch_shape)
-        self._patch_shape = patch_shape
+        self._data_shape = patch_shape
         self._mean_pixels = mx.nd.array(mean_pixels).reshape((3,1,1))
         if not rand_samplers:
             self._rand_samplers = []
@@ -89,6 +89,9 @@ class PatchIter(mx.io.DataIter):
         self._current = 0
         if self._shuffle:
             np.random.shuffle(self._index)
+        self._imdb.reset_patch()
+        self._size = imdb.num_images
+        self._index = np.arange(self._size)
 
     def iter_next(self):
         return self._current < self._size
@@ -121,8 +124,6 @@ class PatchIter(mx.io.DataIter):
         # first gather image paths and labels for all patche in a batch
         for i in range(self.batch_size):
             if (self._current + i) >= self._size:
-                if not self.is_train:
-                    continue
                 # use padding from middle in each epoch
                 idx = (self._current + i + self._size // 2) % self._size
                 index = self._index[idx]
@@ -130,10 +131,11 @@ class PatchIter(mx.io.DataIter):
                 index = self._index[self._current + i]
             # index = self.debug_index
             im_path = self._imdb.image_path_from_index(index)
-            gt = self._imdb.label_from_index(index).copy() if self.is_train else None
             batch_path.append(im_path)
+            gt = self._imdb.label_from_index(index)
             batch_label.append(gt)
         # Load images that will be used in this batch, with some sanity check
+        batch_label = np.array(batch_label)
         curr_path = ''
         curr_scale = 0.0
         batch_imgs = []
@@ -142,56 +144,56 @@ class PatchIter(mx.io.DataIter):
         for p, l in zip(batch_path, batch_label):
             if p != curr_path:
                 curr_path = p
-                curr_scale = l
+                curr_scale = l[0]
                 with open(p, 'rb') as fh:
                     img_content = fh.read()
                 img = mx.img.imdecode(img_content)
-                hh = np.round(img.shape[0] * l[0])
-                ww = np.round(img.shape[1] * l[0])
-                img = mx.img.imresize(img, ww, hh, interp=2)
-                batch_imgs.append(img)
+                if l[0] != 1:
+                    hh = int(np.round(img.shape[0] * l[0]))
+                    ww = int(np.round(img.shape[1] * l[0]))
+                    img = mx.img.imresize(img, ww, hh, interp=2)
+                batch_imgs.append(img.asnumpy())
                 curr_idx += 1
                 patch2img.append(curr_idx)
             else:
-                assert l == curr_scale, 'patches are not well arranged'
+                assert l[0] == curr_scale, 'patches are not well arranged'
                 patch2img.append(curr_idx)
         # crop patches from images 
         for i, (pidx, l) in enumerate(zip(patch2img, batch_label)):
-            patch = crop_patch(img, l[2:6])
-            data_batch[i] = patch
-            if self.is_train:
-                batch_label[i] = l[1:]
+            patch = self._crop_patch(batch_imgs[pidx], l[6:].astype(int))
+            batch_data[i] = patch
 
         self._data = {'data': batch_data}
         if self.is_train:
-            self._label = {'label': mx.nd.array(np.array(batch_label))}
+            self._label = {'label': mx.nd.array(np.array(batch_label[:, 1:6]))}
         else:
             self._label = {'label': None}
 
-def crop_patch(img, roi, pad_val=(128,128,128)):
-    hh = img.shape[0]
-    ww = img.shape[1]
-    if roi[0] >= 0 and roi[1] >= 0 and roi[2] <= ww and roi[3] <= hh:
-        patch = mx.img.fixed_crop(img, roi[0], roi[1], roi[2]-roi[0], roi[3]-roi[1])
-    else:
-        # padding
-        pw = roi[2] - roi[0]
-        ph = roi[3] - roi[1]
-        assert pw == self._data_shape[2] and ph == self._data_shape[3]
-        # roi in image
-        li = np.maximum(0, roi[0])
-        ri = np.minimum(ww, roi[2])
-        ui = np.maximum(0, roi[1])
-        bi = np.minimum(hh, roi[3))
-        # roi in patch
-        lp = np.maximum(0, -roi[0])
-        up = np.maximum(0, -roi[1])
-        rp = lp + (ri - li)
-        bp = up + (bi - ui)
+    def _crop_patch(self, img, roi):
+        hh = img.shape[0]
+        ww = img.shape[1]
+        if roi[0] >= 0 and roi[1] >= 0 and roi[2] <= ww and roi[3] <= hh:
+            patch = mx.img.fixed_crop(mx.nd.array(img), roi[0], roi[1], roi[2]-roi[0], roi[3]-roi[1])
+        else:
+            # padding
+            pw = roi[2] - roi[0]
+            ph = roi[3] - roi[1]
+            assert pw == self._data_shape[0] and ph == self._data_shape[1]
+            # roi in image
+            li = np.maximum(0, roi[0])
+            ri = np.minimum(ww, roi[2])
+            ui = np.maximum(0, roi[1])
+            bi = np.minimum(hh, roi[3])
+            # roi in patch
+            lp = np.maximum(0, -roi[0])
+            up_ = np.maximum(0, -roi[1])
+            rp = lp + (ri - li)
+            bp = up_ + (bi - ui)
 
-        patch = mx.nd.full((ph, pw, 3), 128, dtype='uint8')
-        patch[up:bp, lp:rp] = img[ui:bi, li:ri, :]
-        patch = mx.nd.transpose(patch, (2, 0, 1))
+            patch_ = np.full((ph, pw, 3), 128, dtype=np.uint8)
+            patch_[up_:bp, lp:rp, :] = img[ui:bi, li:ri, :]
+            patch = mx.nd.array(patch_)
+        patch = mx.nd.transpose(patch, axes=(2, 0, 1))
         patch = patch.astype('float32')
         patch = patch - self._mean_pixels
-    return patch
+        return patch

@@ -96,8 +96,8 @@ def bn_crelu_conv(data, num_filter, prefix_name=None, postfix_name=None,
     #         no_bias=True, name=conv_name)
     return conv_
 
-def pool(data, kernel=(2,2), stride=(2,2), pool_type='max'):
-    pool_ = mx.sym.Pooling(data=data, kernel=kernel, stride=stride, pool_type=pool_type)
+def pool(data, name=None, kernel=(2,2), stride=(2,2), pool_type='max'):
+    pool_ = mx.sym.Pooling(data=data, name=name, kernel=kernel, stride=stride, pool_type=pool_type)
     return pool_
 
 def inception_group(data, prefix_group_name, n_curr_ch, 
@@ -141,33 +141,53 @@ def inception_group(data, prefix_group_name, n_curr_ch,
 
     return concat_ + data, num_filter_1x1
 
-def get_hjnet_preact(data, is_test, fix_gamma=True):
+def get_hjnet_preact(is_test, fix_gamma=True):
     """ main shared conv layers """
     data = mx.sym.Variable(name='data')
 
     data_ = mx.sym.BatchNorm(data / 255.0, name='bn_data', fix_gamma=True, use_global_stats=is_test)
     conv1_1 = mx.sym.Convolution(data_, name='conv1/1', num_filter=16,  
-            kernel=(3,3), pad=(0,0), no_bias=True) # 32, 198
+            kernel=(3,3), pad=(1,1), no_bias=True) # 32, 198
     conv1_2 = bn_crelu_conv(conv1_1, 32, postfix_name='1/2', 
-            kernel=(3,3), pad=(0,0), use_global_stats=is_test, fix_gamma=fix_gamma) # 48, 196 
+            kernel=(3,3), pad=(1,1), use_global_stats=is_test, fix_gamma=fix_gamma) # 48, 196 
     conv1_3 = bn_crelu_conv(conv1_2, 64, postfix_name='1/3', 
-            kernel=(3,3), dilate=(2,2), pad=(0,0), use_global_stats=is_test, fix_gamma=fix_gamma) # 48, 192 
-    crop1_2 = mx.sym.Crop(conv1_2, conv1_3, center_crop=True)
-    concat1 = mx.sym.concat(crop1_2, conv1_3)
+            kernel=(3,3), dilate=(2,2), pad=(2,2), use_global_stats=is_test, fix_gamma=fix_gamma) # 48, 192 
+    # crop1_2 = mx.sym.Crop(conv1_2, conv1_3, center_crop=True)
+    concat1 = mx.sym.concat(conv1_2, conv1_3)
 
-    nf_3x3 = [40, 48, 56, 64] # 24 48 96 192 384
-    nf_1x1 = [40*3, 48*3, 56*3, 64*3]
+    nf_3x3 = [32, 40, 48, 32] # 24 48 96 192 384
+    nf_1x1 = [32*3, 40*3, 48*3, 32*3]
     dilates = [((1,1), (1,1), (2,2))] * 4
     n_incep = [2, 2, 2, 2]
 
-    pool_i = pool(concat1, kernel=(2,2))
+    group_i = pool(concat1, kernel=(2,2))
     groups = []
     n_curr_ch = 96
     for i in range(4):
         for j in range(n_incep[i]):
-            group_i, n_curr_ch = inception_group(pool_i, 'group{}/unit{}'.format(i+2, j+1), n_curr_ch, 
+            group_i, n_curr_ch = inception_group(group_i, 'group{}/unit{}'.format(i+2, j+1), n_curr_ch, 
                     num_filter_3x3=nf_3x3[i], num_filter_1x1=nf_1x1[i], dilates=dilates[i], 
                     use_global_stats=is_test, fix_gamma=fix_gamma) 
-        pool_i = pool(group_i, kernel=(2,2), name='pool{}'.format(i+2)) # 96 48 24 12 6
-        groups.append(pool_i)
-    return groups
+        group_i = pool(group_i, kernel=(2,2), name='pool{}'.format(i+2)) # 96 48 24 12 6
+        groups.append(group_i)
+
+    # for context feature
+    n_curr_ch = nf_1x1[-2]
+    nf_3x3_ctx = 32
+    nf_1x1_ctx = 32*3
+    group_c = groups[-2]
+    for i in range(2):
+        group_c, n_curr_ch = inception_group(group_c, 'group_ctx/unit{}'.format(i+1), n_curr_ch, 
+                num_filter_3x3=nf_3x3_ctx, num_filter_1x1=nf_1x1_ctx, dilates=dilates[-1], 
+                use_global_stats=is_test, fix_gamma=fix_gamma)
+    group_c = pool(group_c, kernel=(2,2), name='pool_ctx')
+
+    # upsample feature for small face (12px)
+    conv0 = bn_relu_conv(groups[0], num_filter=32, prefix_name='group0/', 
+            kernel=(1,1), use_global_stats=is_test, fix_gamma=False)
+    bn0 = bn_relu(conv0, name='group0/bnu', use_global_stats=is_test, fix_gamma=True)
+    convu = mx.sym.Convolution(bn0, name='group0/convu', num_filter=128, kernel=(3,3), pad=(1,1), no_bias=True)
+    convu = subpixel_upsample(convu, 32, 2, 2)
+
+    groups = [convu] + groups
+    return groups, group_c

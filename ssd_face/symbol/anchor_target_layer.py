@@ -7,13 +7,12 @@ class AnchorTarget(mx.operator.CustomOp):
     Get a prediction data (nchw), anchor parameters and label (class and bb), 
     and output a small subset of prediction data (nd) and its labels (class and regression target).
     '''
-    def __init__(self, n_sample, th_iou, anchor_per_cell, ignore_label=-1, variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, n_sample, th_iou, ignore_label=-1, variances=(0.1, 0.1, 0.2, 0.2)):
         super(AnchorTarget, self).__init__()
-        self.n_sample = int(n_sample)
-        self.th_iou = float(th_iou)
-        self.anchor_per_cell = anchor_per_cell
-        self.ignore_label = int(ignore_label)
-        self.variances = variances.asnumpy().astype(np.float32)
+        self.n_sample = n_sample
+        self.th_iou = th_iou
+        self.ignore_label = ignore_label
+        self.variances = variances
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''
@@ -35,7 +34,7 @@ class AnchorTarget(mx.operator.CustomOp):
         anchors = np.transpose(anchors, (1, 0)) # (5 n_anchor)
         labels = in_data[2].asnumpy()
 
-        target_conv = mx.nd.array((n_batch * self.n_sample, nch), ctx=in_data[0].context)
+        target_conv = mx.nd.zeros((n_batch * self.n_sample, nch), ctx=in_data[0].context)
         target_labels = np.zeros((n_batch * self.n_sample, 5))
         target_locs = np.zeros((n_batch, self.n_sample))
 
@@ -50,7 +49,7 @@ class AnchorTarget(mx.operator.CustomOp):
             iou = ious[sidx]
             # copy target data
             preds = pred_conv[i] # (n_anchor c)
-            for j in self.n_sample:
+            for j in range(self.n_sample):
                 # conv data
                 target_conv[k] = preds[sidx[j]]
                 # label
@@ -59,29 +58,30 @@ class AnchorTarget(mx.operator.CustomOp):
                 else:
                     target_labels[k, :] = _compute_target(l, anchors[1:, sidx[j]], self.variances)
                 k += 1
-            target_locs[i, :] = mx.nd.array(sidx)
-        
+            target_locs[i, :] = sidx
+
         # save results
-        aux[0] = mx.nd.array(target_locs)
+        self.assign(aux[0], 'write', mx.nd.array(target_locs))
 
         self.assign(out_data[0], req[0], target_conv)
-        self.assign(out_data[1], req[1], mx.nd.array(target_labels[:, 0], ctx.in_data[0].context))
-        self.assign(out_data[2], req[2], mx.nd.array(target_labels[:, 1:], ctx.in_data[0].context))
-        self.assign(out_data[3], req[3], mx.nd.array(target_labels[:, 0:1] != -1, ctx.in_data[0].context))
+        self.assign(out_data[1], req[1], mx.nd.array(target_labels[:, 0], ctx=in_data[0].context))
+        self.assign(out_data[2], req[2], mx.nd.array(target_labels[:, 1:], ctx=in_data[0].context))
+        self.assign(out_data[3], req[3], mx.nd.array(target_labels[:, 0:1] > 0, ctx=in_data[0].context))
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         # pass the gradient to their corresponding positions
-        grad_all = mx.nd.zeros(out_data.shape) # (n n_anchor nch)
+        grad_all = mx.nd.zeros(in_data[0].shape) # (n n_anchor nch)
+        n_batch = grad_all.shape[0]
+        target_locs = aux[0].asnumpy().astype(int)
 
-        target_locs = aux[0].asnumpy()
         k = 0
-        for i in n_batch:
+        for i in range(n_batch):
             gradf = grad_all[i] # (n_anchor nch)
             loc = target_locs[i, :]
-            for j in loc.size:
-                gradf[loc[j]] = in_grad[k]
+            for l in loc:
+                gradf[l] = out_grad[0][k]
                 k += 1
-        self.assign(out_grad[0], req[0], grad_all)
+        self.assign(in_grad[0], req[0], grad_all)
 
 def _compute_IOU(label, anchors):
     # label: (5, )
@@ -111,8 +111,9 @@ def _compute_target(label, anchor, variances):
 @mx.operator.register("anchor_target")
 class AnchorTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_sample=3, th_iou=0.5, ignore_label=-1, variances=(0.1, 0.1, 0.2, 0.2)):
+        super(AnchorTargetProp, self).__init__(need_top_grad=True)
         self.n_sample = int(n_sample)
-        self.th_ious = float(th_iou)
+        self.th_iou = float(th_iou)
         self.ignore_label = int(ignore_label)
         self.variances = np.array(variances).astype(float)
 
@@ -123,11 +124,11 @@ class AnchorTargetProp(mx.operator.CustomOpProp):
         return ['pred_target', 'target_cls', 'target_reg', 'mask_reg']
 
     def list_auxiliary_states(self):
-        return ['target_loc', ]
+        return ['target_loc_weight', ]
 
     def infer_shape(self, in_shape):
         n_batch = in_shape[0][0]
-        nch = in_shape[0][1]
+        nch = in_shape[0][2]
         pred_target_shape = (n_batch*self.n_sample, nch)
         target_cls_shape = (n_batch*self.n_sample, )
         target_reg_shape = (n_batch*self.n_sample, 4)
@@ -135,7 +136,7 @@ class AnchorTargetProp(mx.operator.CustomOpProp):
         target_loc_shape = (n_batch, self.n_sample)
 
         return [in_shape[0], in_shape[1], in_shape[2]], \
-                [pred_target_shape, target_cls_shape, target_reg_shape], \
+                [pred_target_shape, target_cls_shape, target_reg_shape, mask_reg_shape], \
                 [target_loc_shape, ]
 
     def create_operator(self, ctx, shapes, dtypes):

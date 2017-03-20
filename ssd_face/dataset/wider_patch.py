@@ -39,7 +39,7 @@ class WiderPatch(Imdb):
         if random crop is enabled, defines the maximum trial time
         if trial exceed this number, will give up cropping
     """
-    IDX_VER = '170303_3' # for caching
+    IDX_VER = '170320_1' # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=True, is_train=True, patch_shape=192, **kwargs):
         super(WiderPatch, self).__init__('widerpatch_' + image_set) # e.g. wider_trainval
@@ -49,15 +49,16 @@ class WiderPatch(Imdb):
         self.extension = '.jpg'
         assert is_train == True, 'Only for training!'
 
-        self.classes = ['face',]
+        self.classes = ['__background__', 'face',]
 
         self.config = { \
                 'patch_shape': 192, 
-                'min_roi_size': 12
+                'min_roi_size': 12, 
                 'max_roi_size': 192,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
-                'max_patch_per_image': 128
+                'max_patch_per_image': 16, 
+                'use_difficult': True
                 }
         for k, v in kwargs.iteritems():
             assert k in self.config, 'Unknown parameter %s.' % k
@@ -70,7 +71,7 @@ class WiderPatch(Imdb):
         self.max_crop_trial = self.config['max_crop_trial']
         self.max_patch_per_image = self.config['max_patch_per_image']
 
-        self.num_classes = len(self.classes)
+        self.num_classes = len(self.classes) 
         self.max_objects = 0
 
         # try to load cached data
@@ -78,12 +79,12 @@ class WiderPatch(Imdb):
         if cached is None: # no cached data, load from DB (and save)
             fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
             self.image_set_index = self._load_image_set_index(shuffle)
-            self.num_images = len(self.image_set_index)
+            self.num_orig_images = len(self.image_set_index)
             self.labels, self.img_shapes = self._load_image_labels()
             self._save_to_cache()
         else:
             self.image_set_index = cached['image_set_index']
-            self.num_images = len(self.image_set_index)
+            self.num_orig_images = len(self.image_set_index)
             if 'labels' in cached and 'img_shapes' in cached:
                 self.labels = cached['labels']
                 self.img_shapes = cached['img_shapes']
@@ -94,8 +95,7 @@ class WiderPatch(Imdb):
         self.patch_im_path = None
         self.patch_im_scale = None
         self.patch_labels = None
-
-        _build_patch_db()
+        self._build_patch_db()
 
     @property
     def cache_path(self):
@@ -110,6 +110,9 @@ class WiderPatch(Imdb):
         if not os.path.exists(cache_path):
             os.mkdir(cache_path)
         return cache_path
+
+    def reset_patch(self):
+        self._build_patch_db()
 
     def _load_from_cache(self):
         fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
@@ -162,7 +165,7 @@ class WiderPatch(Imdb):
 
     # we will index image path and label using other functions, 
     # the original functions will be used to refer patch based info.
-    def full_image_path_fromm_index(self, index):
+    def full_image_path_from_index(self, index):
         """
         given image index, find out full path
 
@@ -190,7 +193,11 @@ class WiderPatch(Imdb):
         containng the patche
         '''
         assert self.patch_im_path is not None, "Dataset not initialized"
-        name = self.patch_im_path[index]
+        try:
+            name = self.patch_im_path[index]
+        except e:
+            import ipdb
+            ipdb.set_trace()
         image_file = os.path.join(self.data_path, 'img', name + self.extension)
         assert os.path.exists(image_file), 'Path does not exist: {}'.format(image_file)
         return image_file
@@ -212,7 +219,7 @@ class WiderPatch(Imdb):
         ground-truths of this image
         """
         assert self.patch_labels is not None, "Patchwise labels not processed"
-        return self.patch_labels[index]
+        return self.patch_labels[index, :].tolist()
 
     def _label_path_from_index(self, index):
         """
@@ -257,7 +264,7 @@ class WiderPatch(Imdb):
                 continue
             ww_img = 0
             hh_img = 0
-            small_mask = np.minimum(bbs[:, 2], bbs[:, 3]) < self.config['th_small']
+            small_mask = np.minimum(bbs[:, 2], bbs[:, 3]) < self.config['min_roi_size']
             # remove bbs that are 1) invalid or 2) too small and occluded.
             with open(prop_file, 'r') as fh:
                 prop_data = fh.read().splitlines()
@@ -311,20 +318,20 @@ class WiderPatch(Imdb):
 
     def _build_patch_db(self):
         im_paths = []
-        im_scales = []
-        patch_labels = []
-        for i in range(self.num_images):
+        patch_labels = np.empty((0, 10))
+        for i in range(self.num_orig_images):
             im_path, patch_label = self._sample_patches(i)
             if im_path is None:
                 continue
-            n_patch = patch_labels.shape[0]
+            n_patch = patch_label.shape[0]
             im_paths += [im_path] * n_patch
-            patch_labels += patch_label.tolist()
-        
+            patch_labels = np.vstack((patch_labels, patch_label))
+            if i % 500 == 1:
+                print('processing image {}'.format(i))
+
         self.patch_im_path = im_paths
         self.patch_labels = patch_labels
-
-        # 
+        self.num_images = self.patch_labels.shape[0]
 
     def _sample_patches(self, index):
         """ 
@@ -332,22 +339,19 @@ class WiderPatch(Imdb):
 
         Returns:
         -------
-        im_path: full path of the image
+        im_path: relative path of the image, w/o extension
         scaler: random scale factor applied to this image
         labels: n * (pos/neg label, 
                      xmin_patch, ymin, xmax, ymax, 
                      xmin_target_roi, ymin, xmax, ymax)
         """
-        im_path = self.full_image_path_from_index(index)
-        # with open(im_path, 'rb') as fp:
-        #     img_content = fp.read()
-        # img = mx.img.imdecode(img_content)
+        im_path = self.image_set_index[index]
         ww_img, hh_img = self.img_shape_from_index(index)
         gt_label = self.full_label_from_index(index).copy()
 
         # skip invalid image
         if gt_label.size == 0:
-            return None, None, None
+            return None, None
 
         # apply random scaling
         if self.range_rand_scale is not None:
@@ -359,6 +363,8 @@ class WiderPatch(Imdb):
             # img = mx.img.imresize(img, new_ww, new_hh)
             gt_label[:, 1:3] = (gt_label[:, 1:3] + 0.5) * scaler - 0.5
             gt_label[:, 3:] *= scaler
+        else:
+            scaler = 1
 
         # remove too big or too small bbs
         vidx = np.min(gt_label[:, 3:], axis=1) >= self.min_roi_size
@@ -366,7 +372,7 @@ class WiderPatch(Imdb):
         vidx = np.where(vidx)[0]
         gt_label = gt_label[vidx, :]
         if gt_label.size == 0:
-            return None, None, None
+            return None, None
         # random sample gt bbs if there are too many
         np.random.shuffle(gt_label)
         if gt_label.shape[0] > self.max_patch_per_image:
@@ -375,33 +381,32 @@ class WiderPatch(Imdb):
         # sample patch roi for each gt bb
         cx = gt_label[:, 1:2] + (gt_label[:, 3:4] - 1.0) / 2.0
         cy = gt_label[:, 2:3] + (gt_label[:, 4:] - 1.0) / 2.0
-        sz_patch2 = (self.patch_shape[0] / 2.0, self.patch_shape[1] / 2.0)
-        xmin = np.round(cx - sz_patch2[0])
-        ymin = np.round(cy - sz_patch2[0])
-        pos_patch_rois = np.hstack((xmin, ymin, xmin+self.patch_shape[0], ymin+self.patch_shape[1]))
+        sz_patch2 = (self.patch_shape / 2.0, self.patch_shape / 2.0)
+        xmin = cx - sz_patch2[0]
+        ymin = cy - sz_patch2[0]
+        pos_patch_rois = np.hstack((xmin, ymin, xmin+self.patch_shape, ymin+self.patch_shape))
 
         # relative gt bb positions w.r.t. patch roi
         pos_rois = np.hstack(( \
-                gt_labels[:, 1:2] - pos_patch_rois[:, 0:1], 
-                gt_labels[:, 2:3] - pos_patch_rois[:, 1:2],
-                gt_labels[:, 1:2] + gt_labels[:, 3:4] - pos_patch_rois[:, 0:1], 
-                gt_labels[:, 2:3] + gt_labels[:, 4:] - pos_patch_rois[:, 1:2]))
+                gt_label[:, 1:2] - pos_patch_rois[:, 0:1], 
+                gt_label[:, 2:3] - pos_patch_rois[:, 1:2],
+                gt_label[:, 1:2] + gt_label[:, 3:4] - pos_patch_rois[:, 0:1], 
+                gt_label[:, 2:3] + gt_label[:, 4:] - pos_patch_rois[:, 1:2]))
 
         pos_labels = np.zeros((pos_rois.shape[0], 9))
         pos_labels[:, 0] = 1
-        pos_labels[:, 1:5] = pos_patch_rois
-        pos_labels[:, 5:] = pos_rois
+        pos_labels[:, 1:5] = pos_rois
+        pos_labels[:, 5:] = pos_patch_rois
 
         # draw negative samples
         # 1. randomly sample patches
         n_neg_patch_rois = pos_rois.shape[0] * 6
         neg_patch_rois = np.zeros((n_neg_patch_rois, 4))
         # for now we use the format (xmin, ymin, width, height)
-        neg_patch_rois[:, 0:2] = np.random.uniform(low=0.0, high=0.0, size=(n_neg_patch_rois, 2))
-        neg_patch_rois[:, 0] = np.round(neg_patch_rois[:, 0] * ww_img)
-        neg_patch_rois[:, 1] = np.round(neg_patch_rois[:, 1] * hh_img)
-        neg_patch_rois[:, 2] = self.patch_shape[0]
-        neg_patch_rois[:, 3] = self.patch_shape[1]
+        neg_patch_rois[:, 0:2] = np.random.uniform(low=0.0, high=1.0, size=(n_neg_patch_rois, 2))
+        neg_patch_rois[:, 0] = neg_patch_rois[:, 0] * ww_img
+        neg_patch_rois[:, 1] = neg_patch_rois[:, 1] * hh_img
+        neg_patch_rois[:, 2:4] = self.patch_shape
         
         # OOB check
         img_roi = np.array([0, 0, ww_img, hh_img])
@@ -411,13 +416,15 @@ class WiderPatch(Imdb):
 
         # 2. remove patches contining positive rois
         overlaps = _compute_overlap(neg_patch_rois, gt_label[:, 1:])
-        is_good = np.zeros(neg_patch_rois.shape[0])
+        is_good = np.ones(neg_patch_rois.shape[0])
         for i, (nroi, overlap) in enumerate(zip(neg_patch_rois, overlaps)):
-            oidx = np.where(overlap == 1)[0]
+            oidx = np.where(overlap > 0.75)[0]
+            if oidx.size == 0:
+                continue
             gt_cand = gt_label[oidx, 1:]
             iou_gt = _compute_IOU(_build_centered_rois(nroi, gt_cand), gt_cand)
-            if np.max(iou_gt) < 0.35:
-                is_good[i] = 1
+            if np.max(iou_gt) > 0.35:
+                is_good[i] = 0
         iidx = np.where(is_good == 1)[0]
         neg_patch_rois = neg_patch_rois[iidx, :]
 
@@ -426,7 +433,7 @@ class WiderPatch(Imdb):
         neg_patch_rois[:, 3] += neg_patch_rois[:, 1]
 
         # 3. randomly map a target
-        tsize = np.random.uniform(low=self.min_roi_size, high.self.max_roi_size, 
+        tsize = np.random.uniform(low=self.min_roi_size, high=self.max_roi_size, 
                 size=(neg_patch_rois.shape[0], 1))
         tratio = np.random.uniform(low=0.75, high=1.0, size=(neg_patch_rois.shape[0], 1))
         ww_neg = tsize
@@ -436,23 +443,30 @@ class WiderPatch(Imdb):
         cx_neg = (neg_patch_rois[:, 0:1] + neg_patch_rois[:, 2:3] - 1.0) / 2.0
         cy_neg = (neg_patch_rois[:, 1:2] + neg_patch_rois[:, 3:4] - 1.0) / 2.0
         # [xmin, ymin, width, height]
-        neg_rois = np.vstack(
-                (np.round(cx_neg - ww_neg/2.0), np.round(cy_neg - hh_neg/2.0), ww_neg, hh_neg))
-        neg_rois[swap_mask, 3] = ww_neg[swap_mask, :]
-        neg_rois[swap_mask, 2] = hh_neg[swap_mask, :]
+        neg_rois = np.hstack(
+                (cx_neg - ww_neg/2.0, cy_neg - hh_neg/2.0, ww_neg, hh_neg))
+        neg_rois[swap_mask, 3:4] = ww_neg[swap_mask, :]
+        neg_rois[swap_mask, 2:3] = hh_neg[swap_mask, :]
         # [xmin, ymin, xmax, ymax]
         neg_rois[:, 2] += neg_rois[:, 0]
         neg_rois[:, 3] += neg_rois[:, 1]
 
+        # relative gt bb positions w.r.t. patch roi
+        neg_rois[:, 0::2] -= neg_patch_rois[:, 0:1]
+        neg_rois[:, 1::2] -= neg_patch_rois[:, 1:2]
+
         neg_labels = np.zeros((neg_rois.shape[0], 9))
-        neg_labels[1:5] = neg_patch_rois
-        neg_labels[5:] = neg_rois
+        neg_labels[:, 1:5] = neg_rois
+        neg_labels[:, 5:] = neg_patch_rois
 
         if neg_labels.shape[0] > 3 * pos_labels.shape[0]:
             neg_labels = neg_labels[:pos_labels.shape[0]*3, :]
-        rois = np.random.shuffle(np.vstack((pos_labels, neg_labels)))
+
+        rois = np.random.permutation(np.vstack((pos_labels, neg_labels)))
+        rois = np.round(rois)
+        rois[:, 1:5] /= self.patch_shape
         scaler = np.tile(np.reshape(np.array(scaler), (1,1)), (rois.shape[0], 1))
-        rois = np.hstack(scaler, rois)
+        rois = np.hstack((scaler, rois))
         return im_path, rois
 
 def _build_centered_rois(lhs, rhs):
@@ -514,5 +528,5 @@ if __name__ == '__main__':
     shuffle=True
     is_train = True
 
-    Wider(devkit_path=devkit_path, image_set=image_set, shuffle=shuffle, is_train=is_train)
+    WiderPatch(devkit_path=devkit_path, image_set=image_set, shuffle=shuffle, is_train=is_train)
 
