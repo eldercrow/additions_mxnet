@@ -394,17 +394,19 @@ class WiderPatch(Imdb):
         # random sample gt bbs if there are too many
         np.random.shuffle(gt_label)
         if gt_label.shape[0] > self.max_patch_per_image:
-            gt_label = gt_label[:self.max_patch_per_image, :]
+            gt_label_pos = gt_label[:self.max_patch_per_image, :]
+        else:
+            gt_label_pos = gt_label
 
         # sample patch roi for each gt bb
-        pos_patch_rois = _draw_random_trans_patches(gt_label[:, 1:], 0.65, 1.0, self.patch_shape)
+        pos_patch_rois = _draw_random_trans_patches(gt_label_pos[:, 1:], 0.65, 1.0, self.patch_shape)
 
         # relative gt bb positions w.r.t. patch roi
         pos_rois = np.hstack(( \
-                gt_label[:, 1:2] - pos_patch_rois[:, 0:1], 
-                gt_label[:, 2:3] - pos_patch_rois[:, 1:2],
-                gt_label[:, 3:4],
-                gt_label[:, 4:]))
+                gt_label_pos[:, 1:2] - pos_patch_rois[:, 0:1], 
+                gt_label_pos[:, 2:3] - pos_patch_rois[:, 1:2],
+                gt_label_pos[:, 3:4],
+                gt_label_pos[:, 4:]))
 
         pos_labels = np.zeros((pos_rois.shape[0], 9))
         pos_labels[:, 0] = 1
@@ -447,14 +449,14 @@ class WiderPatch(Imdb):
         hard_neg_patch_rois = np.empty((0, 4))
         iidx_gt = []
         for i in range(2):
-            nrois = _draw_random_trans_patches(gt_label[:, 1:], -0.25, 0.35, self.patch_shape)
+            nrois = _draw_random_trans_patches(gt_label_pos[:, 1:], -0.25, 0.35, self.patch_shape)
             nrois, iidx = self._check_negative_patches(nrois, ww_img, hh_img, gt_label)
             hard_neg_patch_rois = np.vstack((hard_neg_patch_rois, nrois))
             iidx_gt += iidx
 
-        ll = cx_neg - (gt_label[iidx_gt, 3:4] - 1.0) / 2.0
-        uu = cy_neg - (gt_label[iidx_gt, 4:5] - 1.0) / 2.0
-        hard_neg_rois = np.hstack((ll, uu, gt_label[iidx_gt, 3:4], gt_label[iidx_gt, 4:5]))
+        ll = cx_neg - (gt_label_pos[iidx_gt, 3:4] - 1.0) / 2.0
+        uu = cy_neg - (gt_label_pos[iidx_gt, 4:5] - 1.0) / 2.0
+        hard_neg_rois = np.hstack((ll, uu, gt_label_pos[iidx_gt, 3:4], gt_label_pos[iidx_gt, 4:5]))
 
         hard_neg_labels = np.zeros((hard_neg_rois.shape[0], 9))
         hard_neg_labels[:, 1:5] = hard_neg_rois
