@@ -90,7 +90,7 @@ class PatchIter(mx.io.DataIter):
         if self._shuffle:
             np.random.shuffle(self._index)
         self._imdb.reset_patch()
-        self._size = imdb.num_images
+        self._size = self._imdb.num_images
         self._index = np.arange(self._size)
 
     def iter_next(self):

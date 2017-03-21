@@ -73,7 +73,7 @@ def parse_args():
 if __name__ == '__main__':
     os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
-    ctx = [mx.gpu(int(i)) for i in args.gpus.split(',')]
+    ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]
     ctx = [mx.cpu()] if (not ctx or args.use_cpu > 0) else ctx
     train_net(args.network, args.dataset, args.image_set, 
               args.devkit_path, args.batch_size,
