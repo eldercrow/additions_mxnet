@@ -59,7 +59,7 @@ class WiderPatch(Imdb):
                 'max_roi_size': 192,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
-                'max_patch_per_image': 16, 
+                'max_patch_per_image': 32, 
                 'use_difficult': True
                 }
         for k, v in kwargs.iteritems():

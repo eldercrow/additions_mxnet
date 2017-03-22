@@ -26,7 +26,7 @@ python train.py \
     --batch-size 24 \
     --from-scratch 1 \
     --gpu 0 \
-    --prefix hjnet_face \
+    --prefix model/hjnet_face \
     --data-shape 192 \
     --frequent 100 \
     --monitor 0 \
