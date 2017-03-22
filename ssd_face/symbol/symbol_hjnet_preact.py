@@ -9,7 +9,7 @@ def build_hyperfeature(data, ctx_data, name, num_filter_proj, num_filter_hyper, 
     """
     """
     ctx_proj = bn_relu_conv(data=ctx_data, prefix_name=name+'/proj/', 
-            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), stride=(1,1), 
+            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), 
             use_global_stats=use_global_stats, fix_gamma=True)
     ctx_up = mx.symbol.UpSampling(ctx_proj, num_args=1, name=name+'/up', scale=scale, sample_type='nearest')
     concat = mx.symbol.Concat(data, ctx_up)

@@ -9,8 +9,23 @@ def bn_relu(data, name, use_global_stats=False, fix_gamma=True):
     relu_ = mx.sym.Activation(bn_, act_type='relu')
     return relu_
 
+def conv_poolup2(data, name, num_filter, kernel=(3,3), pad=(0,0), no_bias=True, get_syms=False):
+    #
+    pool_ = pool(data, kernel=(2,2), stride=(2,2))
+    n_filter_pooled = num_filter * 4
+    wd_mult = 0.25
+    conv_ = mx.sym.Convolution(pool_, name=name, num_filter=n_filter_pooled, 
+            attr={'__wd_mult__': str(wd_mult)}, 
+            kernel=kernel, pad=pad, no_bias=no_bias)
+    up_ = subpixel_upsample(conv_, num_filter, 2, 2)
+    if get_syms:
+        syms = {'conv': conv_}
+        return up_, syms
+    else:
+        return up_
+
 def bn_relu_conv(data, prefix_name='', postfix_name='', 
-        num_filter=0, kernel=(3,3), dilate=(1,1), stride=(1,1), pad=(0,0), 
+        num_filter=0, kernel=(3,3), pad=(0,0), 
         use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
     #
     assert prefix_name != '' or postfix_name != ''
@@ -20,15 +35,33 @@ def bn_relu_conv(data, prefix_name='', postfix_name='',
     bn_ = mx.sym.BatchNorm(data, use_global_stats=use_global_stats, fix_gamma=fix_gamma, name=bn_name)
     relu_ = mx.sym.Activation(bn_, act_type='relu')
     conv_ = mx.sym.Convolution(relu_, name=conv_name, num_filter=num_filter, 
-            kernel=kernel, dilate=dilate, stride=stride, pad=pad, no_bias=no_bias)
+            kernel=kernel, pad=pad, no_bias=no_bias)
     syms = {'conv': conv_, 'bn': bn_}
     if get_syms:
         return conv_, syms
     else:
         return conv_
 
+def bn_relu_conv_poolup2(data, prefix_name='', postfix_name='', 
+        num_filter=0, kernel=(3,3), pad=(0,0), 
+        use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
+    #
+    assert prefix_name != '' or postfix_name != ''
+    conv_name = prefix_name + 'conv' + postfix_name
+    bn_name = prefix_name + 'bn' + postfix_name
+
+    bn_ = mx.sym.BatchNorm(data, use_global_stats=use_global_stats, fix_gamma=fix_gamma, name=bn_name)
+    relu_ = mx.sym.Activation(bn_, act_type='relu')
+    conv_, syms = conv_poolup2(relu_, name=conv_name, num_filter=num_filter, 
+            kernel=kernel, pad=pad, no_bias=no_bias, get_syms=True)
+    syms['bn'] = bn_
+    if get_syms:
+        return conv_, syms
+    else:
+        return conv_
+
 def bn_crelu_conv(data, prefix_name='', postfix_name='', 
-        num_filter=0, kernel=(3,3), dilate=(1,1), stride=(1,1), pad=(0,0), 
+        num_filter=0, kernel=(3,3), pad=(0,0), 
         use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False): 
     #
     assert prefix_name != '' or postfix_name != ''
@@ -39,9 +72,27 @@ def bn_crelu_conv(data, prefix_name='', postfix_name='',
     concat_ = mx.sym.concat(bn_, -bn_)
     relu_ = mx.sym.Activation(concat_, act_type='relu')
     conv_ = mx.sym.Convolution(relu_, num_filter=num_filter, 
-            kernel=kernel, dilate=dilate, stride=stride, pad=pad, 
-            no_bias=no_bias, name=conv_name)
+            kernel=kernel, pad=pad, no_bias=no_bias, name=conv_name)
     syms = {'conv': conv_, 'bn': bn_}
+    if get_syms:
+        return conv_, syms
+    else:
+        return conv_
+
+def bn_crelu_conv_poolup2(data, prefix_name='', postfix_name='', 
+        num_filter=0, kernel=(3,3), pad=(0,0), 
+        use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
+    #
+    assert prefix_name != '' or postfix_name != ''
+    conv_name = prefix_name + 'conv' + postfix_name
+    bn_name = prefix_name + 'bn' + postfix_name
+
+    bn_ = mx.sym.BatchNorm(data, use_global_stats=use_global_stats, fix_gamma=fix_gamma, name=bn_name)
+    concat_ = mx.sym.concat(bn_, -bn_)
+    relu_ = mx.sym.Activation(concat_, act_type='relu')
+    conv_, syms = conv_poolup2(relu_, name=conv_name, num_filter=num_filter, 
+            kernel=kernel, pad=pad, no_bias=no_bias, get_syms=True)
+    syms['bn'] = bn_
     if get_syms:
         return conv_, syms
     else:
@@ -82,6 +133,12 @@ def clone_bn(data, name, src_layer):
             **attrs)
     return bn
 
+def clone_conv_poolup2(data, name, src_layer):
+    pool_ = pool(data, kernel=(2,2), stride=(2,2), save_syms=False)
+    conv_ = clone_conv(pool_, name=name, src_layer=src_layer)
+    up_ = subpixel_upsample(conv_, num_filter, 2, 2)
+    return up_
+
 def clone_bn_relu_conv(data, prefix_name='', postfix_name='', src_syms=None):
     assert prefix_name != '' or postfix_name != ''
     conv_name = prefix_name + 'conv' + postfix_name
@@ -90,6 +147,17 @@ def clone_bn_relu_conv(data, prefix_name='', postfix_name='', src_syms=None):
     bn = clone_bn(data, name=bn_name, src_layer=src_syms['bn'])
     relu_ = mx.sym.Activation(bn, act_type='relu')
     conv_ = clone_conv(relu_, name=conv_name, src_layer=src_syms['conv'])
+    return conv_
+
+def clone_bn_relu_conv_poolup2(data, prefix_name='', postfix_name='', src_syms=None):
+    #
+    assert prefix_name != '' or postfix_name != ''
+    conv_name = prefix_name + 'conv' + postfix_name
+    bn_name = prefix_name + 'bn' + postfix_name
+
+    bn = clone_bn(data, name=bn_name, src_layer=src_syms['bn'])
+    relu_ = mx.sym.Activation(bn, act_type='relu')
+    conv_ = clone_conv_poolup2(relu_, name=conv_name, src_layer=src_syms['conv'])
     return conv_
 
 '''

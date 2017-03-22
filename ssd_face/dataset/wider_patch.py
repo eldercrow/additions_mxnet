@@ -59,7 +59,7 @@ class WiderPatch(Imdb):
                 'max_roi_size': 192,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
-                'max_patch_per_image': 32, 
+                'max_patch_per_image': 16, 
                 'use_difficult': True
                 }
         for k, v in kwargs.iteritems():
@@ -124,6 +124,8 @@ class WiderPatch(Imdb):
             return
         self.patch_im_path, self.patch_labels = self.data_queue.get()
         self.num_images = len(self.patch_im_path)
+        if p.is_alive():
+            p.terminate()
         p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
         p.start()
 
