@@ -97,6 +97,9 @@ input.txt*
 # ctags
 tags
 
+# image file
+*.jpg
+
 # Scala package
 *.class
 scala-package/*/target/

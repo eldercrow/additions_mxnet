@@ -14,20 +14,20 @@ def inception_group(data, prefix_group_name, n_curr_ch,
     prefix_name = prefix_group_name + '/'
     incep_layers = []
     conv_ = data
-    for ii in range(2):
+    for ii in range(3):
         postfix_name = '3x3/' + str(ii+1)
         conv_, s = bn_relu_conv(conv_, prefix_name, postfix_name, 
                 num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), 
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
         syms['unit{}'.format(ii)] = s
         incep_layers.append(conv_)
-    # poolup2 layer
-    postfix_name = '3x3/3'
-    conv_, s = bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, 
-            num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), 
-            use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
-    syms['unit3'] = s
-    incep_layers.append(conv_)
+    # # poolup2 layer
+    # postfix_name = '3x3/3'
+    # conv_, s = bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, 
+    #         num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), 
+    #         use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
+    # syms['unit3'] = s
+    # incep_layers.append(conv_)
 
     concat_ = mx.sym.concat(*incep_layers)
 
@@ -55,13 +55,13 @@ def clone_inception_group(data, prefix_group_name, src_syms):
     prefix_name = prefix_group_name + '/'
     incep_layers = []
     conv_ = data
-    for ii in range(2):
+    for ii in range(3):
         postfix_name = '3x3/{}'.format(ii+1)
         conv_ = clone_bn_relu_conv(conv_, prefix_name, postfix_name, src_syms['unit{}'.format(ii)])
         incep_layers.append(conv_)
-    postfix_name = '3x3/3'
-    conv_ = clone_bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, src_syms['unit3'])
-    incep_layers.append(conv_)
+    # postfix_name = '3x3/3'
+    # conv_ = clone_bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, src_syms['unit3'])
+    # incep_layers.append(conv_)
 
     concat_ = mx.sym.concat(*incep_layers)
 

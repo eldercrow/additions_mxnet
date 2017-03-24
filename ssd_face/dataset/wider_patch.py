@@ -101,7 +101,7 @@ class WiderPatch(Imdb):
         self.patch_labels = None
         self.patch_im_path, self.patch_labels = self._build_patch_db()
         self.num_images = len(self.patch_im_path)
-        # self._debug_save_patches()
+        self._debug_save_patches()
         # prepare for the next epoch
         self.data_queue = Queue()
         self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
