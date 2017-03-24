@@ -1,11 +1,13 @@
 from __future__ import print_function
 import os
+import mxnet as mx
 import numpy as np
 from imdb import Imdb
 import xml.etree.ElementTree as ET
 # from evaluate.eval_voc import voc_eval
 import cv2
 import cPickle
+from tools.crop_roi_patch import crop_roi_patch
 
 from multiprocessing import Process, Queue
 
@@ -99,10 +101,11 @@ class WiderPatch(Imdb):
         self.patch_labels = None
         self.patch_im_path, self.patch_labels = self._build_patch_db()
         self.num_images = len(self.patch_im_path)
+        # self._debug_save_patches()
         # prepare for the next epoch
         self.data_queue = Queue()
-        p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
-        p.start()
+        self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
+        self.p.start()
 
     @property
     def cache_path(self):
@@ -124,10 +127,10 @@ class WiderPatch(Imdb):
             return
         self.patch_im_path, self.patch_labels = self.data_queue.get()
         self.num_images = len(self.patch_im_path)
-        if p.is_alive():
-            p.terminate()
-        p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
-        p.start()
+        if self.p.is_alive():
+            self.p.terminate()
+        self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
+        self.p.start()
 
     def _load_from_cache(self):
         fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
@@ -401,30 +404,20 @@ class WiderPatch(Imdb):
             gt_label_pos = gt_label
 
         # sample patch roi for each gt bb
-        pos_patch_rois = _draw_random_trans_patches(gt_label_pos[:, 1:], 0.65, 1.0, self.patch_shape)
-
-        # relative gt bb positions w.r.t. patch roi
-        pos_rois = np.hstack(( \
-                gt_label_pos[:, 1:2] - pos_patch_rois[:, 0:1], 
-                gt_label_pos[:, 2:3] - pos_patch_rois[:, 1:2],
-                gt_label_pos[:, 3:4],
-                gt_label_pos[:, 4:]))
-
-        pos_labels = np.zeros((pos_rois.shape[0], 9))
-        pos_labels[:, 0] = 1
-        pos_labels[:, 1:5] = pos_rois
+        pos_patch_rois, _ = _draw_random_trans_patches(gt_label_pos[:, 1:], 0.65, 1.0, self.patch_shape)
+        pos_labels = np.zeros((gt_label_pos.shape[0], 9))
+        pos_labels[:, 0:5] = gt_label_pos
         pos_labels[:, 5:] = pos_patch_rois
 
         # draw negative samples
         # 1. pure random sample patches
-        n_neg_patch_rois = pos_rois.shape[0] * 3
+        n_neg_patch_rois = gt_label_pos.shape[0] * 3
         neg_patch_rois = np.zeros((n_neg_patch_rois, 4))
         # for now we use the format (xmin, ymin, width, height)
         neg_patch_rois[:, 0:2] = np.random.uniform(low=0.0, high=1.0, size=(n_neg_patch_rois, 2))
         neg_patch_rois[:, 0] = neg_patch_rois[:, 0] * ww_img
         neg_patch_rois[:, 1] = neg_patch_rois[:, 1] * hh_img
         neg_patch_rois[:, 2:4] = self.patch_shape
-        neg_patch_rois, _ = self._check_negative_patches(neg_patch_rois, ww_img, hh_img, gt_label)
 
         # for pure random sample patches, randomly map a target
         tsize = np.random.uniform(low=self.min_roi_size, high=self.max_roi_size, 
@@ -434,12 +427,17 @@ class WiderPatch(Imdb):
         hh_neg = tsize*tratio
         swap_mask = np.random.uniform(low=0, high=1, size=(neg_patch_rois.shape[0], 1)) > 0.5
         swap_mask = np.where(swap_mask == True)[0]
-        cx_neg = (self.patch_shape - 1.0) / 2.0
-        cy_neg = cx_neg
-        neg_rois = np.hstack(
-                (cx_neg - ww_neg/2.0, cy_neg - hh_neg/2.0, ww_neg, hh_neg))
+        cx_neg = neg_patch_rois[:, 0:1] + (self.patch_shape - 1.0) / 2.0
+        cy_neg = neg_patch_rois[:, 1:2] + (self.patch_shape - 1.0) / 2.0
+        neg_rois = np.hstack((cx_neg, cy_neg, ww_neg, hh_neg))
         neg_rois[swap_mask, 3:4] = ww_neg[swap_mask, :]
         neg_rois[swap_mask, 2:3] = hh_neg[swap_mask, :]
+        neg_rois[:, 0] -= (neg_rois[:, 2] - 1.0) / 2.0
+        neg_rois[:, 1] -= (neg_rois[:, 3] - 1.0) / 2.0
+
+        # sanity check
+        neg_patch_rois, neg_rois, _ = \
+                self._check_negative_patches(neg_patch_rois, neg_rois, ww_img, hh_img, gt_label[:, 1:])
 
         neg_labels = np.zeros((neg_rois.shape[0], 9))
         neg_labels[:, 1:5] = neg_rois
@@ -449,16 +447,12 @@ class WiderPatch(Imdb):
 
         # 2. semi hard negatives
         hard_neg_patch_rois = np.empty((0, 4))
-        iidx_gt = []
-        for i in range(2):
-            nrois = _draw_random_trans_patches(gt_label_pos[:, 1:], -0.25, 0.35, self.patch_shape)
-            nrois, iidx = self._check_negative_patches(nrois, ww_img, hh_img, gt_label)
-            hard_neg_patch_rois = np.vstack((hard_neg_patch_rois, nrois))
-            iidx_gt += iidx
-
-        ll = cx_neg - (gt_label_pos[iidx_gt, 3:4] - 1.0) / 2.0
-        uu = cy_neg - (gt_label_pos[iidx_gt, 4:5] - 1.0) / 2.0
-        hard_neg_rois = np.hstack((ll, uu, gt_label_pos[iidx_gt, 3:4], gt_label_pos[iidx_gt, 4:5]))
+        hard_neg_rois = np.empty((0, 4))
+        for i in range(3):
+            nprois, nrois = _draw_random_trans_patches(gt_label_pos[:, 1:], -0.25, 0.1, self.patch_shape)
+            nprois, nrois, _ = self._check_negative_patches(nprois, nrois, ww_img, hh_img, gt_label[:, 1:])
+            hard_neg_patch_rois = np.vstack((hard_neg_patch_rois, nprois))
+            hard_neg_rois = np.vstack((hard_neg_rois, nrois))
 
         hard_neg_labels = np.zeros((hard_neg_rois.shape[0], 9))
         hard_neg_labels[:, 1:5] = hard_neg_rois
@@ -467,6 +461,9 @@ class WiderPatch(Imdb):
             hard_neg_labels = hard_neg_labels[:pos_labels.shape[0], :]
 
         rois = np.random.permutation(np.vstack((pos_labels, neg_labels, hard_neg_labels)))
+        # make rois ralative to patch rois
+        rois[:, 1] -= rois[:, 5]
+        rois[:, 2] -= rois[:, 6]
         # convert to [xmin, ymin, xmax, ymax]
         rois[:, 3] += rois[:, 1]
         rois[:, 4] += rois[:, 2]
@@ -478,28 +475,72 @@ class WiderPatch(Imdb):
         rois = np.hstack((scaler, rois))
         return im_path, rois
 
-    def _check_negative_patches(self, neg_patch_rois, ww_img, hh_img, gt_label):
+    def _check_negative_patches(self, neg_patch_rois, neg_rois, ww_img, hh_img, gt_label):
         # OOB check
         img_roi = np.array([0, 0, ww_img, hh_img])
         overlap_img = _compute_overlap(np.reshape(img_roi, (1, 4)), neg_patch_rois).ravel()
         iidx1 = np.where(overlap_img > 0.5)[0]
         neg_patch_rois = neg_patch_rois[iidx1, :]
+        neg_rois = neg_rois[iidx1, :]
 
-        # 2. remove patches containing positive rois
-        overlaps = _compute_overlap(neg_patch_rois, gt_label[:, 1:])
-        is_good = np.ones(neg_patch_rois.shape[0])
-        for i, (nroi, overlap) in enumerate(zip(neg_patch_rois, overlaps)):
-            oidx = np.where(overlap > 0.75)[0]
-            if oidx.size == 0:
-                continue
-            gt_cand = gt_label[oidx, 1:]
-            iou_gt = _compute_IOU(_build_centered_rois(nroi, gt_cand), gt_cand)
-            if np.max(iou_gt) > 0.35:
-                is_good[i] = 0
-        iidx2 = np.where(is_good == 1)[0]
+        # iou check
+        iou_all = _compute_IOU(neg_rois, gt_label)
+        max_iou = np.max(iou_all, axis=1)
+        iidx2 = np.where(max_iou < 0.15)[0]
         neg_patch_rois = neg_patch_rois[iidx2, :]
+        neg_rois = neg_rois[iidx2, :]
 
-        return neg_patch_rois, iidx1[iidx2].tolist()
+        return neg_patch_rois, neg_rois, iidx1[iidx2].tolist()
+        #
+        # # 2. remove patches containing positive rois
+        # overlaps = _compute_overlap(neg_patch_rois, gt_label[:, 1:])
+        # is_good = np.ones(neg_patch_rois.shape[0])
+        # for i, (nroi, overlap) in enumerate(zip(neg_patch_rois, overlaps)):
+        #     oidx = np.where(overlap > 0.75)[0]
+        #     if oidx.size == 0:
+        #         continue
+        #     gt_cand = gt_label[oidx, 1:]
+        #     iou_gt = _compute_IOU_eltwise(_build_centered_rois(nroi, gt_cand), gt_cand)
+        #     if np.max(iou_gt) > 0.35:
+        #         is_good[i] = 0
+        # iidx2 = np.where(is_good == 1)[0]
+        # neg_patch_rois = neg_patch_rois[iidx2, :]
+        #
+        # return neg_patch_rois, iidx1[iidx2].tolist()
+
+    def _debug_save_patches(self):
+        import sys, os
+        import cv2
+        path_debug = '/home/hyunjoon/github/additions_mxnet/ssd_face/debug_patch/'
+        path_pos = path_debug + 'pos'
+        path_neg = path_debug + 'neg'
+        if not os.path.exists(path_pos):
+            os.mkdir(path_pos)
+        if not os.path.exists(path_neg):
+            os.mkdir(path_neg)
+
+        curr_im_path = ''
+        for i in range(self.patch_labels.shape[0]):
+            im_path = self.image_path_from_index(i)
+            if im_path != curr_im_path:
+                with open(im_path, 'rb') as fh:
+                    img_content = fh.read()
+                img = mx.img.imdecode(img_content).asnumpy()
+                curr_im_path = im_path
+            label = self.label_from_index(i)
+            patch = crop_roi_patch(img, np.array(label[6:]).astype(int)).asnumpy()
+            patch = patch[:, :, ::-1]
+            roi = np.maximum(0, np.minimum(192, np.round(np.array(label[2:6]) * 192.0).astype(int)))
+            patch_draw = patch.copy()
+            cv2.rectangle(patch_draw, (roi[0], roi[1]), (roi[2], roi[3]), color=(0, 0, 255))
+
+            if label[1] == 1:
+                fn = os.path.join(path_pos, '{}.jpg'.format(i))
+            else:
+                fn = os.path.join(path_neg, '{}.jpg'.format(i))
+            cv2.imwrite(fn, patch_draw)
+        import ipdb
+        ipdb.set_trace()
 
 def _draw_random_trans_patches(roi, min_iou, max_iou, patch_shape):
     min_trans_range = (1.0 - max_iou) / (2.0 * (1.0 + max_iou))
@@ -517,12 +558,15 @@ def _draw_random_trans_patches(roi, min_iou, max_iou, patch_shape):
     ll = cx + x - (patch_shape - 1.0) / 2.0
     uu = cy + y - (patch_shape - 1.0) / 2.0
 
-    rois = np.zeros((n_sample, 4))
-    rois[:, 0:1] = ll
-    rois[:, 1:2] = uu
-    rois[:, 2:] = patch_shape
+    patch_rois = np.zeros((n_sample, 4))
+    patch_rois[:, 0:1] = ll
+    patch_rois[:, 1:2] = uu
+    patch_rois[:, 2:] = patch_shape
 
-    return rois
+    sample_rois = roi.copy()
+    sample_rois[:, 0:1] = roi[:, 0:1] + x
+    sample_rois[:, 1:2] = roi[:, 1:2] + y
+    return patch_rois, sample_rois
 
 def _build_centered_rois(lhs, rhs):
     cx = lhs[0] + (lhs[2]-1.0) / 2.0
@@ -534,7 +578,7 @@ def _build_centered_rois(lhs, rhs):
     rois = np.hstack((np.round(cx-ww2), np.round(cy-hh2), rhs[:, 2:3], rhs[:, 3:4]))
     return rois
 
-def _compute_IOU(lhs, rhs):
+def _compute_IOU_eltwise(lhs, rhs):
     iou_x = _compute_IOU_1d_eltwise(lhs[:, 0], lhs[:, 0]+lhs[:, 2], rhs[:, 0], rhs[:, 0]+rhs[:, 2])
     iou_y = _compute_IOU_1d_eltwise(lhs[:, 1], lhs[:, 1]+lhs[:, 3], rhs[:, 1], rhs[:, 1]+rhs[:, 3])
     return iou_x * iou_y
@@ -548,7 +592,28 @@ def _compute_IOU_1d_eltwise(p0, p1, q0, q1):
     max_ = np.minimum(p1, q1)
     i_ = np.maximum(0, max_ - min_)
     u_ =  (p1 - p0) * (q1 - q0) - i_
-    return i_ / u_
+    return i_ / np.maximum(u_, 0.000001)
+
+def _compute_IOU(lhs, rhs):
+    iou_x = _compute_IOU_1d(lhs[:, 0], lhs[:, 0]+lhs[:, 2], rhs[:, 0], rhs[:, 0]+rhs[:, 2])
+    iou_y = _compute_IOU_1d(lhs[:, 1], lhs[:, 1]+lhs[:, 3], rhs[:, 1], rhs[:, 1]+rhs[:, 3])
+    return iou_x * iou_y
+
+def _compute_IOU_1d(p0, p1, q0, q1):
+    ''' p0, p1, q0, q1: size of (n_rows, ) '''
+    nr_p = p0.size
+    nr_q = q1.size
+    min_ = np.maximum( \
+            np.tile(np.reshape(p0, (-1, 1)), (1, nr_q)), \
+            np.tile(np.reshape(q0, (1, -1)), (nr_p, 1)) )
+    max_ = np.minimum( \
+            np.tile(np.reshape(p1, (-1, 1)), (1, nr_q)), \
+            np.tile(np.reshape(q1, (1, -1)), (nr_p, 1)) )
+    i_ = np.maximum(max_ - min_, 0.0)
+
+    u_ = np.tile(np.reshape(p1-p0, (-1, 1)), (1, nr_q)) + \
+            np.tile(np.reshape(q1-q0, (1, -1)), (nr_p, 1)) 
+    return i_ / np.maximum(0.000001, u_ - i_)
 
 def _compute_overlap(lhs, rhs):
     ''' 

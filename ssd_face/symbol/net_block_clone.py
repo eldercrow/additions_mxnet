@@ -136,6 +136,8 @@ def clone_bn(data, name, src_layer):
 def clone_conv_poolup2(data, name, src_layer):
     pool_ = pool(data, kernel=(2,2), stride=(2,2), save_syms=False)
     conv_ = clone_conv(pool_, name=name, src_layer=src_layer)
+    attr = src_layer.list_attr()
+    num_filter = attr['num_filter'] / 4
     up_ = subpixel_upsample(conv_, num_filter, 2, 2)
     return up_
 

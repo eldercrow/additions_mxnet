@@ -151,7 +151,7 @@ class MultiBoxPriorOp : public Operator {
     const int num_sizes = static_cast<int>(sizes_.size());
     const int num_ratios = static_cast<int>(ratios_.size());
     const int num_anchors = num_sizes - 1 + num_ratios;  // anchors per location
-    Shape<2> oshape = Shape2(num_anchors * in_width * in_height, 5);
+    Shape<2> oshape = Shape2(num_anchors * in_width * in_height, 4);
     out = out_data[mboxprior_enum::kOut].get_with_shape<xpu, 2, DType>(oshape, s);
     MultiBoxPriorForward(out, sizes_, ratios_, in_width, in_height);
 
@@ -215,7 +215,7 @@ class MultiBoxPriorProp: public OperatorProperty {
     int num_ratios = param_.ratios.info.size();
     oshape[0] = 1;
     oshape[1] = in_height * in_width * (num_sizes + num_ratios - 1);
-    oshape[2] = 5;
+    oshape[2] = 4;
     out_shape->clear();
     out_shape->push_back(oshape);
     return true;

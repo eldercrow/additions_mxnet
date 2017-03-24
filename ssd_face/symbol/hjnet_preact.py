@@ -35,7 +35,7 @@ def inception_group(data, prefix_group_name, n_curr_ch,
         concat_, s = bn_relu_conv(concat_, prefix_name, '1x1', 
                 num_filter=num_filter_1x1, kernel=(1,1), 
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
-        sums['proj_concat'] = s
+        syms['proj_concat'] = s
     
     if n_curr_ch != num_filter_1x1:
         data, s = bn_relu_conv(data, prefix_name+'proj/', 
@@ -48,7 +48,30 @@ def inception_group(data, prefix_group_name, n_curr_ch,
     else:
         return concat_ + data, num_filter_1x1
 
-def get_hjnet_preact(use_global_stats, fix_gamma=True):
+def clone_inception_group(data, prefix_group_name, src_syms):
+    '''
+    clone an inception group
+    '''
+    prefix_name = prefix_group_name + '/'
+    incep_layers = []
+    conv_ = data
+    for ii in range(2):
+        postfix_name = '3x3/{}'.format(ii+1)
+        conv_ = clone_bn_relu_conv(conv_, prefix_name, postfix_name, src_syms['unit{}'.format(ii)])
+        incep_layers.append(conv_)
+    postfix_name = '3x3/3'
+    conv_ = clone_bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, src_syms['unit3'])
+    incep_layers.append(conv_)
+
+    concat_ = mx.sym.concat(*incep_layers)
+
+    if 'proj_concat' in src_syms:
+        concat_ = clone_bn_relu_conv(concat_, prefix_name, '1x1', src_syms['proj_concat'])
+    if 'proj_data' in src_syms:
+        data = clone_bn_relu_conv(data, prefix_name+'proj/', src_syms['proj_data'])
+    return concat_ + data
+
+def get_hjnet_preact(use_global_stats, fix_gamma=True, n_clones=0):
     """ main shared conv layers """
     data = mx.sym.Variable(name='data')
 
@@ -64,20 +87,24 @@ def get_hjnet_preact(use_global_stats, fix_gamma=True):
     # crop1_2 = mx.sym.Crop(conv1_2, conv1_3, center_crop=True)
     concat1 = mx.sym.concat(conv1_2, conv1_3)
 
-    nf_3x3 = [32, 40, 48, 32] # 24 48 96 192 384
-    nf_1x1 = [32*3, 40*3, 48*3, 32*3]
+    nf_3x3 = [32, 48, 64, 48] # 24 48 96 192 384
+    nf_1x1 = [32*3, 48*3, 64*3, 64*3]
     n_incep = [2, 2, 2, 2]
 
     group_i = pool(concat1, kernel=(2,2))
     groups = []
+    syms_group = []
     n_curr_ch = 96
     for i in range(4):
+        syms_unit = []
         for j in range(n_incep[i]):
             group_i, n_curr_ch, syms = inception_group(group_i, 'g{}/u{}'.format(i+2, j+1), n_curr_ch, 
                     num_filter_3x3=nf_3x3[i], num_filter_1x1=nf_1x1[i],  
                     use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True) 
-        group_i = pool(group_i, kernel=(2,2), name='pool{}'.format(i+2)) # 96 48 24 12 6
+            syms_unit.append(syms)
+        group_i = pool(group_i, kernel=(2,2), name='pool{}'.format(i+2)) # 48 24 12 6
         groups.append(group_i)
+        syms_group.append(syms_unit)
 
     # for context feature
     n_curr_ch = nf_1x1[-2]
@@ -92,11 +119,21 @@ def get_hjnet_preact(use_global_stats, fix_gamma=True):
 
     # upsample feature for small face (12px)
     conv0 = bn_relu_conv(groups[0], prefix_name='group0/', 
-            num_filter=32, kernel=(1,1), 
+            num_filter=48, kernel=(1,1), 
             use_global_stats=use_global_stats, fix_gamma=fix_gamma)
     bn0 = bn_relu(conv0, name='g0/bnu', use_global_stats=use_global_stats, fix_gamma=fix_gamma)
-    convu = mx.sym.Convolution(bn0, name='g0/convu', num_filter=128, kernel=(3,3), pad=(1,1), no_bias=True)
-    convu = subpixel_upsample(convu, 32, 2, 2)
+    convu = mx.sym.Convolution(bn0, name='g0/convu', num_filter=192, kernel=(3,3), pad=(1,1), no_bias=True)
+    convu = subpixel_upsample(convu, 48, 2, 2)
 
-    groups = [convu] + groups
+    # cloned layers
+    group_cloned = groups[-1]
+    syms_unit = syms_group[-1]
+    for i in range(n_clones):
+        for j in range(n_incep[-1]):
+            group_cloned = clone_inception_group(group_cloned, 'g{}/u{}'.format(i+2+len(n_incep), j+1), 
+                    syms_unit[j])
+        group_cloned = pool(group_cloned, kernel=(2,2), name='pool{}'.format(i+2+len(n_incep)))
+        groups.append(group_cloned)
+
+    groups.insert(0, convu)
     return groups, group_c

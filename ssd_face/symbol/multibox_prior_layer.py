@@ -25,7 +25,7 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
         w = in_data[0].shape[3]
         n_anchor = len(self.sizes) * len(self.ratios)
 
-        # computer center positions
+        # compute center positions
         x = np.linspace(0.0, 1.0, w+1)
         y = np.linspace(0.0, 1.0, h+1)
         xv, yv = np.meshgrid(x, y)
@@ -42,15 +42,14 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
                 wh[k, 1] = i * j2
                 k += 1
         # build anchors
-        anchors = np.zeros((n_anchor*5, h, w))
-        anchor_scales = np.zeros((n_anchor*5))
+        anchors = np.zeros((n_anchor*4, h, w))
+        anchor_scales = np.zeros((n_anchor*4))
         for i in range(n_anchor):
-            anchors[5*i  , :, :] = 0
-            anchors[5*i+1, :, :] = xv
-            anchors[5*i+2, :, :] = yv
-            anchors[5*i+3, :, :] = wh[i, 0]
-            anchors[5*i+4, :, :] = wh[i, 1]
-            anchor_scales[(5*i):(5*(i+1))] = np.array((1, 1, 1, 2, 2))
+            anchors[4*i+0, :, :] = xv
+            anchors[4*i+1, :, :] = yv
+            anchors[4*i+2, :, :] = wh[i, 0]
+            anchors[4*i+3, :, :] = wh[i, 1]
+            anchor_scales[(4*i):(4*(i+1))] = np.array((1, 1, 2, 2))
         anchors = np.reshape(anchors, (1, -1, h, w))
         anchor_scales = np.reshape(anchor_scales, (1, -1, 1, 1))
 
@@ -78,7 +77,7 @@ class MultiBoxPriorPythonProp(mx.operator.CustomOpProp):
         w = in_shape[0][3]
         n_anchor = len(self.sizes) * len(self.ratios)
         return [in_shape[0], ], \
-                [[1, n_anchor*5, h, w], [1, n_anchor*5, 1, 1]], \
+                [[1, n_anchor*4, h, w], [1, n_anchor*4, 1, 1]], \
                 []
 
     def create_operator(self, ctx, shapes, dtypes):

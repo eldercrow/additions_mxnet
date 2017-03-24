@@ -29,6 +29,6 @@ python train.py \
     --prefix model/hjnet_face \
     --data-shape 192 \
     --frequent 100 \
-    --monitor 0 \
+    --monitor 500 \
     --lr 0.001 \
-    --wd 0.0001
+    --wd 0.00001

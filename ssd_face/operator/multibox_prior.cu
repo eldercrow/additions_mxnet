@@ -31,8 +31,7 @@ __global__ void AssignPriors(DType *out, const float size,
   float center_y = (r + 0.5) * step_y;
   float w = size * sqrt_ratio / 2;  // half width
   float h = size / sqrt_ratio / 2;  // half height
-  DType *ptr = out + index * stride + 5 * offset;
-  *(ptr++) = r * in_width + c;
+  DType *ptr = out + index * stride + 4 * offset;
   *(ptr++) = center_x - w;  // xmin
   *(ptr++) = center_y - h;  // ymin
   *(ptr++) = center_x + w;  // xmax
@@ -58,7 +57,7 @@ inline void MultiBoxPriorForward(const Tensor<gpu, 2, DType> &out,
   dim3 dimGrid((in_width * in_height - 1) / num_thread + 1);
   cuda::CheckLaunchParam(dimGrid, dimBlock, "MultiBoxPrior Forward");
 
-  const int stride = 5 * (num_sizes + num_ratios - 1);
+  const int stride = 4 * (num_sizes + num_ratios - 1);
   int offset = 0;
   // ratio = 1, various sizes
   for (int i = 0; i < num_sizes; ++i) {

@@ -2,6 +2,7 @@ import mxnet as mx
 import numpy as np
 import cv2
 from tools.rand_sampler import RandSampler
+import matplotlib.pyplot as plt
 
 class PatchIter(mx.io.DataIter):
     """
@@ -193,6 +194,10 @@ class PatchIter(mx.io.DataIter):
             patch_ = np.full((ph, pw, 3), 128, dtype=np.uint8)
             patch_[up_:bp, lp:rp, :] = img[ui:bi, li:ri, :]
             patch = mx.nd.array(patch_)
+        # import ipdb
+        # plt.imshow(patch.asnumpy())
+        # print label
+        # ipdb.set_trace()
         patch = mx.nd.transpose(patch, axes=(2, 0, 1))
         patch = patch.astype('float32')
         patch = patch - self._mean_pixels

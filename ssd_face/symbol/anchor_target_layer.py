@@ -18,7 +18,7 @@ class AnchorTarget(mx.operator.CustomOp):
         '''
         in_data:
             pred_conv (n n_anchor nch)
-            anchor (1 n_anchor 5)
+            anchor (n_anchor 4)
             label(n 5)
         out_data
             target_conv (n*n_sample c)
@@ -30,8 +30,8 @@ class AnchorTarget(mx.operator.CustomOp):
 
         pred_conv = in_data[0]
         anchors = in_data[1].asnumpy()
-        anchors = np.reshape(anchors, (-1, 5))
-        anchors = np.transpose(anchors, (1, 0)) # (5 n_anchor)
+        # anchors = np.reshape(anchors, (-1, 4))
+        anchors = np.transpose(anchors, (1, 0)) # (4 n_anchor)
         labels = in_data[2].asnumpy()
 
         target_conv = mx.nd.zeros((n_batch * self.n_sample, nch), ctx=in_data[0].context)
@@ -42,10 +42,9 @@ class AnchorTarget(mx.operator.CustomOp):
         k = 0
         for i, l in enumerate(labels):
             # compute iou between label and anchors
-            ious = _compute_IOU(l, anchors[1:, :])
+            ious = _compute_IOU(l, anchors)
             sidx = np.argsort(ious)[::-1]
             sidx = sidx[:self.n_sample]
-            pidx = anchors[0, sidx] # just for debug, TODO: remove it later
             iou = ious[sidx]
             # copy target data
             preds = pred_conv[i] # (n_anchor c)
@@ -56,7 +55,7 @@ class AnchorTarget(mx.operator.CustomOp):
                 if iou[j] < self.th_iou:
                     target_labels[k, :] = -1
                 else:
-                    target_labels[k, :] = _compute_target(l, anchors[1:, sidx[j]], self.variances)
+                    target_labels[k, :] = _compute_target(l, anchors[:, sidx[j]], self.variances)
                 k += 1
             target_locs[i, :] = sidx
 
@@ -86,39 +85,39 @@ class AnchorTarget(mx.operator.CustomOp):
 def _compute_IOU(label, anchors):
     # label: (5, )
     # anchors: (4, num_anchors)
-    # anchor = anchors.copy()
-    # anchor[0, :] = anchors[0, :] - anchors[2, :] / 2.0
-    # anchor[1, :] = anchors[1, :] - anchors[3, :] / 2.0
-    # anchor[2, :] = anchors[0, :] + anchors[2, :] / 2.0
-    # anchor[3, :] = anchors[1, :] + anchors[3, :] / 2.0
-    # iw = np.maximum(0, \
-    #         np.minimum(label[3], anchor[2, :]) - np.maximum(label[1], anchor[0, :]))
-    # ih = np.maximum(0, \
-    #         np.minimum(label[4], anchor[3, :]) - np.maximum(label[2], anchor[1, :]))
-    # I = iw * ih
-    # U = (label[4] - label[2]) * (label[3] - label[1]) + \
-    #         (anchor[2, :] - anchor[0, :]) * (anchor[3, :] - anchor[1, :])
+    anchor = anchors.copy()
+    anchor[0, :] = anchors[0, :] - anchors[2, :] / 2.0
+    anchor[1, :] = anchors[1, :] - anchors[3, :] / 2.0
+    anchor[2, :] = anchors[0, :] + anchors[2, :] / 2.0
+    anchor[3, :] = anchors[1, :] + anchors[3, :] / 2.0
     iw = np.maximum(0, \
-            np.minimum(label[3], anchors[2, :]) - np.maximum(label[1], anchors[0, :]))
+            np.minimum(label[3], anchor[2, :]) - np.maximum(label[1], anchor[0, :]))
     ih = np.maximum(0, \
-            np.minimum(label[4], anchors[3, :]) - np.maximum(label[2], anchors[1, :]))
+            np.minimum(label[4], anchor[3, :]) - np.maximum(label[2], anchor[1, :]))
     I = iw * ih
     U = (label[4] - label[2]) * (label[3] - label[1]) + \
-            (anchors[2, :] - anchors[0, :]) * (anchors[3, :] - anchors[1, :])
+            (anchor[2, :] - anchor[0, :]) * (anchor[3, :] - anchor[1, :])
+    # iw = np.maximum(0, \
+    #         np.minimum(label[3], anchors[2, :]) - np.maximum(label[1], anchors[0, :]))
+    # ih = np.maximum(0, \
+    #         np.minimum(label[4], anchors[3, :]) - np.maximum(label[2], anchors[1, :]))
+    # I = iw * ih
+    # U = (label[4] - label[2]) * (label[3] - label[1]) + \
+    #         (anchors[2, :] - anchors[0, :]) * (anchors[3, :] - anchors[1, :])
     
     iou = I / np.maximum((U - I), 0.000001)
 
     return iou # (num_anchors, )
 
 def _compute_target(label, anchor, variances):
-    # tx = (label[3] + label[1]) / 2.0 - anchor[0]
-    # ty = (label[4] + label[2]) / 2.0 - anchor[1]
-    # sx = np.log((label[3] - label[1]) / anchor[2])
-    # sy = np.log((label[4] - label[2]) / anchor[3])
-    tx = (label[3] + label[1]) / 2.0 - (anchor[2] + anchor[0]) / 2.0
-    ty = (label[4] + label[2]) / 2.0 - (anchor[3] + anchor[1]) / 2.0
-    sx = np.log((label[3] - label[1]) / (anchor[2] - anchor[0]))
-    sy = np.log((label[4] - label[2]) / (anchor[3] - anchor[1]))
+    tx = (label[3] + label[1]) / 2.0 - anchor[0]
+    ty = (label[4] + label[2]) / 2.0 - anchor[1]
+    sx = np.log((label[3] - label[1]) / anchor[2])
+    sy = np.log((label[4] - label[2]) / anchor[3])
+    # tx = (label[3] + label[1]) / 2.0 - (anchor[2] + anchor[0]) / 2.0
+    # ty = (label[4] + label[2]) / 2.0 - (anchor[3] + anchor[1]) / 2.0
+    # sx = np.log((label[3] - label[1]) / (anchor[2] - anchor[0]))
+    # sy = np.log((label[4] - label[2]) / (anchor[3] - anchor[1]))
 
     target = np.array((label[0], tx, ty, sx, sy))
     target[1:] /= variances
