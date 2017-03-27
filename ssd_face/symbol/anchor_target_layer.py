@@ -69,7 +69,7 @@ class AnchorTarget(mx.operator.CustomOp):
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         # pass the gradient to their corresponding positions
-        grad_all = mx.nd.zeros(in_data[0].shape) # (n n_anchor nch)
+        grad_all = mx.nd.zeros(in_data[0].shape, ctx=in_data[0].context) # (n n_anchor nch)
         n_batch = grad_all.shape[0]
         target_locs = aux[0].asnumpy().astype(int)
 
@@ -78,8 +78,9 @@ class AnchorTarget(mx.operator.CustomOp):
             gradf = grad_all[i] # (n_anchor nch)
             loc = target_locs[i, :]
             for l in loc:
-                gradf[l] = out_grad[0][k]
+                gradf[l] += out_grad[0][k]
                 k += 1
+        # self.assign(in_grad[0], 'add', grad_all)
         self.assign(in_grad[0], req[0], grad_all)
 
 def _compute_IOU(label, anchors):
@@ -120,6 +121,9 @@ def _compute_target(label, anchor, variances):
     # sy = np.log((label[4] - label[2]) / (anchor[3] - anchor[1]))
 
     target = np.array((label[0], tx, ty, sx, sy))
+    if not np.all(np.isfinite(target)):
+        import ipdb
+        ipdb.set_trace()
     target[1:] /= variances
     return target
 

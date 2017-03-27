@@ -78,7 +78,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
                     src_syms=ref_syms)
         else:
             pred_conv = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
-                    num_filter=num_loc_pred+num_cls_pred, kernel=(3,3), pad=(1,1), no_bias=False, 
+                    num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
                     use_global_stats=use_global_stats, fix_gamma=False) # (n ac h w)
 
         pred_conv = mx.sym.transpose(pred_conv, axes=(0, 2, 3, 1)) # (n h w ac), a=num_anchors
@@ -122,24 +122,26 @@ def get_symbol_train(num_classes, **kwargs):
 
     # 192
     conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
-            num_filter=128, kernel=(1,1), no_bias=True, 
+            num_filter=128, kernel=(1,1), 
             use_global_stats=False, fix_gamma=False, get_syms=True)
     from_layers.append(conv192)
 
     # remaining clone layers
-    clone_idx = [4]
-    for i in range(5, len(out_layers)):
-        rf = (2**i) * 12
-        prefix_name = 'hyper{}/conv'.format(rf)
-        conv_ = clone_bn_relu_conv(out_layers[i], prefix_name=prefix_name, src_syms=src_syms)
-        from_layers.append(conv_)
-        clone_idx.append[i]
+    clone_idx = []
+    # clone_idx = [4]
+    # for i in range(5, len(out_layers)):
+    #     rf = (2**i) * 12
+    #     prefix_name = 'hyper{}/conv'.format(rf)
+    #     conv_ = clone_bn_relu_conv(out_layers[i], prefix_name=prefix_name, src_syms=src_syms)
+    #     from_layers.append(conv_)
+    #     clone_idx.append[i]
 
+    rfs = [12.0, 24.0, 48.0, 96.0, 192.0]
     n_from_layers = len(from_layers)
     sizes = []
     for i in range(n_from_layers):
-        s = 2.0**(n_from_layers-i-1)
-        sizes.append([1.0 / s, np.sqrt(2.0) / s / 2.0])
+        s = rfs[i] / 256.0
+        sizes.append([s, np.sqrt(2.0) * s])
     ratios = [1.0, 0.8, 1.25]
     clip = True
 
@@ -164,7 +166,7 @@ def get_symbol_train(num_classes, **kwargs):
     #     normalization='valid', name="cls_prob")
     loc_diff = pred_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
-    loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=0.1)
+    loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
         normalization='batch', name="loc_loss")
 

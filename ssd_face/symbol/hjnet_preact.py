@@ -14,20 +14,20 @@ def inception_group(data, prefix_group_name, n_curr_ch,
     prefix_name = prefix_group_name + '/'
     incep_layers = []
     conv_ = data
-    for ii in range(3):
+    for ii in range(2):
         postfix_name = '3x3/' + str(ii+1)
         conv_, s = bn_relu_conv(conv_, prefix_name, postfix_name, 
                 num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), 
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
         syms['unit{}'.format(ii)] = s
         incep_layers.append(conv_)
-    # # poolup2 layer
-    # postfix_name = '3x3/3'
-    # conv_, s = bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, 
-    #         num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), 
-    #         use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
-    # syms['unit3'] = s
-    # incep_layers.append(conv_)
+    # poolup2 layer
+    postfix_name = '3x3/3'
+    conv_, s = bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, 
+            num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), 
+            use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
+    syms['unit3'] = s
+    incep_layers.append(conv_)
 
     concat_ = mx.sym.concat(*incep_layers)
 
@@ -36,6 +36,16 @@ def inception_group(data, prefix_group_name, n_curr_ch,
                 num_filter=num_filter_1x1, kernel=(1,1), 
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
         syms['proj_concat'] = s
+
+    if n_curr_ch != num_filter_1x1:
+        res_ = concat_
+    else:
+        res_ = concat_ + data
+
+    # if get_syms:
+    #     return res_, num_filter_1x1, syms
+    # else:
+    #     return res_, num_filter_1x1
     
     if n_curr_ch != num_filter_1x1:
         data, s = bn_relu_conv(data, prefix_name+'proj/', 
@@ -55,13 +65,13 @@ def clone_inception_group(data, prefix_group_name, src_syms):
     prefix_name = prefix_group_name + '/'
     incep_layers = []
     conv_ = data
-    for ii in range(3):
+    for ii in range(2):
         postfix_name = '3x3/{}'.format(ii+1)
         conv_ = clone_bn_relu_conv(conv_, prefix_name, postfix_name, src_syms['unit{}'.format(ii)])
         incep_layers.append(conv_)
-    # postfix_name = '3x3/3'
-    # conv_ = clone_bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, src_syms['unit3'])
-    # incep_layers.append(conv_)
+    postfix_name = '3x3/3'
+    conv_ = clone_bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, src_syms['unit3'])
+    incep_layers.append(conv_)
 
     concat_ = mx.sym.concat(*incep_layers)
 
@@ -87,8 +97,8 @@ def get_hjnet_preact(use_global_stats, fix_gamma=True, n_clones=0):
     # crop1_2 = mx.sym.Crop(conv1_2, conv1_3, center_crop=True)
     concat1 = mx.sym.concat(conv1_2, conv1_3)
 
-    nf_3x3 = [32, 48, 64, 48] # 24 48 96 192 384
-    nf_1x1 = [32*3, 48*3, 64*3, 64*3]
+    nf_3x3 = [32, 48, 64, 48] # 24 48 96 192 
+    nf_1x1 = [32*3, 48*3, 64*3, 48*3]
     n_incep = [2, 2, 2, 2]
 
     group_i = pool(concat1, kernel=(2,2))
@@ -107,10 +117,10 @@ def get_hjnet_preact(use_global_stats, fix_gamma=True, n_clones=0):
         syms_group.append(syms_unit)
 
     # for context feature
-    n_curr_ch = nf_1x1[-2]
+    n_curr_ch = nf_1x1[2]
     nf_3x3_ctx = 32
     nf_1x1_ctx = 32*3
-    group_c = groups[-2]
+    group_c = groups[2]
     for i in range(2):
         group_c, n_curr_ch, s = inception_group(group_c, 'g_ctx/u{}'.format(i+1), n_curr_ch,
                 num_filter_3x3=nf_3x3_ctx, num_filter_1x1=nf_1x1_ctx, 

@@ -23,12 +23,12 @@ python train.py \
     --val-image-set val \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
     --network hjnet_preact \
-    --batch-size 24 \
+    --batch-size 16 \
     --from-scratch 1 \
     --gpu 0 \
     --prefix model/hjnet_face \
-    --data-shape 192 \
-    --frequent 100 \
-    --monitor 500 \
-    --lr 0.001 \
-    --wd 0.00001
+    --data-shape 256 \
+    --frequent 50 \
+    --monitor 250 \
+    --lr 0.01 \
+    --wd 0.0001

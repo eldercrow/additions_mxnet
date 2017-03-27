@@ -13,7 +13,7 @@ from dataset.wider_patch import WiderPatch
 from dataset.concat_db import ConcatDB
 from config.config import cfg
 
-def load_wider(image_set, devkit_path, shuffle=False):
+def load_wider(image_set, devkit_path, shuffle=False, data_shape=256):
     """
     wrapper function for loading wider face dataset
 
@@ -35,7 +35,8 @@ def load_wider(image_set, devkit_path, shuffle=False):
 
     imdbs = []
     for s in image_set:
-        imdbs.append(WiderPatch(s, devkit_path, shuffle, is_train=True))
+        imdbs.append(WiderPatch(s, devkit_path, shuffle, is_train=True, 
+            range_rand_scale=(1.0, 1.1412), patch_shape=data_shape, max_roi_size=255.0))
     if len(imdbs) > 1:
         return ConcatDB(imdbs, shuffle)
     else:
@@ -200,9 +201,9 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     #     else:
     #         val_imdb = None
     if dataset == 'wider':
-        imdb = load_wider(image_set, devkit_path, cfg.TRAIN.INIT_SHUFFLE)
+        imdb = load_wider(image_set, devkit_path, cfg.TRAIN.INIT_SHUFFLE, data_shape[0])
         if val_set:
-            val_imdb = load_wider(val_set, devkit_path, False)
+            val_imdb = load_wider(val_set, devkit_path, False, data_shape[0])
     else:
         raise NotImplementedError("Dataset " + dataset + " not supported")
 
@@ -290,27 +291,28 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
     iter_refactor = lr_refactor_epoch * imdb.num_images // train_iter.batch_size
     lr_scheduler = mx.lr_scheduler.FactorScheduler(iter_refactor, lr_refactor_ratio)
+    # optimizer_params={'learning_rate':learning_rate,
+    #                   'wd':weight_decay,
+    #                   'epsilon':1e-04,
+    #                   'lr_scheduler':lr_scheduler,
+    #                   'clip_gradient':4.0,
+    #                   'rescale_grad': 1.0}
     optimizer_params={'learning_rate':learning_rate,
+                      'momentum':momentum,
                       'wd':weight_decay,
                       'lr_scheduler':lr_scheduler,
                       'clip_gradient':4.0,
                       'rescale_grad': 1.0}
-    # optimizer_params={'learning_rate':learning_rate,
-    #                   'momentum':momentum,
-    #                   'wd':weight_decay,
-    #                   'lr_scheduler':lr_scheduler,
-    #                   'clip_gradient':4.0,
-    #                   'rescale_grad': 1.0}
     monitor = mx.mon.Monitor(iter_monitor, pattern=".*") if iter_monitor > 0 else None
     initializer = mx.init.Mixed([".*scale", ".*"], \
-        [ScaleInitializer(), mx.init.Xavier(magnitude=1)])
+        [ScaleInitializer(), mx.init.Xavier(magnitude=2.34)])
 
     mod.fit(train_iter,
             eval_data=val_iter,
             eval_metric=FaceMetric(), # MultiBoxMetric(),
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
-            optimizer='rmsprop',
+            optimizer='sgd',
             optimizer_params=optimizer_params,
             kvstore = kv,
             begin_epoch=begin_epoch,

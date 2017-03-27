@@ -45,7 +45,7 @@ class WiderPatch(Imdb):
     """
     IDX_VER = '170320_1' # for caching
 
-    def __init__(self, image_set, devkit_path, shuffle=True, is_train=True, patch_shape=192, **kwargs):
+    def __init__(self, image_set, devkit_path, shuffle=True, is_train=True, **kwargs):
         super(WiderPatch, self).__init__('widerpatch_' + image_set) # e.g. wider_trainval
         self.image_set = image_set
         self.devkit_path = devkit_path
@@ -56,9 +56,9 @@ class WiderPatch(Imdb):
         self.classes = ['__background__', 'face',]
 
         self.config = { \
-                'patch_shape': 192, 
+                'patch_shape': 256, 
                 'min_roi_size': 12, 
-                'max_roi_size': 192,
+                'max_roi_size': 256,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
                 'max_patch_per_image': 16, 
@@ -101,7 +101,7 @@ class WiderPatch(Imdb):
         self.patch_labels = None
         self.patch_im_path, self.patch_labels = self._build_patch_db()
         self.num_images = len(self.patch_im_path)
-        self._debug_save_patches()
+        # self._debug_save_patches()
         # prepare for the next epoch
         self.data_queue = Queue()
         self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
@@ -211,11 +211,7 @@ class WiderPatch(Imdb):
         containng the patche
         '''
         assert self.patch_im_path is not None, "Dataset not initialized"
-        try:
-            name = self.patch_im_path[index]
-        except e:
-            import ipdb
-            ipdb.set_trace()
+        name = self.patch_im_path[index]
         image_file = os.path.join(self.data_path, 'img', name + self.extension)
         assert os.path.exists(image_file), 'Path does not exist: {}'.format(image_file)
         return image_file
@@ -381,6 +377,8 @@ class WiderPatch(Imdb):
             l = self.range_rand_scale[0]
             h = self.range_rand_scale[1]
             scaler = np.random.uniform(low=l, high=h, size=(1,))[0]
+            ww_img *= scaler
+            hh_img *= scaler
             # new_ww = np.round(ww_img * scaler)
             # new_hh = np.round(hh_img * scaler)
             # img = mx.img.imresize(img, new_ww, new_hh)
@@ -522,13 +520,22 @@ class WiderPatch(Imdb):
         curr_im_path = ''
         for i in range(self.patch_labels.shape[0]):
             im_path = self.image_path_from_index(i)
+            label = self.label_from_index(i)
             if im_path != curr_im_path:
                 with open(im_path, 'rb') as fh:
                     img_content = fh.read()
-                img = mx.img.imdecode(img_content).asnumpy()
+                img = mx.img.imdecode(img_content)
                 curr_im_path = im_path
-            label = self.label_from_index(i)
-            patch = crop_roi_patch(img, np.array(label[6:]).astype(int)).asnumpy()
+                if label[0] != 1.0:
+                    hh = int(np.round(img.shape[0] * label[0]))
+                    ww = int(np.round(img.shape[1] * label[0]))
+                    img = mx.img.imresize(img, ww, hh, interp=2)
+                img = img.asnumpy()
+            try:
+                patch = crop_roi_patch(img, np.array(label[6:]).astype(int)).asnumpy()
+            except:
+                import ipdb
+                ipdb.set_trace()
             patch = patch[:, :, ::-1]
             roi = np.maximum(0, np.minimum(192, np.round(np.array(label[2:6]) * 192.0).astype(int)))
             patch_draw = patch.copy()
@@ -539,8 +546,6 @@ class WiderPatch(Imdb):
             else:
                 fn = os.path.join(path_neg, '{}.jpg'.format(i))
             cv2.imwrite(fn, patch_draw)
-        import ipdb
-        ipdb.set_trace()
 
 def _draw_random_trans_patches(roi, min_iou, max_iou, patch_shape):
     min_trans_range = (1.0 - max_iou) / (2.0 * (1.0 + max_iou))
