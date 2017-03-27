@@ -22,13 +22,13 @@ python train.py \
     --image-set train \
     --val-image-set val \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
-    --network hjnet_preact \
+    --network pvtnet_preact \
     --batch-size 16 \
     --from-scratch 1 \
     --gpu 0 \
-    --prefix model/hjnet_face \
+    --prefix model/pvtnet_face \
     --data-shape 256 \
     --frequent 50 \
     --monitor 250 \
-    --lr 0.01 \
+    --lr 0.001 \
     --wd 0.0001

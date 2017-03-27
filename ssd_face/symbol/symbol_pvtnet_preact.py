@@ -1,4 +1,3 @@
-# from hjnet_preact import get_hjnet_preact
 from pvtnet_preact import get_pvtnet_preact
 from net_block_clone import bn_relu_conv, clone_bn_relu_conv
 from anchor_target_layer import *
@@ -58,12 +57,11 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         # estimate number of anchors per location
         # here I follow the original version in caffe
         # TODO: better way to shape the anchors??
-        # size = sizes[k]
-        # assert len(size) > 0, "must provide at least one size"
-        # size_str = "(" + ",".join([str(x) for x in size]) + ")"
-        # ratio = ratios[k]
+        size = sizes[k]
+        assert len(size) > 0, "must provide at least one size"
+        size_str = "(" + ",".join([str(x) for x in size]) + ")"
         # assert len(ratio) > 0, "must provide at least one ratio"
-        # ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
+        ratio_str = "(" + ",".join([str(x) for x in ratios]) + ")"
         num_anchors = len(sizes[k]) * len(ratios)
 
         num_loc_pred = num_anchors * 4
@@ -87,19 +85,20 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         pred_layers.append(pred_conv)
 
         # create anchor generation layer
-        if k == 0:
-            anchors, anchor_scales = mx.sym.Custom(from_layer, op_type='multibox_prior_python', 
-                    sizes=sizes[k], ratios=ratios)
-        else:
-            anchors = mx.sym.Pooling(anchors, kernel=(2,2), stride=(2,2), pool_type='avg')
-            anchors = mx.sym.broadcast_mul(anchors, anchor_scales)
-        anchorsf = mx.sym.transpose(anchors, axes=(0, 2, 3, 1))
-        anchorsf = mx.sym.reshape(anchorsf, shape=(-1, 4))
-        anchor_layers.append(anchorsf)
-        # anchors = mx.sym.MultiBoxPrior(from_layer, sizes=size_str, ratios=ratio_str, \
-        #     clip=clip, name="{}_anchors".format(from_name))
-        # anchors = mx.sym.reshape(anchors, shape=(-1, 5))
-        # anchor_layers.append(anchors)
+        # if k == 0:
+        #     anchors, anchor_scales = mx.sym.Custom(from_layer, op_type='multibox_prior_python', 
+        #             sizes=sizes[k], ratios=ratios)
+        # else:
+        #     anchors = mx.sym.Pooling(anchors, kernel=(2,2), stride=(2,2), pool_type='avg',
+        #             attr={'__lr_mult__': 0.0})
+        #     anchors = mx.sym.broadcast_mul(anchors, anchor_scales)
+        # anchorsf = mx.sym.transpose(anchors, axes=(0, 2, 3, 1))
+        # anchorsf = mx.sym.reshape(anchorsf, shape=(-1, 4))
+        # anchor_layers.append(anchorsf)
+        anchors = mx.contrib.symbol.MultiBoxPrior(from_layer, sizes=size_str, ratios=ratio_str, \
+            clip=clip, name="{}_anchors".format(from_name))
+        anchors = mx.sym.reshape(anchors, shape=(-1, 4))
+        anchor_layers.append(anchors)
 
     preds = mx.sym.concat(*pred_layers, num_args=len(anchor_layers), dim=1)
     anchors = mx.sym.concat(*anchor_layers, num_args=len(anchor_layers), dim=0)
@@ -141,7 +140,7 @@ def get_symbol_train(num_classes, **kwargs):
     sizes = []
     for i in range(n_from_layers):
         s = rfs[i] / 256.0
-        sizes.append([s, np.sqrt(2.0) / 2.0 * s])
+        sizes.append([s, s / np.sqrt(2.0)])
     ratios = [1.0, 0.8, 1.25]
     clip = True
 
@@ -159,16 +158,16 @@ def get_symbol_train(num_classes, **kwargs):
     pred_reg = mx.sym.slice_axis(pred_target, axis=1, begin=num_classes, end=None)
 
     cls_loss = mx.symbol.SoftmaxOutput(data=pred_cls, label=target_cls, \
-        ignore_label=-1, use_ignore=True, grad_scale=1.0, #multi_output=True, \
-        normalization='batch', name="cls_prob")
+        ignore_label=-1, use_ignore=True, grad_scale=3.0, #multi_output=True, \
+        normalization='valid', name="cls_prob")
     # cls_prob = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
     #     ignore_label=-1, use_ignore=True, grad_scale=3., multi_output=True, \
     #     normalization='valid', name="cls_prob")
     loc_diff = pred_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
-    loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1)
+    loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
-        normalization='batch', name="loc_loss")
+        normalization='valid', name="loc_loss")
 
     label_cls = mx.sym.MakeLoss(target_cls, grad_scale=0, name='label_cls')
     label_reg = mx.sym.MakeLoss(target_reg, grad_scale=0, name='label_reg')

@@ -69,61 +69,61 @@ class AnchorTarget(mx.operator.CustomOp):
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         # pass the gradient to their corresponding positions
-        grad_all = mx.nd.zeros(in_data[0].shape, ctx=in_data[0].context) # (n n_anchor nch)
+        grad_all = mx.nd.zeros(in_grad[0].shape, ctx=in_grad[0].context) # (n n_anchor nch)
         n_batch = grad_all.shape[0]
         target_locs = aux[0].asnumpy().astype(int)
-
         k = 0
         for i in range(n_batch):
             gradf = grad_all[i] # (n_anchor nch)
             loc = target_locs[i, :]
             for l in loc:
-                gradf[l] += out_grad[0][k]
+                gradf[l] = out_grad[0][k]
                 k += 1
-        # self.assign(in_grad[0], 'add', grad_all)
         self.assign(in_grad[0], req[0], grad_all)
+        self.assign(in_grad[1], req[1], 0)
+        self.assign(in_grad[2], req[2], 0)
 
 def _compute_IOU(label, anchors):
     # label: (5, )
     # anchors: (4, num_anchors)
-    anchor = anchors.copy()
-    anchor[0, :] = anchors[0, :] - anchors[2, :] / 2.0
-    anchor[1, :] = anchors[1, :] - anchors[3, :] / 2.0
-    anchor[2, :] = anchors[0, :] + anchors[2, :] / 2.0
-    anchor[3, :] = anchors[1, :] + anchors[3, :] / 2.0
-    iw = np.maximum(0, \
-            np.minimum(label[3], anchor[2, :]) - np.maximum(label[1], anchor[0, :]))
-    ih = np.maximum(0, \
-            np.minimum(label[4], anchor[3, :]) - np.maximum(label[2], anchor[1, :]))
-    I = iw * ih
-    U = (label[4] - label[2]) * (label[3] - label[1]) + \
-            (anchor[2, :] - anchor[0, :]) * (anchor[3, :] - anchor[1, :])
+    # anchor = anchors.copy()
+    # anchor[0, :] = anchors[0, :] - anchors[2, :] / 2.0
+    # anchor[1, :] = anchors[1, :] - anchors[3, :] / 2.0
+    # anchor[2, :] = anchors[0, :] + anchors[2, :] / 2.0
+    # anchor[3, :] = anchors[1, :] + anchors[3, :] / 2.0
     # iw = np.maximum(0, \
-    #         np.minimum(label[3], anchors[2, :]) - np.maximum(label[1], anchors[0, :]))
+    #         np.minimum(label[3], anchor[2, :]) - np.maximum(label[1], anchor[0, :]))
     # ih = np.maximum(0, \
-    #         np.minimum(label[4], anchors[3, :]) - np.maximum(label[2], anchors[1, :]))
+    #         np.minimum(label[4], anchor[3, :]) - np.maximum(label[2], anchor[1, :]))
     # I = iw * ih
     # U = (label[4] - label[2]) * (label[3] - label[1]) + \
-    #         (anchors[2, :] - anchors[0, :]) * (anchors[3, :] - anchors[1, :])
+    #         (anchor[2, :] - anchor[0, :]) * (anchor[3, :] - anchor[1, :])
+    iw = np.maximum(0, \
+            np.minimum(label[3], anchors[2, :]) - np.maximum(label[1], anchors[0, :]))
+    ih = np.maximum(0, \
+            np.minimum(label[4], anchors[3, :]) - np.maximum(label[2], anchors[1, :]))
+    I = iw * ih
+    U = (label[4] - label[2]) * (label[3] - label[1]) + \
+            (anchors[2, :] - anchors[0, :]) * (anchors[3, :] - anchors[1, :])
     
     iou = I / np.maximum((U - I), 0.000001)
 
     return iou # (num_anchors, )
 
 def _compute_target(label, anchor, variances):
-    tx = (label[3] + label[1]) / 2.0 - anchor[0]
-    ty = (label[4] + label[2]) / 2.0 - anchor[1]
-    sx = np.log((label[3] - label[1]) / anchor[2])
-    sy = np.log((label[4] - label[2]) / anchor[3])
-    # tx = (label[3] + label[1]) / 2.0 - (anchor[2] + anchor[0]) / 2.0
-    # ty = (label[4] + label[2]) / 2.0 - (anchor[3] + anchor[1]) / 2.0
-    # sx = np.log((label[3] - label[1]) / (anchor[2] - anchor[0]))
-    # sy = np.log((label[4] - label[2]) / (anchor[3] - anchor[1]))
+    # tx = (label[3] + label[1]) / 2.0 - anchor[0]
+    # ty = (label[4] + label[2]) / 2.0 - anchor[1]
+    # sx = np.log((label[3] - label[1]) / anchor[2])
+    # sy = np.log((label[4] - label[2]) / anchor[3])
+    tx = (label[3] + label[1]) / 2.0 - (anchor[2] + anchor[0]) / 2.0
+    ty = (label[4] + label[2]) / 2.0 - (anchor[3] + anchor[1]) / 2.0
+    sx = np.log((label[3] - label[1]) / (anchor[2] - anchor[0]))
+    sy = np.log((label[4] - label[2]) / (anchor[3] - anchor[1]))
 
     target = np.array((label[0], tx, ty, sx, sy))
-    if not np.all(np.isfinite(target)):
-        import ipdb
-        ipdb.set_trace()
+    # if not np.all(np.isfinite(target)):
+    #     import ipdb
+    #     ipdb.set_trace()
     target[1:] /= variances
     return target
 
