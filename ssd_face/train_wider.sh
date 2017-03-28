@@ -24,7 +24,7 @@ python train.py \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
     --network pvtnet_preact \
     --batch-size 16 \
-    --from-scratch 1 \
+    --resume 2 \
     --gpu 0 \
     --prefix model/pvtnet_face \
     --data-shape 256 \

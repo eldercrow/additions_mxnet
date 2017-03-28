@@ -250,6 +250,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             .format(ctx_str, resume))
         _, args, auxs = mx.model.load_checkpoint(prefix, resume)
         begin_epoch = resume
+        fixed_param_names = None
     elif finetune > 0:
         logger.info("Start finetuning with {} from epoch {}"
             .format(ctx_str, finetune))
