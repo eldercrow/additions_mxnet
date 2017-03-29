@@ -3,7 +3,7 @@ import mxnet as mx
 from net_block_clone import *
 
 def inception_group(data, prefix_group_name, n_curr_ch, 
-        num_filter_3x3, num_filter_1x1, 
+        num_filter_3x3, num_filter_1x1, use_crelu=False, 
         use_global_stats=False, fix_gamma=True, get_syms=False):
     """ 
     inception unit, only full padding is supported

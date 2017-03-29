@@ -447,7 +447,7 @@ class WiderPatch(Imdb):
         hard_neg_patch_rois = np.empty((0, 4))
         hard_neg_rois = np.empty((0, 4))
         for i in range(3):
-            nprois, nrois = _draw_random_trans_patches(gt_label_pos[:, 1:], -0.25, 0.1, self.patch_shape)
+            nprois, nrois = _draw_random_trans_patches(gt_label_pos[:, 1:], -0.05, 0.3, self.patch_shape)
             nprois, nrois, _ = self._check_negative_patches(nprois, nrois, ww_img, hh_img, gt_label[:, 1:])
             hard_neg_patch_rois = np.vstack((hard_neg_patch_rois, nprois))
             hard_neg_rois = np.vstack((hard_neg_rois, nrois))

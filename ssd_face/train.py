@@ -13,14 +13,14 @@ def parse_args():
                         default='trainval', type=str)
     # parser.add_argument('--year', dest='year', help='can be 2007, 2012',
     #                     default='2007,2012', type=str)
-    parser.add_argument('--val-image-set', dest='val_image_set', help='validation set, can be val or test',
+    parser.add_argument('--val-image-set', dest='val_image_set', help='validation set, can be val, test or empty',
                         default='test', type=str)
     # parser.add_argument('--val-year', dest='val_year', help='can be 2007, 2010, 2012',
     #                     default='2007', type=str)
     parser.add_argument('--devkit-path', dest='devkit_path', help='VOCdevkit path',
                         default=os.path.join(os.getcwd(), 'data', 'VOCdevkit'), type=str)
     parser.add_argument('--network', dest='network', type=str, default='pvanet_face',
-                        choices=['vgg16_reduced', 'pvtnet_preact', 'hjnet_preact'], help='which network to use')
+                        choices=['pvtnet_preact', 'pvtnet_preact_patch'], help='which network to use')
     parser.add_argument('--batch-size', dest='batch_size', type=int, default=32,
                         help='training batch size')
     parser.add_argument('--resume', dest='resume', type=int, default=-1,

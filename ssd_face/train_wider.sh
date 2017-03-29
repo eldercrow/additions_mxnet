@@ -20,13 +20,13 @@
 python train.py \
     --dataset wider \
     --image-set train \
-    --val-image-set val \
+    --val-image-set '' \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
-    --network pvtnet_preact \
-    --batch-size 16 \
-    --resume 2 \
+    --network pvtnet_preact_patch \
+    --batch-size 24 \
+    --from-scratch 1 \
     --gpu 0 \
-    --prefix model/pvtnet_face \
+    --prefix model/pvtnet_preact_patch \
     --data-shape 256 \
     --frequent 50 \
     --monitor 250 \

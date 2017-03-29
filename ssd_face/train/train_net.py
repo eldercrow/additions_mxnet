@@ -204,6 +204,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         imdb = load_wider(image_set, devkit_path, cfg.TRAIN.INIT_SHUFFLE, data_shape[0])
         if val_set:
             val_imdb = load_wider(val_set, devkit_path, False, data_shape[0])
+        else:
+            val_imdb = None
     else:
         raise NotImplementedError("Dataset " + dataset + " not supported")
 
