@@ -2,6 +2,7 @@ import mxnet as mx
 import numpy as np
 import cv2
 from tools.rand_sampler import RandSampler
+from tools.crop_roi_patch import crop_roi_patch
 
 class DetIter(mx.io.DataIter):
     """
@@ -155,17 +156,7 @@ class DetIter(mx.io.DataIter):
                 ymin = int(crop[1] * height)
                 xmax = int(crop[2] * width)
                 ymax = int(crop[3] * height)
-                if xmin >= 0 and ymin >= 0 and xmax <= width and ymax <= height:
-                    data = mx.img.fixed_crop(data, xmin, ymin, xmax-xmin, ymax-ymin)
-                else:
-                    # padding mode
-                    new_width = xmax - xmin
-                    new_height = ymax - ymin
-                    offset_x = 0 - xmin
-                    offset_y = 0 - ymin
-                    data_bak = data
-                    data = mx.nd.full((new_height, new_width, 3), 128, dtype='uint8')
-                    data[offset_y:offset_y+height, offset_x:offset_x + width, :] = data_bak
+                data = crop_roi_patch(data.asnumpy(), (xmin, ymin, xmax, ymax))
                 label = rand_crops[index][1]
         if self.is_train:
             interp_methods = [cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_AREA, \
@@ -181,6 +172,11 @@ class DetIter(mx.io.DataIter):
                 tmp = 1.0 - label[valid_mask, 1]
                 label[valid_mask, 1] = 1.0 - label[valid_mask, 3]
                 label[valid_mask, 3] = tmp
+        # import matplotlib.pyplot as plt
+        # plt.imshow(data.asnumpy() / 255.0)
+        # print label
+        # import ipdb
+        # ipdb.set_trace()
         data = mx.nd.transpose(data, (2,0,1))
         data = data.astype('float32')
         data = data - self._mean_pixels

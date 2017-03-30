@@ -5,15 +5,44 @@ import sys
 import os
 import importlib
 from initializer import ScaleInitializer
-from metric import MultiBoxMetric, FaceMetric
+from metric import MultiBoxMetric, FaceMetric, FacePatchMetric
 from dataset.iterator import DetIter
 from dataset.patch_iterator import PatchIter
 from dataset.pascal_voc import PascalVoc
+from dataset.wider import Wider
 from dataset.wider_patch import WiderPatch
 from dataset.concat_db import ConcatDB
 from config.config import cfg
 
-def load_wider(image_set, devkit_path, shuffle=False, data_shape=192):
+def load_wider(image_set, devkit_path, shuffle=False, is_train=True):
+    """
+    wrapper function for loading wider face dataset
+
+    Parameters:
+    ----------
+    image_set : str
+        train, trainval...
+    devkit_path : str
+        root directory of dataset
+    shuffle : bool
+        whether to shuffle initial list
+
+    Returns:
+    ----------
+    Imdb
+    """
+    image_set = [y.strip() for y in image_set.split(',')]
+    assert image_set, "No image_set specified"
+
+    imdbs = []
+    for s in image_set:
+        imdbs.append(Wider(s, devkit_path, shuffle, is_train=is_train))
+    if len(imdbs) > 1:
+        return ConcatDB(imdbs, shuffle)
+    else:
+        return imdbs[0]
+
+def load_wider_patch(image_set, devkit_path, shuffle=False, data_shape=192):
     """
     wrapper function for loading wider face dataset
 
@@ -201,49 +230,57 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     #     else:
     #         val_imdb = None
     if dataset == 'wider':
-        imdb = load_wider(image_set, devkit_path, cfg.TRAIN.INIT_SHUFFLE, data_shape[0])
+        imdb = load_wider(image_set, devkit_path, cfg.TRAIN.INIT_SHUFFLE, is_train=True)
         if val_set:
-            val_imdb = load_wider(val_set, devkit_path, False, data_shape[0])
+            val_imdb = load_wider(val_set, devkit_path, False, is_train=True)
         else:
             val_imdb = None
+        # init data iterator
+        train_iter = DetIter(imdb, batch_size, data_shape, mean_pixels, 
+                             cfg.TRAIN.RAND_SAMPLERS, cfg.TRAIN.RAND_MIRROR,
+                             cfg.TRAIN.EPOCH_SHUFFLE, cfg.TRAIN.RAND_SEED,
+                             is_train=True)
+        if val_imdb:
+            val_iter = DetIter(val_imdb, batch_size, data_shape, mean_pixels,
+                               cfg.VALID.RAND_SAMPLERS, cfg.VALID.RAND_MIRROR,
+                               cfg.VALID.EPOCH_SHUFFLE, cfg.VALID.RAND_SEED,
+                               is_train=True)
+        else:
+            val_iter = None
+    elif dataset == 'wider_patch':
+        imdb = load_wider_patch(image_set, devkit_path, cfg.TRAIN.INIT_SHUFFLE, data_shape[0])
+        if val_set:
+            val_imdb = load_wider_patch(val_set, devkit_path, False, data_shape[0])
+        else:
+            val_imdb = None
+        # init data iterator
+        train_iter = PatchIter(imdb, batch_size, data_shape, mean_pixels, 
+                             cfg.TRAIN.RAND_SAMPLERS, cfg.TRAIN.RAND_MIRROR,
+                             cfg.TRAIN.EPOCH_SHUFFLE, cfg.TRAIN.RAND_SEED,
+                             is_train=True)
+        if val_imdb:
+            val_iter = PatchIter(val_imdb, batch_size, data_shape, mean_pixels,
+                               cfg.VALID.RAND_SAMPLERS, cfg.VALID.RAND_MIRROR,
+                               cfg.VALID.EPOCH_SHUFFLE, cfg.VALID.RAND_SEED,
+                               is_train=True)
+        else:
+            val_iter = None
     else:
         raise NotImplementedError("Dataset " + dataset + " not supported")
 
-    # init data iterator
-    train_iter = PatchIter(imdb, batch_size, data_shape, mean_pixels, 
-                         cfg.TRAIN.RAND_SAMPLERS, cfg.TRAIN.RAND_MIRROR,
-                         cfg.TRAIN.EPOCH_SHUFFLE, cfg.TRAIN.RAND_SEED,
-                         is_train=True)
-    # train_iter = DetIter(imdb, batch_size, data_shape, mean_pixels,
-    #                      cfg.TRAIN.RAND_SAMPLERS, cfg.TRAIN.RAND_MIRROR,
-    #                      cfg.TRAIN.EPOCH_SHUFFLE, cfg.TRAIN.RAND_SEED,
-    #                      is_train=True)
-    # save per N epoch, avoid saving too frequently
-    resize_epoch = int(cfg.TRAIN.RESIZE_EPOCH)
-    if resize_epoch > 1:
-        batches_per_epoch = ((imdb.num_images - 1) // batch_size + 1) * resize_epoch
-        train_iter = mx.io.ResizeIter(train_iter, batches_per_epoch)
-    # train_iter = mx.io.PrefetchingIter(train_iter)
-    if val_imdb:
-        val_iter = PatchIter(val_imdb, batch_size, data_shape, mean_pixels,
-                           cfg.VALID.RAND_SAMPLERS, cfg.VALID.RAND_MIRROR,
-                           cfg.VALID.EPOCH_SHUFFLE, cfg.VALID.RAND_SEED,
-                           is_train=True)
-        # val_iter = DetIter(val_imdb, batch_size, data_shape, mean_pixels,
-        #                    cfg.VALID.RAND_SAMPLERS, cfg.VALID.RAND_MIRROR,
-        #                    cfg.VALID.EPOCH_SHUFFLE, cfg.VALID.RAND_SEED,
-        #                    is_train=True)
-        # val_iter = mx.io.PrefetchingIter(val_iter)
-    else:
-        val_iter = None
-
     # load symbol
     sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
-    net = importlib.import_module("symbol_" + net).get_symbol_train(imdb.num_classes)
-
-    # define layers with fixed weight/bias
-    fixed_param_names = [name for name in net.list_arguments() \
-        if name.startswith('conv1_') or name.startswith('conv2_') or name.endswith('_gamma')]
+    if dataset == 'wider':
+        net = importlib.import_module("symbol_" + net).get_symbol_train(\
+                imdb.num_classes, n_group=7, patch_size=768)
+        # freeze bn layers
+        fixed_param_names = None # [name for name in net.list_arguments() if name.endswith('_gamma')]
+    elif dataset == 'wider_patch':
+        net = importlib.import_module("symbol_" + net).get_symbol_train(imdb.num_classes)
+    #
+    # # define layers with fixed weight/bias
+    # fixed_param_names = [name for name in net.list_arguments() \
+    #     if name.startswith('conv1_') or name.startswith('conv2_') or name.endswith('_gamma')]
 
     # load pretrained or resume from previous state
     ctx_str = '('+ ','.join([str(c) for c in ctx]) + ')'
@@ -271,7 +308,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Start training with {} from pretrained model {}"
             .format(ctx_str, pretrained))
         _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
-        args = convert_pretrained(pretrained, args)
+        # args = convert_pretrained(pretrained, args)
     else:
         logger.info("Experimental: start training from scratch with {}"
             .format(ctx_str))

@@ -1,11 +1,12 @@
 import mxnet as mx
 import numpy as np
+import os, sys
+sys.path.append(os.path.abspath('../symbol'))
+from multibox_prior_layer import *
+from anchor_target_layer import *
 
 def freeze_bn(model_prefix, num_epoch, res_prefix):
     net, arg_params, aux_params = mx.model.load_checkpoint(model_prefix, num_epoch)
-
-    import ipdb
-    ipdb.set_trace()
 
     for k in aux_params:
         if k.endswith('_moving_var'):
@@ -20,12 +21,10 @@ def freeze_bn(model_prefix, num_epoch, res_prefix):
     mx.model.save_checkpoint(res_prefix, num_epoch, net, arg_params, aux_params)
 
 if __name__ == '__main__':
-    model_prefix = '/home/hyunjoon/github/model_mxnet/pva910/pva910_preAct'
-    num_epoch = 0
-    res_prefix = model_prefix + '_bn_freezed'
+    model_prefix = '/home/hyunjoon/github/additions_mxnet/ssd_face/model/pvtnet_preact_patch_256'
+    num_epoch = 15
+    res_prefix = model_prefix + '_bnfixed'
 
     freeze_bn(model_prefix, num_epoch, res_prefix)
 
     _, arg_params, aux_params = mx.model.load_checkpoint(res_prefix, num_epoch)
-    import ipdb
-    ipdb.set_trace()

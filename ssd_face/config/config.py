@@ -1,6 +1,6 @@
 import os
 from easydict import EasyDict as edict
-from tools.rand_sampler import RandCropper, RandPadder
+from tools.rand_sampler import RandCropper, RandPadder, RandScaler
 
 cfg = edict()
 cfg.ROOT_DIR = os.path.join(os.path.dirname(__file__), '..')
@@ -17,13 +17,7 @@ cfg.TRAIN = edict()
 #     RandPadder(max_scale=4., min_aspect_ratio=.5, max_aspect_ratio=2., min_gt_scale=.05),]
 # cfg.TRAIN.RAND_SAMPLERS = []
 # cfg.TRAIN.RAND_SAMPLERS = [RandCropper(min_scale=1., max_sample=3, min_overlap=.7)]
-cfg.TRAIN.RAND_SAMPLERS = [ \
-        RandCropper(min_scale=.5, max_sample=3, min_overlap=.7),
-        RandCropper(min_scale=.25, max_sample=3, min_overlap=.7),
-        RandCropper(min_scale=.125, max_sample=3, min_overlap=.7),
-        RandCropper(min_scale=.0625, max_sample=3, min_overlap=.5),]
-        # RandPadder(max_scale=2., min_gt_scale=.05),
-        # RandPadder(max_scale=3., min_gt_scale=.05),]
+cfg.TRAIN.RAND_SAMPLERS = [RandScaler(min_scale=0.5, max_scale=2.0, min_gt_scale=8.0 / 768.0)]
 
 cfg.TRAIN.RAND_MIRROR = True
 cfg.TRAIN.INIT_SHUFFLE = True

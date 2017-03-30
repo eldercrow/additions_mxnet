@@ -23,7 +23,7 @@ class Wider(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170303_3' # for caching
+    IDX_VER = '170330_1' # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=False, is_train=False):
         super(Wider, self).__init__('wider_' + image_set) # e.g. wider_trainval
@@ -34,7 +34,7 @@ class Wider(Imdb):
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ['face',]
+        self.classes = ['__background__', 'face',]
         # self.classes = ['aeroplane', 'bicycle', 'bird', 'boat',
         #                 'bottle', 'bus', 'car', 'cat', 'chair',
         #                 'cow', 'diningtable', 'dog', 'horse',
@@ -43,7 +43,7 @@ class Wider(Imdb):
 
         self.config = { \
                 'use_difficult': False, 
-                'th_small': 12, 
+                'th_small': 8, 
                 'comp_id': 'comp4', 
                 'padding': 256 } 
 
@@ -68,6 +68,11 @@ class Wider(Imdb):
                 else:
                     self.labels, self.max_objects = self._load_image_labels()
                     self._save_to_cache()
+        if shuffle:
+            ridx = np.random.permutation(np.arange(self.num_images))
+            image_set_index = [self.image_set_index[i] for i in ridx]
+            labels = [self.labels[i] for i in ridx]
+            self.image_set_index, self.labels = image_set_index, labels
         self._pad_labels()
 
     @property
@@ -219,8 +224,8 @@ class Wider(Imdb):
                 prop_bb = pdata.split(' ')
                 if prop_bb[0] == 'invalid_label_list':
                     invalid_mask = np.array(prop_bb[1:]).astype(int) == 1
-                if prop_bb[0] == 'occlusion_label_list':
-                    small_mask = np.logical_and(small_mask, np.array(prop_bb[1:]).astype(int) == 2)
+                # if prop_bb[0] == 'occlusion_label_list':
+                #     small_mask = np.logical_and(small_mask, np.array(prop_bb[1:]).astype(int) == 2)
                 # also get image size
                 if prop_bb[0] == 'image_size':
                     ww_img = int(prop_bb[1])
@@ -245,8 +250,8 @@ class Wider(Imdb):
                 continue
 
             # we need [xmin, ymin, xmax, ymax], but wider DB has [xmin, ymin, width, height]
-            bbs[:, 2] += bbs[:, 0] - 1.0
-            bbs[:, 3] += bbs[:, 1] - 1.0
+            bbs[:, 2] += bbs[:, 0] 
+            bbs[:, 3] += bbs[:, 1] 
             # normalize to [0, 1]
             bbs[:, 0::2] /= ww_img
             bbs[:, 1::2] /= hh_img
@@ -285,7 +290,7 @@ class Wider(Imdb):
         """ labels: list of ndarrays """
         self.padding = np.maximum(self.max_objects, self.config['padding'])
         for (i, label) in enumerate(self.labels):
-            padded = np.tile(np.array((-1, -1, -1, -1, -1), dtype=np.float32), (self.padding, 1))
+            padded = np.tile(np.full((5,), -1, dtype=np.float32), (self.padding, 1))
             padded[:label.shape[0], :] = label
             self.labels[i] = padded
             # if label.shape[0] < self.padding:
