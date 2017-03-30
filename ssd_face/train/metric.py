@@ -70,14 +70,19 @@ class FaceMetric(mx.metric.EvalMetric):
         reg_label = preds[3].asnumpy()
 
         cls_diff = np.sum((cls_pred - cls_label)**2, axis=1)
-        mask = np.where(cls_label >= 0)[0]
-        self.sum_metric[0] += sum(cls_diff[mask])
-        self.num_inst[0] += mask.size
+        mask = np.where(cls_label[:, 0] != -1)[0]
+        if mask.size > 0:
+            self.sum_metric[0] += sum(cls_diff[mask])
+            self.num_inst[0] += mask.size
 
-        mask = np.where(cls_label > 0)[0]
+        mask = np.where(cls_label[:, 0] == 0)[0]
         reg_dist = np.sum(np.abs(reg_pred - reg_label), axis=1)
-        self.sum_metric[1] += sum(reg_dist[mask])
-        self.num_inst[1] += mask.size
+        if any(reg_dist > 1000000000):
+            import ipdb
+            ipdb.set_trace()
+        if mask.size > 0:
+            self.sum_metric[1] += sum(reg_dist[mask])
+            self.num_inst[1] += mask.size
 
     def get(self):
         """Get the current evaluation result.
