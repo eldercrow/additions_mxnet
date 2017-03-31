@@ -61,7 +61,7 @@ class WiderPatch(Imdb):
                 'max_roi_size': 256,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
-                'max_patch_per_image': 24, 
+                'max_patch_per_image': 18, 
                 'use_difficult': True
                 }
         for k, v in kwargs.iteritems():
@@ -455,8 +455,8 @@ class WiderPatch(Imdb):
         hard_neg_labels = np.zeros((hard_neg_rois.shape[0], 9))
         hard_neg_labels[:, 1:5] = hard_neg_rois
         hard_neg_labels[:, 5:] = hard_neg_patch_rois
-        if hard_neg_labels.shape[0] > pos_labels.shape[0]:
-            hard_neg_labels = hard_neg_labels[:pos_labels.shape[0], :]
+        if hard_neg_labels.shape[0] > pos_labels.shape[0] * 2:
+            hard_neg_labels = hard_neg_labels[:pos_labels.shape[0] * 2, :]
 
         rois = np.random.permutation(np.vstack((pos_labels, neg_labels, hard_neg_labels)))
         # make rois ralative to patch rois

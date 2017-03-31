@@ -1,17 +1,14 @@
 from hjnet_preact import get_hjnet_preact
-from net_block_clone import bn_relu_conv, clone_bn_relu_conv
+from net_block_clone import bn_relu, bn_relu_conv, clone_bn_relu_conv
 from multibox_prior_layer import *
-from multibox_target import *
 from anchor_target_layer import *
-from masked_l2dist_loss import *
 import numpy as np
 
 def build_hyperfeature(data, ctx_data, name, num_filter_proj, num_filter_hyper, scale, use_global_stats):
     """
     """
-    ctx_proj = bn_relu_conv(data=ctx_data, prefix_name=name+'/proj/', 
-            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), 
-            use_global_stats=use_global_stats, fix_gamma=False)
+    ctx_proj = mx.sym.Convolution(ctx_data, name=name+'/ctx/conv', 
+            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), no_bias=True)
     ctx_up = mx.symbol.UpSampling(ctx_proj, num_args=1, name=name+'/up', scale=scale, sample_type='nearest')
     data_ = bn_relu_conv(data, prefix_name=name+'/conv/', 
             num_filter=num_filter_hyper-num_filter_proj, kernel=(3,3), pad=(1,1),
@@ -85,6 +82,7 @@ def get_symbol_train(num_classes, **kwargs):
 
     out_layers, ctx_layer = get_hjnet_preact(use_global_stats=fix_bn, fix_gamma=False, n_group=n_group)
     label = mx.sym.var(name='label')
+    ctx_layer = bn_relu(ctx_layer, name='hyper/ctx', use_global_stats=fix_bn, fix_gamma=False)
 
     from_layers = []
     # build hyperfeatures
@@ -121,7 +119,7 @@ def get_symbol_train(num_classes, **kwargs):
         s = rfs[i] / float(patch_size)
         sizes.append([s, s / np.sqrt(2.0)])
     ratios = [[1.0, 0.5, 0.8]] * len(sizes)
-    clip = False
+    clip = True
 
     preds, anchors = multibox_layer(from_layers, num_classes, 
             sizes=sizes, ratios=ratios, 
@@ -129,22 +127,23 @@ def get_symbol_train(num_classes, **kwargs):
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
-    tmp = mx.symbol.Custom(*[preds_cls, preds_reg, anchors, label], op_type='multibox_target', 
-            name='multibox_target', n_class=2, variances=(0.1, 0.1, 0.2, 0.2))
-    sample_cls = tmp[0]
-    sample_reg = tmp[1]
-    target_cls = tmp[2]
-    target_reg = tmp[3]
-    mask_reg = tmp[4]
+    tmp = mx.symbol.Custom(*[preds, anchors, label], name='anchor_target', op_type='anchor_target')
+    pred_target = tmp[0]
+    target_cls = tmp[1]
+    target_reg = tmp[2]
+    mask_reg = tmp[3]
 
-    cls_loss = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, \
-        ignore_label=-1, use_ignore=True, grad_scale=1.0, 
-        normalization='null', name="cls_prob")
-    loc_diff = sample_reg - target_reg
+    pred_cls = mx.sym.slice_axis(pred_target, axis=1, begin=0, end=num_classes)
+    pred_reg = mx.sym.slice_axis(pred_target, axis=1, begin=num_classes, end=None)
+
+    cls_loss = mx.symbol.SoftmaxOutput(data=pred_cls, label=target_cls, \
+        ignore_label=-1, use_ignore=True, grad_scale=3.0, 
+        normalization='valid', name="cls_prob")
+    loc_diff = pred_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
-        normalization='null', name="loc_loss")
+        normalization='valid', name="loc_loss")
 
     label_cls = mx.sym.MakeLoss(target_cls, grad_scale=0, name='label_cls')
     label_reg = mx.sym.MakeLoss(target_reg, grad_scale=0, name='label_reg')

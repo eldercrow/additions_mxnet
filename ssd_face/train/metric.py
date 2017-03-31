@@ -109,7 +109,7 @@ class FaceMetric(mx.metric.EvalMetric):
 class FacePatchMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
     def __init__(self):
-        super(FacePatchMetric, self).__init__(['ObjectAcc', 'SmoothL1'], 2)
+        super(FacePatchMetric, self).__init__(['ObjectAcc', 'Recall', 'SmoothL1'], 3)
 
     def update(self, labels, preds):
         """
@@ -124,13 +124,19 @@ class FacePatchMetric(mx.metric.EvalMetric):
         
         cls_acc = np.argmax(cls_pred, axis=1) == cls_label
         mask = np.where(cls_label >= 0)[0]
-        self.sum_metric[0] += sum(cls_acc[mask])
-        self.num_inst[0] += mask.size
+        if mask.size > 0:
+            self.sum_metric[0] += sum(cls_acc[mask])
+            self.num_inst[0] += mask.size
 
         mask = np.where(cls_label > 0)[0]
+        if mask.size > 0:
+            self.sum_metric[1] += sum(cls_acc[mask])
+            self.num_inst[1] += mask.size
+
         reg_dist = np.sum(np.abs(reg_pred - reg_label), axis=1)
-        self.sum_metric[1] += sum(reg_dist[mask])
-        self.num_inst[1] += mask.size
+        if mask.size > 0:
+            self.sum_metric[2] += sum(reg_dist[mask])
+            self.num_inst[2] += mask.size
 
     def get(self):
         """Get the current evaluation result.

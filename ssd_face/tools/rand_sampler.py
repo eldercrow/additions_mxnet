@@ -343,7 +343,7 @@ class RandScaler(RandSampler):
         self.min_gt_scale = min_gt_scale
         # for sanity check
         self.min_box_overlap = 0.7
-        self.min_gt_overlap = 0.8
+        self.min_gt_overlap = 0.7
         self.min_gt_ignore = 0.15
 
     def sample(self, label, img_shape):

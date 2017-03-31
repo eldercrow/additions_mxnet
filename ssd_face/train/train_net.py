@@ -275,10 +275,10 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                 imdb.num_classes, n_group=7, patch_size=768)
         # freeze bn layers
         fixed_param_names = None # [name for name in net.list_arguments() if name.endswith('_gamma')]
-        eval_metric = FaceMetric()
+        eval_metric = FacePatchMetric()
     elif dataset == 'wider_patch':
         net = importlib.import_module("symbol_" + net).get_symbol_train(\
-                imdb.num_classes, n_group=6, patch_size=384)
+                imdb.num_classes, n_group=5, patch_size=256)
         eval_metric = FacePatchMetric()
     #
     # # define layers with fixed weight/bias
@@ -335,7 +335,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'lr_scheduler': lr_scheduler,
-                      'clip_gradient': -1.0,
+                      'clip_gradient': 4.0,
                       'rescale_grad': 1.0}
     # optimizer_params={'learning_rate':learning_rate,
     #                   'momentum':momentum,

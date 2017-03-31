@@ -168,12 +168,25 @@ class DetIter(mx.io.DataIter):
         if self.is_train and self._rand_mirror:
             if np.random.uniform(0, 1) > 0.5:
                 data = mx.nd.flip(data, axis=1)
-                valid_mask = np.where(label[:, 0] > -1)[0]
+                valid_mask = np.where(np.any(label != -1, axis=1))[0]
                 tmp = 1.0 - label[valid_mask, 1]
                 label[valid_mask, 1] = 1.0 - label[valid_mask, 3]
                 label[valid_mask, 3] = tmp
+        # img_draw = np.minimum(255., np.maximum(0., data.asnumpy())).astype(np.uint8)
+        # img_draw = img_draw[:, :, ::-1]
+        # img_draw = img_draw.copy()
+        # import ipdb
+        # ipdb.set_trace()
+        # for l in label:
+        #     if l[0] == -1: continue
+        #     x0 = int(np.maximum(0, l[1] * self._data_shape[0]))
+        #     y0 = int(np.maximum(0, l[2] * self._data_shape[1]))
+        #     x1 = int(np.minimum(width, l[3] * self._data_shape[0]))
+        #     y1 = int(np.minimum(height, l[4] * self._data_shape[1]))
+        #     cv2.rectangle(img_draw, (x0, y0), (x1, y1), (0, 0, 255), 3)
+        # cv2.imwrite('/home/hyunjoon/github/additions_mxnet/ssd_face/debug/{}.jpg'.format(self._current), img_draw)
         # import matplotlib.pyplot as plt
-        # plt.imshow(data.asnumpy() / 255.0)
+        # plt.imshow(img_draw)
         # print label
         # import ipdb
         # ipdb.set_trace()
