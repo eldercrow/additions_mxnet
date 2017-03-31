@@ -3,6 +3,7 @@ from net_block_clone import *
 
 def inception_group(data, prefix_group_name, n_curr_ch,
         num_filter_3x3, num_filter_1x1, use_crelu=False, 
+        use_dn=False, 
         use_global_stats=False, fix_gamma=True, get_syms=False):
     """ 
     inception unit, only full padding is supported
@@ -16,6 +17,7 @@ def inception_group(data, prefix_group_name, n_curr_ch,
         postfix_name = '3x3/' + str(ii+1)
         conv_, s = bn_relu_conv(conv_, prefix_name, postfix_name, 
                 num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu, 
+                use_dn=use_dn, 
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
         syms['unit{}'.format(ii)] = s
         incep_layers.append(conv_)
@@ -23,6 +25,7 @@ def inception_group(data, prefix_group_name, n_curr_ch,
     postfix_name = '3x3/3'
     conv_, s = bn_relu_conv_poolup2(conv_, prefix_name, postfix_name, 
             num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu, 
+            use_dn=use_dn, 
             use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True)
     syms['unit3'] = s
     incep_layers.append(conv_)
@@ -81,6 +84,7 @@ def get_pvtnet_preact(use_global_stats, fix_gamma=False, n_group=5):
         # syms will be overwritten but it's ok we'll use the last one anyway
         group_i, n_curr_ch, syms = inception_group(group_i, 'g{}/u1'.format(i+1), n_curr_ch, 
                 num_filter_3x3=nf_3x3[i], num_filter_1x1=nf_1x1[i], use_crelu=(i == 0), 
+                use_dn=(i==4),
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=True) 
         groups.append(group_i)
 

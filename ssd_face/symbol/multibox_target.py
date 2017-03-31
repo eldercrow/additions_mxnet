@@ -223,20 +223,22 @@ def _compute_iou(label, anchors, area_anchors):
 
 def _compute_loc_target(gt_bb, bb, variances):
     loc_target = np.zeros((4, ), dtype=np.float32)
-    loc_target[0] = ((gt_bb[2]+gt_bb[0]) / 2.0 - (bb[2]-bb[0]) / 2.0) / variances[0]
-    loc_target[1] = ((gt_bb[3]+gt_bb[1]) / 2.0 - (bb[3]-bb[1]) / 2.0) / variances[1]
-    loc_target[2] = np.log2((gt_bb[2]-gt_bb[0]) / (bb[2]-bb[0])) / variances[2]
-    loc_target[3] = np.log2((gt_bb[3]-gt_bb[1]) / (bb[3]-bb[1])) / variances[3]
+    iw = 1.0 / (bb[2] - bb[0])
+    ih = 1.0 / (bb[3] - bb[1])
+    loc_target[0] = ((gt_bb[2] + gt_bb[0]) - (bb[2] + bb[0])) * 0.5 * iw
+    loc_target[1] = ((gt_bb[3] + gt_bb[1]) - (bb[3] + bb[1])) * 0.5 * ih
+    loc_target[2] = np.log2((gt_bb[2] - gt_bb[0]) * iw)
+    loc_target[3] = np.log2((gt_bb[3] - gt_bb[1]) * ih)
 
-    if np.abs(loc_target[2]) > 15.0 or np.abs(loc_target[2]) > 15.0:
-        import ipdb
-        ipdb.set_trace()
+    # if np.abs(loc_target[2]) > 15.0 or np.abs(loc_target[2]) > 15.0:
+    #     import ipdb
+    #     ipdb.set_trace()
+    #
+    # if not np.all(np.isfinite(loc_target)):
+    #     import ipdb
+    #     ipdb.set_trace()
 
-    if not np.all(np.isfinite(loc_target)):
-        import ipdb
-        ipdb.set_trace()
-
-    return loc_target
+    return loc_target / variances
 
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):

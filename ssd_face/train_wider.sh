@@ -6,13 +6,13 @@
 #     --val-image-set '' \
 #     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
 #     --network pvtnet_preact_patch \
-#     --batch-size 24 \
+#     --batch-size 8 \
 #     --from-scratch 1 \
 #     --gpu 1 \
 #     --prefix model/pvtnet_preact_patch \
-#     --data-shape 256 \
-#     --frequent 50 \
-#     --monitor 250 \
+#     --data-shape 384 \
+#     --frequent 20 \
+#     --monitor 100 \
 #     --lr 0.001 \
 #     --wd 0.0001
 
@@ -24,7 +24,7 @@ python train.py \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
     --network pvtnet_preact \
     --batch-size 2 \
-    --pretrained ./model/pvtnet_preact_patch_256_bnfixed \
+    --pretrained ./model/pvtnet_preact_patch_384 \
     --epoch 0 \
     --gpu 1 \
     --prefix model/pvtnet_preact \

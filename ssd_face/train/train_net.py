@@ -65,7 +65,7 @@ def load_wider_patch(image_set, devkit_path, shuffle=False, data_shape=192):
     imdbs = []
     for s in image_set:
         imdbs.append(WiderPatch(s, devkit_path, shuffle, is_train=True, 
-            range_rand_scale=(1.0, 1.1412), patch_shape=data_shape, max_roi_size=230.0))
+            range_rand_scale=(1.0, 1.1412), patch_shape=data_shape, max_roi_size=data_shape*1.2))
     if len(imdbs) > 1:
         return ConcatDB(imdbs, shuffle)
     else:
@@ -275,8 +275,11 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                 imdb.num_classes, n_group=7, patch_size=768)
         # freeze bn layers
         fixed_param_names = None # [name for name in net.list_arguments() if name.endswith('_gamma')]
+        eval_metric = FaceMetric()
     elif dataset == 'wider_patch':
-        net = importlib.import_module("symbol_" + net).get_symbol_train(imdb.num_classes)
+        net = importlib.import_module("symbol_" + net).get_symbol_train(\
+                imdb.num_classes, n_group=6, patch_size=384)
+        eval_metric = FacePatchMetric()
     #
     # # define layers with fixed weight/bias
     # fixed_param_names = [name for name in net.list_arguments() \
@@ -346,7 +349,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
 
     mod.fit(train_iter,
             eval_data=val_iter,
-            eval_metric=FaceMetric(), # MultiBoxMetric(),
+            eval_metric=eval_metric, # MultiBoxMetric(),
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
             optimizer='rmsprop',

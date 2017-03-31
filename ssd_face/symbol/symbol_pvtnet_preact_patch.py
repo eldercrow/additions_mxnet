@@ -17,7 +17,7 @@ def build_hyperfeature(data, ctx_data, name, num_filter_proj, num_filter_hyper, 
     hyper = mx.symbol.Concat(data_, ctx_up, name=name+'/concat')
     return hyper
 
-def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, clip=True):
+def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, clip=True, clone_idx=[]):
     ''' multibox layer '''
     # parameter check
     assert len(from_layers) > 0, "from_layers must not be empty list"
@@ -31,6 +31,12 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
     anchor_layers = []
     # num_classes += 1 # always use background as label 0
     #
+    if len(clone_idx) > 1:
+        clone_ref = clone_idx[0]
+        clone_idx = clone_idx[1:]
+    else:
+        clone_ref = -1
+        clone_idx = []
 
     for k, from_layer in enumerate(from_layers):
         from_name = from_layer.name
@@ -38,9 +44,21 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         num_loc_pred = num_anchors * 4
         num_cls_pred = num_anchors * num_classes
 
-        pred_conv = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
-                num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
-                use_global_stats=use_global_stats, fix_gamma=False) # (n ac h w)
+        if k == clone_ref:
+            pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
+                    num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
+                    use_dn=True, 
+                    use_global_stats=use_global_stats, fix_gamma=False, get_syms=True) # (n ac h w)
+        elif k in clone_idx:
+            pred_conv = clone_bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
+                    src_syms=ref_syms)
+        else:
+            pred_conv = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
+                    num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
+                    use_global_stats=use_global_stats, fix_gamma=False) # (n ac h w)
+        # pred_conv = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
+        #         num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
+        #         use_global_stats=use_global_stats, fix_gamma=False) # (n ac h w)
         pred_conv = mx.sym.transpose(pred_conv, axes=(0, 2, 3, 1)) # (n h w ac), a=num_anchors
         pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -4, num_anchors, -1)) # (n h*w a c)
         pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -1)) # (n h*w*a c)
@@ -56,6 +74,8 @@ def get_symbol_train(num_classes, **kwargs):
     '''
     n_group = 5
     patch_size = 256
+    if 'n_group' in kwargs:
+        n_group = kwargs['n_group']
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
@@ -74,8 +94,18 @@ def get_symbol_train(num_classes, **kwargs):
     # 192
     conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
             num_filter=128, kernel=(3,3), pad=(1,1), 
+            use_dn=True, 
             use_global_stats=False, fix_gamma=False, get_syms=True)
     from_layers.append(conv192)
+
+    # remaining clone layers
+    clone_idx = [4]
+    for i in range(5, len(out_layers)):
+        rf = (2**i) * 12
+        prefix_name = 'hyper{}/conv/'.format(rf)
+        conv_ = clone_bn_relu_conv(out_layers[i], prefix_name=prefix_name, src_syms=src_syms)
+        from_layers.append(conv_)
+        clone_idx.append(i)
 
     rfs = [12.0 * (2**i) for i in range(len(out_layers))]
     n_from_layers = len(from_layers)
@@ -88,7 +118,7 @@ def get_symbol_train(num_classes, **kwargs):
 
     preds, anchors = multibox_layer(from_layers, num_classes, 
             sizes=sizes, ratios=ratios, 
-            use_global_stats=False, clip=clip)
+            use_global_stats=False, clip=clip, clone_idx=clone_idx)
 
     tmp = mx.symbol.Custom(*[preds, anchors, label], name='anchor_target', op_type='anchor_target')
     pred_target = tmp[0]

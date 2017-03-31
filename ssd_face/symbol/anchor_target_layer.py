@@ -97,10 +97,12 @@ def _compute_IOU(label, anchors):
     return iou # (num_anchors, )
 
 def _compute_target(label, anchor, variances):
-    tx = (label[3] + label[1]) / 2.0 - (anchor[2] + anchor[0]) / 2.0
-    ty = (label[4] + label[2]) / 2.0 - (anchor[3] + anchor[1]) / 2.0
-    sx = np.log((label[3] - label[1]) / (anchor[2] - anchor[0]))
-    sy = np.log((label[4] - label[2]) / (anchor[3] - anchor[1]))
+    iw = 1.0 / (anchor[2] - anchor[0])
+    ih = 1.0 / (anchor[3] - anchor[1])
+    tx = ((label[3] + label[1]) - (anchor[2] + anchor[0])) * 0.5 * iw
+    ty = ((label[4] + label[2]) - (anchor[3] + anchor[1])) * 0.5 * ih
+    sx = np.log2((label[3] - label[1]) * iw)
+    sy = np.log2((label[4] - label[2]) * ih)
 
     target = np.array((label[0], tx, ty, sx, sy))
     target[1:] /= variances

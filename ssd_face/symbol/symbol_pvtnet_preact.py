@@ -24,20 +24,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
     # parameter check
     assert len(from_layers) > 0, "from_layers must not be empty list"
     assert num_classes > 1, "num_classes {} must be larger than 1".format(num_classes)
-    # assert len(ratios) > 0, "aspect ratios must not be empty list"
-    # if not isinstance(ratios[0], list):
-    #     # provided only one ratio list, broadcast to all from_layers
-    #     ratios = [ratios] * len(from_layers)
     assert len(ratios) == len(from_layers), "ratios and from_layers must have same length"
-    # assert len(sizes) > 0, "sizes must not be empty list"
-    # if len(sizes) == 2 and not isinstance(sizes[0], list):
-    #     # provided size range, we need to compute the sizes for each layer
-    #      assert sizes[0] > 0 and sizes[0] < 1
-    #      assert sizes[1] > 0 and sizes[1] < 1 and sizes[1] > sizes[0]
-    #      tmp = np.linspace(sizes[0], sizes[1], num=(len(from_layers)-1))
-    #      min_sizes = [start_offset] + tmp.tolist()
-    #      max_sizes = tmp.tolist() + [tmp[-1]+start_offset]
-    #      sizes = zip(min_sizes, max_sizes)
     assert len(sizes) == len(from_layers), "sizes and from_layers must have same length"
 
     loc_pred_layers = []
@@ -62,6 +49,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         if k == clone_ref:
             pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
                     num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
+                    use_dn=True, 
                     use_global_stats=use_global_stats, fix_gamma=False, get_syms=True) # (n ac h w)
         elif k in clone_idx:
             pred_conv = clone_bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
@@ -106,6 +94,7 @@ def get_symbol_train(num_classes, **kwargs):
     # 192
     conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
             num_filter=128, kernel=(3,3), pad=(1,1), 
+            use_dn=True, 
             use_global_stats=False, fix_gamma=False, get_syms=True)
     from_layers.append(conv192)
 
@@ -155,7 +144,7 @@ def get_symbol_train(num_classes, **kwargs):
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
-        normalization='valid', name="loc_loss")
+        normalization='null', name="loc_loss")
 
     label_cls = mx.sym.MakeLoss(target_cls, grad_scale=0, name='label_cls')
     label_reg = mx.sym.MakeLoss(target_reg, grad_scale=0, name='label_reg')
