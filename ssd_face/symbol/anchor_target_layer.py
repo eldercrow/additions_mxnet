@@ -99,8 +99,8 @@ def _compute_IOU(label, anchors):
 def _compute_target(label, anchor, variances):
     iw = 1.0 / (anchor[2] - anchor[0])
     ih = 1.0 / (anchor[3] - anchor[1])
-    tx = ((label[3] + label[1]) - (anchor[2] + anchor[0])) * 0.5 * iw
-    ty = ((label[4] + label[2]) - (anchor[3] + anchor[1])) * 0.5 * ih
+    tx = ((label[3] + label[1]) - (anchor[2] + anchor[0])) * 0.5 
+    ty = ((label[4] + label[2]) - (anchor[3] + anchor[1])) * 0.5 
     sx = np.log2((label[3] - label[1]) * iw)
     sy = np.log2((label[4] - label[2]) * ih)
 

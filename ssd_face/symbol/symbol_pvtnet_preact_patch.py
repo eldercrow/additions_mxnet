@@ -47,7 +47,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         if k == clone_ref:
             pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
                     num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
-                    use_dn=True, 
+                    use_dn=True, nch=128, 
                     use_global_stats=use_global_stats, fix_gamma=False, get_syms=True) # (n ac h w)
         elif k in clone_idx:
             pred_conv = clone_bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
@@ -94,7 +94,7 @@ def get_symbol_train(num_classes, **kwargs):
     # 192
     conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
             num_filter=128, kernel=(3,3), pad=(1,1), 
-            use_dn=True, 
+            use_dn=True, nch=192, 
             use_global_stats=False, fix_gamma=False, get_syms=True)
     from_layers.append(conv192)
 

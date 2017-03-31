@@ -3,13 +3,12 @@ import mxnet as mx
 '''
 Basic blocks
 '''
-def data_norm(data, name, sigma=None, eps=1e-04, get_syms=False):
-    sigma_name = name + '_beta'
-    if sigma:
-        sigma_ = sigma
+def data_norm(data, name, nch, bias=None, eps=1e-03, get_syms=False):
+    bias_name = name + '_beta'
+    if bias:
+        bias_ = bias
     else:
-        sigma_ = mx.sym.var(name=sigma_name, shape=(1,), lr_mult=1, wd_mult=0.1)
-    ss = mx.sym.square(sigma_)
+        bias_ = mx.sym.var(name=bias_name, shape=(1, nch, 1, 1), lr_mult=1, wd_mult=1)
 
     kernel = (3, 3)
     pad = (1, 1)
@@ -22,14 +21,16 @@ def data_norm(data, name, sigma=None, eps=1e-04, get_syms=False):
     var_ = mx.sym.Convolution(data=var_, num_filter=1, weight=ones_, 
             kernel=kernel, pad=pad, no_bias=True)
     var_ = var_ - mx.sym.square(mean_)
-    norm_ = mx.sym.sqrt(mx.sym.broadcast_add(var_, ss) + eps)
+    norm_ = mx.sym.sqrt(var_ + eps)
     data_ = mx.sym.broadcast_sub(data, mean_)
+    data_ = mx.sym.broadcast_div(data_, norm_)
+    data_ = mx.sym.broadcast_add(data_, bias_)
 
     if get_syms:
-        syms = {'sigma': sigma_ }
-        return mx.sym.broadcast_div(data_, norm_), syms
+        syms = {'bias': bias_ }
+        return data_, syms
     else:
-        return mx.sym.broadcast_div(data_, norm_)
+        return data_
 
 def bn_relu(data, name, use_global_stats=False, fix_gamma=True):
     #
@@ -54,7 +55,7 @@ def conv_poolup2(data, name, num_filter, kernel=(3,3), pad=(0,0), no_bias=True, 
 
 def bn_relu_conv(data, prefix_name='', postfix_name='', 
         num_filter=0, kernel=(3,3), pad=(0,0), use_crelu=False, 
-        use_dn=False,
+        use_dn=False, nch=0, 
         use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
     #
     assert prefix_name != '' or postfix_name != ''
@@ -66,7 +67,7 @@ def bn_relu_conv(data, prefix_name='', postfix_name='',
         data = mx.sym.concat(data, -data, name=concat_name)
         syms['concat'] = data
     if use_dn:
-        bn_, s = data_norm(data, bn_name, get_syms=True)
+        bn_, s = data_norm(data, bn_name, nch, get_syms=True)
         syms.update(s)
     else:
         bn_ = mx.sym.BatchNorm(data, use_global_stats=use_global_stats, fix_gamma=fix_gamma, name=bn_name)
@@ -81,7 +82,7 @@ def bn_relu_conv(data, prefix_name='', postfix_name='',
 
 def bn_relu_conv_poolup2(data, prefix_name='', postfix_name='', 
         num_filter=0, kernel=(3,3), pad=(0,0), use_crelu=False, 
-        use_dn=False, 
+        use_dn=False, nch=0, 
         use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
     #
     assert prefix_name != '' or postfix_name != ''
@@ -93,7 +94,7 @@ def bn_relu_conv_poolup2(data, prefix_name='', postfix_name='',
         data = mx.sym.concat(data, -data, name=concat_name)
         syms['concat'] = data
     if use_dn:
-        bn_, s = data_norm(data, bn_name, get_syms=True)
+        bn_, s = data_norm(data, bn_name, nch, get_syms=True)
         syms.update(s)
     else:
         bn_ = mx.sym.BatchNorm(data, use_global_stats=use_global_stats, fix_gamma=fix_gamma, name=bn_name)
@@ -156,8 +157,8 @@ def clone_bn_relu_conv(data, prefix_name='', postfix_name='', src_syms=None):
     bn_name = prefix_name + 'bn' + postfix_name
     if 'concat' in src_syms:
         data = [data, -data]
-    if 'sigma' in src_syms:
-        bn = data_norm(data, name=bn_name, sigma=src_syms['sigma'])
+    if 'bias' in src_syms:
+        bn = data_norm(data, name=bn_name, nch=0, bias=src_syms['bias'])
     else:
         bn = clone_bn(data, name=bn_name, src_layer=src_syms['bn'])
     relu_ = mx.sym.Activation(bn, act_type='relu')
@@ -171,8 +172,8 @@ def clone_bn_relu_conv_poolup2(data, prefix_name='', postfix_name='', src_syms=N
     bn_name = prefix_name + 'bn' + postfix_name
     if 'concat' in src_syms:
         data = [data, -data]
-    if 'sigma' in src_syms:
-        bn = data_norm(data, name=bn_name, sigma=src_syms['sigma'])
+    if 'bias' in src_syms:
+        bn = data_norm(data, name=bn_name, nch=0, bias=src_syms['bias'])
     else:
         bn = clone_bn(data, name=bn_name, src_layer=src_syms['bn'])
     # bn = clone_bn(data, name=bn_name, src_layer=src_syms['bn'])

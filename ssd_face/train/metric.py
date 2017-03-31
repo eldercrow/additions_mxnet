@@ -77,9 +77,9 @@ class FaceMetric(mx.metric.EvalMetric):
 
         mask = np.where(cls_label[:, 0] == 0)[0]
         reg_dist = np.sum(np.abs(reg_pred - reg_label), axis=1)
-        if any(reg_dist > 1000000000):
-            import ipdb
-            ipdb.set_trace()
+        # if any(reg_dist > 1000000000):
+        #     import ipdb
+        #     ipdb.set_trace()
         if mask.size > 0:
             self.sum_metric[1] += sum(reg_dist[mask])
             self.num_inst[1] += mask.size

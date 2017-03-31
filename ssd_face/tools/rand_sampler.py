@@ -420,5 +420,5 @@ def _compute_overlap(roi, img_roi):
 def _compute_overlap_1d(p0, p1, q0, q1):
     ''' p0, p1, q0, q1: size of (n_rows, ) '''
     I = np.maximum(0.0, np.minimum(p1, q1) - np.maximum(p0, q0))
-    U = p1 - p0
+    U = np.maximum(1e-08, p1 - p0)
     return np.minimum(1.0, I / U)

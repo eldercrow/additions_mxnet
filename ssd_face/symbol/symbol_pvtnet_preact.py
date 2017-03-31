@@ -47,6 +47,9 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         num_cls_pred = num_anchors * num_classes
 
         if k == clone_ref:
+            # pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
+            #         num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
+            #         use_global_stats=use_global_stats, fix_gamma=False, get_syms=True) # (n ac h w)
             pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
                     num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
                     use_dn=True, 
@@ -72,6 +75,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
 def get_symbol_train(num_classes, **kwargs):
     '''
     '''
+    fix_bn = False
     n_group = 7
     patch_size = 768
     if 'n_group' in kwargs:
@@ -79,7 +83,7 @@ def get_symbol_train(num_classes, **kwargs):
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
-    out_layers, ctx_layer = get_pvtnet_preact(use_global_stats=False, fix_gamma=False, n_group=n_group)
+    out_layers, ctx_layer = get_pvtnet_preact(use_global_stats=fix_bn, fix_gamma=False, n_group=n_group)
     label = mx.sym.var(name='label')
 
     from_layers = []
@@ -88,10 +92,13 @@ def get_symbol_train(num_classes, **kwargs):
     scales = [16, 8, 4, 2]
     for i, s in enumerate(scales):
         hyper_layer = build_hyperfeature(out_layers[i], ctx_layer, name=hyper_names[i], 
-                num_filter_proj=s*6, num_filter_hyper=128, scale=s, use_global_stats=False)
+                num_filter_proj=s*6, num_filter_hyper=128, scale=s, use_global_stats=fix_bn)
         from_layers.append(hyper_layer)
 
     # 192
+    # conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
+    #         num_filter=128, kernel=(3,3), pad=(1,1), 
+    #         use_global_stats=fix_bn, fix_gamma=False, get_syms=True)
     conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
             num_filter=128, kernel=(3,3), pad=(1,1), 
             use_dn=True, 
@@ -118,7 +125,7 @@ def get_symbol_train(num_classes, **kwargs):
 
     preds, anchors = multibox_layer(from_layers, num_classes, 
             sizes=sizes, ratios=ratios, 
-            use_global_stats=False, clip=clip, clone_idx=clone_idx)
+            use_global_stats=fix_bn, clip=clip, clone_idx=clone_idx)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
     probs_cls = mx.sym.reshape(preds_cls, shape=(-1, num_classes))

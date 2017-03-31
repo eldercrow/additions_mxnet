@@ -225,8 +225,8 @@ def _compute_loc_target(gt_bb, bb, variances):
     loc_target = np.zeros((4, ), dtype=np.float32)
     iw = 1.0 / (bb[2] - bb[0])
     ih = 1.0 / (bb[3] - bb[1])
-    loc_target[0] = ((gt_bb[2] + gt_bb[0]) - (bb[2] + bb[0])) * 0.5 * iw
-    loc_target[1] = ((gt_bb[3] + gt_bb[1]) - (bb[3] + bb[1])) * 0.5 * ih
+    loc_target[0] = ((gt_bb[2] + gt_bb[0]) - (bb[2] + bb[0])) * 0.5 # * iw
+    loc_target[1] = ((gt_bb[3] + gt_bb[1]) - (bb[3] + bb[1])) * 0.5 # * ih
     loc_target[2] = np.log2((gt_bb[2] - gt_bb[0]) * iw)
     loc_target[3] = np.log2((gt_bb[3] - gt_bb[1]) * ih)
 
