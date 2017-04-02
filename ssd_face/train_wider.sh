@@ -30,6 +30,6 @@ python train.py \
     --monitor 200 \
     --lr 0.001 \
     --wd 0.0001 \
-    --resume 4 \
+    --resume 6 \
     # --pretrained model/hjnet_preact_patch_256 \
     # --epoch 0 \
