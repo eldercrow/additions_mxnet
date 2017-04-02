@@ -23,7 +23,7 @@ class Wider(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170331_1' # for caching
+    IDX_VER = '170401_1' # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=False, is_train=False):
         super(Wider, self).__init__('wider_' + image_set) # e.g. wider_trainval
@@ -43,7 +43,7 @@ class Wider(Imdb):
 
         self.config = { \
                 'use_difficult': False, 
-                'th_small': 8, 
+                'th_small': 8.0, 
                 'comp_id': 'comp4', 
                 'padding': 256 } 
 

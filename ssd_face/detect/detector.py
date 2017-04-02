@@ -4,6 +4,7 @@ import numpy as np
 from timeit import default_timer as timer
 from dataset.testdb import TestDB
 from dataset.iterator import DetIter
+import os
 
 class Detector(object):
     """
@@ -32,7 +33,7 @@ class Detector(object):
         if self.ctx is None:
             self.ctx = mx.cpu()
         _, args, auxs = mx.model.load_checkpoint(model_prefix, epoch)
-        self.mod = mx.mod.Module(symbol, context=ctx)
+        self.mod = mx.mod.Module(symbol, label_names=None, context=ctx)
         self.data_shape = data_shape
         self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape, data_shape))])
         self.mod.set_params(args, auxs)
@@ -135,10 +136,10 @@ class Detector(object):
                     class_name = str(cls_id)
                     if classes and len(classes) > cls_id:
                         class_name = classes[cls_id]
-                    plt.gca().text(xmin, ymin - 2,
-                                    '{:s} {:.3f}'.format(class_name, score),
-                                    bbox=dict(facecolor=colors[cls_id], alpha=0.5),
-                                    fontsize=12, color='white')
+                    # plt.gca().text(xmin, ymin - 2,
+                    #                 '{:s} {:.3f}'.format(class_name, score),
+                    #                 bbox=dict(facecolor=colors[cls_id], alpha=0.5),
+                    #                 fontsize=12, color='white')
         plt.show()
 
     def detect_and_visualize(self, im_list, root_dir=None, extension=None,
@@ -162,10 +163,13 @@ class Detector(object):
         """
         import cv2
         dets = self.im_detect(im_list, root_dir, extension, show_timer=show_timer)
+        root_dir = '' if not root_dir else root_dir
+        extension = '' if not extension else extension
         if not isinstance(im_list, list):
             im_list = [im_list]
         assert len(dets) == len(im_list)
         for k, det in enumerate(dets):
-            img = cv2.imread(im_list[k])
+            fn_img = os.path.join(root_dir, im_list[k] + extension)
+            img = cv2.imread(fn_img)
             img[:, :, (0, 1, 2)] = img[:, :, (2, 1, 0)]
             self.visualize_detection(img, det, classes, thresh)

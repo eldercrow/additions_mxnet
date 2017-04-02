@@ -24,11 +24,12 @@ python train.py \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
     --network hjnet_preact \
     --batch-size 3 \
-    --pretrained model/hjnet_preact_patch_256 \
-    --epoch 0 \
     --gpu 0 \
     --prefix model/hjnet_preact \
     --data-shape 768 \
     --monitor 200 \
     --lr 0.001 \
-    --wd 0.0001
+    --wd 0.0001 \
+    --resume 4 \
+    # --pretrained model/hjnet_preact_patch_256 \
+    # --epoch 0 \

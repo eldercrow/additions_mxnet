@@ -1,17 +1,20 @@
 from hjnet_preact import get_hjnet_preact
-from net_block_clone import bn_relu_conv, clone_bn_relu_conv
+from net_block_clone import bn_relu_conv, clone_bn_relu_conv, bn_relu
 from multibox_prior_layer import *
 from multibox_target import *
 from anchor_target_layer import *
-from masked_l2dist_loss import *
+from multibox_detection import *
+# from masked_l2dist_loss import *
 import numpy as np
 
 def build_hyperfeature(data, ctx_data, name, num_filter_proj, num_filter_hyper, scale, use_global_stats):
     """
     """
-    ctx_proj = bn_relu_conv(data=ctx_data, prefix_name=name+'/proj/', 
-            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), 
-            use_global_stats=use_global_stats, fix_gamma=False)
+    ctx_proj = mx.sym.Convolution(ctx_data, name=name+'/ctx/conv', 
+            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), no_bias=True)
+    # ctx_proj = bn_relu_conv(data=ctx_data, prefix_name=name+'/proj/', 
+    #         num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), 
+    #         use_global_stats=use_global_stats, fix_gamma=False)
     ctx_up = mx.symbol.UpSampling(ctx_proj, num_args=1, name=name+'/up', scale=scale, sample_type='nearest')
     data_ = bn_relu_conv(data, prefix_name=name+'/conv/', 
             num_filter=num_filter_hyper-num_filter_proj, kernel=(3,3), pad=(1,1),
@@ -72,19 +75,11 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
     preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
     return [preds, anchors]
 
-def get_symbol_train(num_classes, **kwargs):
+def get_symbol_common(num_classes, n_group, patch_size, fix_bn):
     '''
     '''
-    fix_bn = False
-    n_group = 7
-    patch_size = 768
-    if 'n_group' in kwargs:
-        n_group = kwargs['n_group']
-    if 'patch_size' in kwargs:
-        patch_size = kwargs['patch_size']
-
     out_layers, ctx_layer = get_hjnet_preact(use_global_stats=fix_bn, fix_gamma=False, n_group=n_group)
-    label = mx.sym.var(name='label')
+    ctx_layer = bn_relu(ctx_layer, name='hyper/ctx', use_global_stats=fix_bn, fix_gamma=False)
 
     from_layers = []
     # build hyperfeatures
@@ -102,7 +97,7 @@ def get_symbol_train(num_classes, **kwargs):
     conv096, src_syms = bn_relu_conv(out_layers[3], prefix_name='hyper096/conv/', 
             num_filter=128, kernel=(3,3), pad=(1,1), 
             use_dn=True, nch=64, 
-            use_global_stats=False, fix_gamma=False, get_syms=True)
+            use_global_stats=fix_bn, fix_gamma=False, get_syms=True)
     from_layers.append(conv096)
 
     # remaining clone layers
@@ -128,6 +123,21 @@ def get_symbol_train(num_classes, **kwargs):
             use_global_stats=fix_bn, clip=clip, clone_idx=clone_idx)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
+    return preds_cls, preds_reg, anchors
+
+def get_symbol_train(num_classes, **kwargs):
+    '''
+    '''
+    fix_bn = False
+    n_group = 7
+    patch_size = 768
+    if 'n_group' in kwargs:
+        n_group = kwargs['n_group']
+    if 'patch_size' in kwargs:
+        patch_size = kwargs['patch_size']
+
+    preds_cls, preds_reg, anchors = get_symbol_common(num_classes, n_group, patch_size, fix_bn)
+    label = mx.sym.var(name='label')
 
     tmp = mx.symbol.Custom(*[preds_cls, preds_reg, anchors, label], op_type='multibox_target', 
             name='multibox_target', n_class=2, variances=(0.1, 0.1, 0.2, 0.2))
@@ -138,13 +148,13 @@ def get_symbol_train(num_classes, **kwargs):
     mask_reg = tmp[4]
 
     cls_loss = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, \
-        ignore_label=-1, use_ignore=True, grad_scale=1.0, 
-        normalization='null', name="cls_prob")
+        ignore_label=-1, use_ignore=True, grad_scale=3.0, 
+        normalization='valid', name="cls_prob")
     loc_diff = sample_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
-        normalization='null', name="loc_loss")
+        normalization='valid', name="loc_loss")
 
     label_cls = mx.sym.MakeLoss(target_cls, grad_scale=0, name='label_cls')
     label_reg = mx.sym.MakeLoss(target_reg, grad_scale=0, name='label_reg')
@@ -152,6 +162,25 @@ def get_symbol_train(num_classes, **kwargs):
     # group output
     out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
     return out
+
+def get_symbol(num_classes, **kwargs):
+    '''
+    '''
+    fix_bn = True
+    n_group = 7
+    patch_size = 768
+    if 'n_group' in kwargs:
+        n_group = kwargs['n_group']
+    if 'patch_size' in kwargs:
+        patch_size = k
+
+    preds_cls, preds_reg, anchors = get_symbol_common(num_classes, n_group, patch_size, fix_bn)
+    probs_cls = mx.sym.reshape(preds_cls, shape=(-1, num_classes))
+    probs_cls = mx.sym.SoftmaxActivation(probs_cls)
+
+    tmp = mx.symbol.Custom(*[probs_cls, preds_reg, anchors], op_type='multibox_detection', 
+            name='multibox_detection', n_class=2, max_detection=1000)
+    return tmp[0]
 
 if __name__ == '__main__':
     import os

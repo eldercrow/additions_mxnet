@@ -6,11 +6,12 @@ import importlib
 import sys
 from detect.detector import Detector
 
-CLASSES = ('aeroplane', 'bicycle', 'bird', 'boat',
-           'bottle', 'bus', 'car', 'cat', 'chair',
-           'cow', 'diningtable', 'dog', 'horse',
-           'motorbike', 'person', 'pottedplant',
-           'sheep', 'sofa', 'train', 'tvmonitor')
+CLASSES = ('__background__', 'face')
+# CLASSES = ('aeroplane', 'bicycle', 'bird', 'boat',
+#            'bottle', 'bus', 'car', 'cat', 'chair',
+#            'cow', 'diningtable', 'dog', 'horse',
+#            'motorbike', 'person', 'pottedplant',
+#            'sheep', 'sofa', 'train', 'tvmonitor')
 
 def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx,
                  nms_thresh=0.5, force_nms=True):
@@ -36,15 +37,15 @@ def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx,
     """
     sys.path.append(os.path.join(os.getcwd(), 'symbol'))
     net = importlib.import_module("symbol_" + net) \
-        .get_symbol(len(CLASSES), nms_thresh, force_nms)
+        .get_symbol(len(CLASSES))
     detector = Detector(net, prefix + "_" + str(data_shape), epoch, \
         data_shape, mean_pixels, ctx=ctx)
     return detector
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Single-shot detection network demo')
-    parser.add_argument('--network', dest='network', type=str, default='vgg16_reduced',
-                        choices=['vgg16_reduced'], help='which network to use')
+    parser.add_argument('--network', dest='network', type=str, default='hjnet_preact',
+                        choices=['hjnet_preact'], help='which network to use')
     parser.add_argument('--images', dest='images', type=str, default='./data/demo/dog.jpg',
                         help='run demo with images, use comma(without space) to seperate multiple images')
     parser.add_argument('--dir', dest='dir', nargs='?',
