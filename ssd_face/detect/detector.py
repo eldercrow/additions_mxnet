@@ -35,7 +35,10 @@ class Detector(object):
         _, args, auxs = mx.model.load_checkpoint(model_prefix, epoch)
         self.mod = mx.mod.Module(symbol, label_names=None, context=ctx)
         self.data_shape = data_shape
-        self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape, data_shape))])
+        if isinstance(data_shape, int):
+            self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape, data_shape))])
+        else:
+            self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape[0], data_shape[1]))])
         self.mod.set_params(args, auxs)
         self.data_shape = data_shape
         self.mean_pixels = mean_pixels

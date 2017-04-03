@@ -38,8 +38,12 @@ def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx,
     sys.path.append(os.path.join(os.getcwd(), 'symbol'))
     net = importlib.import_module("symbol_" + net) \
         .get_symbol(len(CLASSES))
-    detector = Detector(net, prefix + "_" + str(data_shape), epoch, \
-        data_shape, mean_pixels, ctx=ctx)
+    if isinstance(data_shape, int):
+        detector = Detector(net, prefix + "_" + str(data_shape), epoch, \
+            data_shape, mean_pixels, ctx=ctx)
+    else:
+        detector = Detector(net, prefix, epoch, \
+            data_shape, mean_pixels, ctx=ctx)
     return detector
 
 def parse_args():
@@ -60,7 +64,7 @@ def parse_args():
                         action='store_true', default=False)
     parser.add_argument('--gpu', dest='gpu_id', type=int, default=0,
                         help='GPU device id to detect with')
-    parser.add_argument('--data-shape', dest='data_shape', type=int, default=300,
+    parser.add_argument('--data-shape', dest='data_shape', nargs='+', type=int, default=300,
                         help='set image shape')
     parser.add_argument('--mean-r', dest='mean_r', type=float, default=123,
                         help='red mean value')

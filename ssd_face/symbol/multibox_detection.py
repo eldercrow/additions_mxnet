@@ -103,8 +103,8 @@ def _transform_roi(reg, anc, variances):
     cy = (anc_t[3] + anc_t[1]) * 0.5
     aw = anc_t[2] - anc_t[0]
     ah = anc_t[3] - anc_t[1]
-    cx += reg_t[0]
-    cy += reg_t[1]
+    cx += reg_t[0] * aw
+    cy += reg_t[1] * ah
     w = (2.0**reg_t[2]) * aw
     h = (2.0**reg_t[3]) * ah
     reg_t[0] = cx - w / 2.0
@@ -115,7 +115,7 @@ def _transform_roi(reg, anc, variances):
 
 @mx.operator.register("multibox_detection")
 class MultiBoxDetectionProp(mx.operator.CustomOpProp):
-    def __init__(self, n_class, max_detection=1000, th_pos=0.7, th_nms=0.5, variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, n_class, max_detection=1000, th_pos=0.7, th_nms=0.65, variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxDetectionProp, self).__init__(need_top_grad=True)
         self.n_class = int(n_class)

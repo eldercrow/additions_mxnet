@@ -27,9 +27,10 @@ python train.py \
     --gpu 0 \
     --prefix model/hjnet_preact \
     --data-shape 768 \
-    --monitor 200 \
-    --lr 0.001 \
+    --monitor 1000 \
+    --frequent 50 \
+    --lr 0.0005 \
     --wd 0.0001 \
-    --resume 6 \
+    --resume 17 
     # --pretrained model/hjnet_preact_patch_256 \
     # --epoch 0 \

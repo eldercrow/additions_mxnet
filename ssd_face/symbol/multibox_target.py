@@ -110,6 +110,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         k = 0
         for i, aloc in enumerate(anchor_locs_pos):
+            if k >= sample_per_batch:
+                break
             bid = aloc[0]
             aid = aloc[1]
 
@@ -121,6 +123,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
             k += 1
 
         for aloc in anchor_locs_neg:
+            if k >= sample_per_batch:
+                break
             bid = aloc[0]
             aid = aloc[1]
 
@@ -206,7 +210,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         n_max_sample = self.n_max_label * self.sample_per_label
 
-        if len(pos_anchor_locs) > n_max_sample:
+        if len(pos_anchor_locs) >= n_max_sample:
             pos_anchor_locs = pos_anchor_locs[:n_max_sample]
             pos_target_cls = pos_target_cls[:n_max_sample]
             pos_target_reg = pos_target_reg[:n_max_sample]
@@ -276,8 +280,8 @@ def _compute_loc_target(gt_bb, bb, variances):
     loc_target = np.zeros((4, ), dtype=np.float32)
     aw = (bb[2] - bb[0])
     ah = (bb[3] - bb[1])
-    loc_target[0] = ((gt_bb[2] + gt_bb[0]) - (bb[2] + bb[0])) * 0.5 # / aw
-    loc_target[1] = ((gt_bb[3] + gt_bb[1]) - (bb[3] + bb[1])) * 0.5 # / ah
+    loc_target[0] = ((gt_bb[2] + gt_bb[0]) - (bb[2] + bb[0])) * 0.5 / aw 
+    loc_target[1] = ((gt_bb[3] + gt_bb[1]) - (bb[3] + bb[1])) * 0.5 / ah 
     loc_target[2] = np.log2((gt_bb[2] - gt_bb[0]) / aw)
     loc_target[3] = np.log2((gt_bb[3] - gt_bb[1]) / ah)
 
@@ -294,7 +298,7 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class, 
-            th_iou=0.5, th_nms=0.5, th_neg_nms=1.0/7.0, 
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/7.0, 
             n_max_label=256, sample_per_label=5, hard_neg_ratio=3., ignore_label=-1, 
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
