@@ -272,13 +272,13 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
     if dataset == 'wider':
         net = importlib.import_module("symbol_" + net).get_symbol_train(\
-                imdb.num_classes, n_group=7, patch_size=768)
+                imdb.num_classes, n_group=8, patch_size=768)
         # freeze bn layers
         fixed_param_names = None # [name for name in net.list_arguments() if name.endswith('_gamma')]
         eval_metric = FacePatchMetric()
     elif dataset == 'wider_patch':
         net = importlib.import_module("symbol_" + net).get_symbol_train(\
-                imdb.num_classes, n_group=5, patch_size=256)
+                imdb.num_classes, n_group=6, patch_size=256)
         eval_metric = FacePatchMetric()
     #
     # # define layers with fixed weight/bias

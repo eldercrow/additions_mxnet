@@ -1,5 +1,5 @@
 from pvtnet_preact import get_pvtnet_preact
-from net_block_clone import bn_relu_conv, clone_bn_relu_conv
+from net_block_clone import bn_relu_conv, clone_bn_relu_conv, bn_relu
 from multibox_prior_layer import *
 from anchor_target_layer import *
 import numpy as np
@@ -7,9 +7,8 @@ import numpy as np
 def build_hyperfeature(data, ctx_data, name, num_filter_proj, num_filter_hyper, scale, use_global_stats):
     """
     """
-    ctx_proj = bn_relu_conv(data=ctx_data, prefix_name=name+'/proj/', 
-            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), 
-            use_global_stats=use_global_stats, fix_gamma=False)
+    ctx_proj = mx.sym.Convolution(ctx_data, name=name+'/ctx/conv', 
+            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), no_bias=True)
     ctx_up = mx.symbol.UpSampling(ctx_proj, num_args=1, name=name+'/up', scale=scale, sample_type='nearest')
     data_ = bn_relu_conv(data, prefix_name=name+'/conv/', 
             num_filter=num_filter_hyper-num_filter_proj, kernel=(3,3), pad=(1,1),
@@ -45,9 +44,12 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         num_cls_pred = num_anchors * num_classes
 
         if k == clone_ref:
+            # pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
+            #         num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
+            #         use_global_stats=use_global_stats, fix_gamma=False, get_syms=True) # (n ac h w)
             pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
                     num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
-                    use_dn=True, nch=128, 
+                    use_dn=True, nch=144, 
                     use_global_stats=use_global_stats, fix_gamma=False, get_syms=True) # (n ac h w)
         elif k in clone_idx:
             pred_conv = clone_bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
@@ -56,9 +58,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
             pred_conv = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
                     num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
                     use_global_stats=use_global_stats, fix_gamma=False) # (n ac h w)
-        # pred_conv = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
-        #         num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
-        #         use_global_stats=use_global_stats, fix_gamma=False) # (n ac h w)
+
         pred_conv = mx.sym.transpose(pred_conv, axes=(0, 2, 3, 1)) # (n h w ac), a=num_anchors
         pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -4, num_anchors, -1)) # (n h*w a c)
         pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -1)) # (n h*w*a c)
@@ -69,56 +69,68 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
     preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
     return [preds, anchors]
 
+def get_symbol_common(num_classes, n_group, patch_size, fix_bn):
+    '''
+    '''
+    out_layers, ctx_layer = get_pvtnet_preact(use_global_stats=fix_bn, fix_gamma=False, n_group=n_group)
+    ctx_layer = bn_relu(ctx_layer, name='hyper/ctx', use_global_stats=fix_bn, fix_gamma=False)
+
+    from_layers = []
+    # build hyperfeatures
+    hyper_names = ['hyper006', 'hyper012', 'hyper024', 'hyper048']
+    scales = [8, 4, 4, 2]
+    nps = [96, 96, 64, 32]
+    for i, s in enumerate(scales):
+        hyper_layer = build_hyperfeature(out_layers[i], ctx_layer, name=hyper_names[i], 
+                num_filter_proj=nps[i], num_filter_hyper=144, scale=s, use_global_stats=fix_bn)
+        from_layers.append(hyper_layer)
+
+    # 192
+    # conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
+    #         num_filter=128, kernel=(3,3), pad=(1,1), 
+    #         use_global_stats=fix_bn, fix_gamma=False, get_syms=True)
+    conv096, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper096/conv/', 
+            num_filter=144, kernel=(3,3), pad=(1,1), 
+            use_dn=True, nch=96, 
+            use_global_stats=fix_bn, fix_gamma=False, get_syms=True)
+    from_layers.append(conv096)
+
+    # remaining clone layers
+    clone_idx = [4]
+    for i in range(5, len(out_layers)):
+        rf = int((2.0**(i-1)) * 12.0)
+        prefix_name = 'hyper{}/conv/'.format(rf)
+        conv_ = clone_bn_relu_conv(out_layers[i], prefix_name=prefix_name, src_syms=src_syms)
+        from_layers.append(conv_)
+        clone_idx.append(i)
+
+    rfs = [12.0 * (2.0**(i-1)) for i in range(len(out_layers))]
+    n_from_layers = len(from_layers)
+    sizes = []
+    for i in range(n_from_layers):
+        s = rfs[i] / float(patch_size)
+        sizes.append([s, s / np.sqrt(2.0)])
+    ratios = [[1.0, 0.5, 0.8]] * len(sizes)
+    clip = False
+
+    preds, anchors = multibox_layer(from_layers, num_classes, 
+            sizes=sizes, ratios=ratios, 
+            use_global_stats=fix_bn, clip=clip, clone_idx=clone_idx)
+    return preds, anchors
+
 def get_symbol_train(num_classes, **kwargs):
     '''
     '''
-    n_group = 5
+    fix_bn = False
+    n_group = 6
     patch_size = 256
     if 'n_group' in kwargs:
         n_group = kwargs['n_group']
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
-    out_layers, ctx_layer = get_pvtnet_preact(use_global_stats=False, fix_gamma=False, n_group=n_group)
+    preds, anchors = get_symbol_common(num_classes, n_group, patch_size, fix_bn)
     label = mx.sym.var(name='label')
-
-    from_layers = []
-    # build hyperfeatures
-    hyper_names = ['hyper012', 'hyper024', 'hyper048', 'hyper096']
-    scales = [16, 8, 4, 2]
-    for i, s in enumerate(scales):
-        hyper_layer = build_hyperfeature(out_layers[i], ctx_layer, name=hyper_names[i], 
-                num_filter_proj=s*6, num_filter_hyper=128, scale=s, use_global_stats=False)
-        from_layers.append(hyper_layer)
-
-    # 192
-    conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
-            num_filter=128, kernel=(3,3), pad=(1,1), 
-            use_dn=True, nch=192, 
-            use_global_stats=False, fix_gamma=False, get_syms=True)
-    from_layers.append(conv192)
-
-    # remaining clone layers
-    clone_idx = [4]
-    for i in range(5, len(out_layers)):
-        rf = (2**i) * 12
-        prefix_name = 'hyper{}/conv/'.format(rf)
-        conv_ = clone_bn_relu_conv(out_layers[i], prefix_name=prefix_name, src_syms=src_syms)
-        from_layers.append(conv_)
-        clone_idx.append(i)
-
-    rfs = [12.0 * (2**i) for i in range(len(out_layers))]
-    n_from_layers = len(from_layers)
-    sizes = []
-    for i in range(n_from_layers):
-        s = rfs[i] / float(patch_size)
-        sizes.append([s, s / np.sqrt(2.0)])
-    ratios = [[1.0, 0.8, 1.25]] * len(sizes)
-    clip = True
-
-    preds, anchors = multibox_layer(from_layers, num_classes, 
-            sizes=sizes, ratios=ratios, 
-            use_global_stats=False, clip=clip, clone_idx=clone_idx)
 
     tmp = mx.symbol.Custom(*[preds, anchors, label], name='anchor_target', op_type='anchor_target')
     pred_target = tmp[0]
@@ -148,7 +160,7 @@ def get_symbol_train(num_classes, **kwargs):
 if __name__ == '__main__':
     import os
     os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
-    net = get_symbol_train(2)
+    net = get_symbol_train(2, n_group=6, patch_size=256)
 
     mod = mx.mod.Module(net, data_names=['data'], label_names=['label'])
     mod.bind(data_shapes=[('data', (2, 3, 256, 256))], label_shapes=[('label', (2, 5))])

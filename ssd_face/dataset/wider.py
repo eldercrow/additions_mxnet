@@ -43,7 +43,7 @@ class Wider(Imdb):
 
         self.config = { \
                 'use_difficult': False, 
-                'th_small': 8.0, 
+                'th_small': 4.0, 
                 'comp_id': 'comp4', 
                 'padding': 256 } 
 

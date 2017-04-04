@@ -57,7 +57,7 @@ class WiderPatch(Imdb):
 
         self.config = { \
                 'patch_shape': 256, 
-                'min_roi_size': 8, 
+                'min_roi_size': 4, 
                 'max_roi_size': 256,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,

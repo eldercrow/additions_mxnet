@@ -55,7 +55,7 @@ def conv_poolup2(data, name, num_filter, kernel=(3,3), pad=(0,0), no_bias=True, 
         return up_
 
 def bn_relu_conv(data, prefix_name='', postfix_name='', 
-        num_filter=0, kernel=(3,3), pad=(0,0), use_crelu=False, 
+        num_filter=0, kernel=(3,3), pad=(0,0), stride=(1,1), use_crelu=False, 
         use_dn=False, nch=0, 
         use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
     #
@@ -71,7 +71,7 @@ def bn_relu_conv(data, prefix_name='', postfix_name='',
         syms['bn'] = bn_
     relu_ = mx.sym.Activation(bn_, act_type='relu')
     conv_ = mx.sym.Convolution(relu_, name=conv_name, num_filter=num_filter, 
-            kernel=kernel, pad=pad, no_bias=no_bias)
+            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
     syms['conv'] = conv_
     if use_crelu:
         concat_name = prefix_name + 'concat' + postfix_name
