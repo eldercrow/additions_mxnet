@@ -80,7 +80,7 @@ class MultiBoxDetection(mx.operator.CustomOp):
         out_cls = mx.nd.reshape(out_cls, (0, 0, 1))
         out_cid = mx.nd.reshape(out_cid, (0, 0, 1))
 
-        self.assign(out_data[0], req[0], mx.nd.concat(out_cls, out_cid, out_roi, dim=2))
+        self.assign(out_data[0], req[0], mx.nd.concat(out_cid, out_cls, out_roi, dim=2))
         self.assign(out_data[1], req[1], n_detection)
         
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
@@ -115,7 +115,7 @@ def _transform_roi(reg, anc, variances):
 
 @mx.operator.register("multibox_detection")
 class MultiBoxDetectionProp(mx.operator.CustomOpProp):
-    def __init__(self, n_class, max_detection=1000, th_pos=0.5, th_nms=0.5, variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, n_class, max_detection=1000, th_pos=0.5, th_nms=0.3333, variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxDetectionProp, self).__init__(need_top_grad=True)
         self.n_class = int(n_class)

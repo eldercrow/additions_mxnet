@@ -8,10 +8,11 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
     Will handle anchor box layer in a different way.
     Also I will handle sizes and ratios in a different - like rcnn - way.
     '''
-    def __init__(self, sizes, ratios, clip):
+    def __init__(self, sizes, ratios, strides, clip):
         super(MultiBoxPriorPython, self).__init__()
         self.sizes = sizes
         self.ratios = ratios
+        self.strides = strides
         self.clip = clip
         self.anchor_data = None
 
@@ -35,11 +36,9 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
             apc = len(s) * len(r)
 
             # compute center positions
-            x = np.linspace(0.0, 1.0, w+1)
-            y = np.linspace(0.0, 1.0, h+1)
+            x = (np.arange(w) + 0.5) * self.strides[ii]
+            y = (np.arange(h) + 0.5) * self.strides[ii]
             xv, yv = np.meshgrid(x, y)
-            xv = xv[:-1, :-1] + 0.5 / w
-            yv = yv[:-1, :-1] + 0.5 / h
 
             # compute heights and widths
             wh = np.zeros((apc, 2))
@@ -63,7 +62,9 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
             anchors_all = np.vstack((anchors_all, anchors))
 
         if self.clip > 0:
-            anchors_all = np.minimum(np.maximum(anchors_all, 0.0), 1.0)
+            anchors_all[:, 0::2] = np.minimum(np.maximum(anchors_all[:, 0::2], 0.0), w)
+            anchors_all[:, 1::2] = np.minimum(np.maximum(anchors_all[:, 1::2], 0.0), h)
+            # anchors_all = np.minimum(np.maximum(anchors_all, 0.0), 1.0)
         self.anchor_data = mx.nd.array(anchors_all, ctx=in_data[0].context)
         self.assign(out_data[0], req[0], self.anchor_data)
 
@@ -73,12 +74,15 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
 
 @mx.operator.register("multibox_prior_python")
 class MultiBoxPriorPythonProp(mx.operator.CustomOpProp):
-    def __init__(self, sizes, ratios, clip):
+    def __init__(self, sizes, ratios, strides, clip):
         super(MultiBoxPriorPythonProp, self).__init__(need_top_grad=False)
         self.sizes = make_tuple(sizes)
         self.ratios = make_tuple(ratios)
         assert len(self.sizes) == len(self.ratios)
+        self.strides = make_tuple(strides)
+        assert len(self.sizes) == len(self.strides)
         self.clip = int(clip)
+        # self.strides = [2.0**i for i in range(len(self.sizes))]
 
     def list_arguments(self):
         return ['ref_conv{}'.format(i) for i in range(len(self.sizes))]
@@ -98,4 +102,4 @@ class MultiBoxPriorPythonProp(mx.operator.CustomOpProp):
                 []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return MultiBoxPriorPython(self.sizes, self.ratios, self.clip)
+        return MultiBoxPriorPython(self.sizes, self.ratios, self.strides, self.clip)

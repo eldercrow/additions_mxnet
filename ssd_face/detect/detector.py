@@ -27,8 +27,9 @@ class Detector(object):
     ctx : mx.ctx
         device to use, if None, use mx.cpu() as default context
     """
-    def __init__(self, symbol, model_prefix, epoch, data_shape, mean_pixels, \
-                 batch_size=1, ctx=None):
+    def __init__(self, symbol, model_prefix, epoch, data_shape, mean_pixels, batch_size=1, ctx=None):
+        import ipdb
+        ipdb.set_trace()
         self.ctx = ctx
         if self.ctx is None:
             self.ctx = mx.cpu()
@@ -119,6 +120,8 @@ class Detector(object):
         plt.imshow(img)
         height = img.shape[0]
         width = img.shape[1]
+        wr = width / float(self.data_shape[1])
+        hr = height / float(self.data_shape[0])
         colors = dict()
         for i in range(dets.shape[0]):
             cls_id = int(dets[i, 0])
@@ -127,10 +130,14 @@ class Detector(object):
                 if score > thresh:
                     if cls_id not in colors:
                         colors[cls_id] = (random.random(), random.random(), random.random())
-                    xmin = int(dets[i, 2] * width)
-                    ymin = int(dets[i, 3] * height)
-                    xmax = int(dets[i, 4] * width)
-                    ymax = int(dets[i, 5] * height)
+                    # xmin = int(dets[i, 2] * width)
+                    # ymin = int(dets[i, 3] * height)
+                    # xmax = int(dets[i, 4] * width)
+                    # ymax = int(dets[i, 5] * height)
+                    xmin = int(dets[i, 2] * wr)
+                    ymin = int(dets[i, 3] * hr)
+                    xmax = int(dets[i, 4] * wr)
+                    ymax = int(dets[i, 5] * hr)
                     rect = plt.Rectangle((xmin, ymin), xmax - xmin,
                                          ymax - ymin, fill=False,
                                          edgecolor=colors[cls_id],

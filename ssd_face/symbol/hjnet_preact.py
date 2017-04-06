@@ -65,21 +65,21 @@ def clone_inception_group(data, prefix_group_name, src_syms):
     return concat_ + data
 
 def upsample_group(data, data_ctx, prefix_group_name, scale, 
-        num_filter_1x1, num_filter_3x3, use_global_stats=False, fix_gamma=True):
+        num_filter_hyper, num_filter_proj, use_global_stats=False, fix_gamma=True):
     '''
     '''
     prefix_name = prefix_group_name + '/'
     ctx_ = bn_relu_conv(data_ctx, prefix_name=prefix_name+'ctx/',  
-            num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1),
+            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1),
             use_global_stats=use_global_stats, fix_gamma=fix_gamma)
     ctx_ = mx.symbol.UpSampling(ctx_, num_args=1, scale=scale, sample_type='nearest')
     concat_ = mx.sym.concat(data, ctx_, name=prefix_name+'concat')
     hyper_ = bn_relu_conv(concat_, prefix_name=prefix_name+'hyper/', 
-            num_filter=num_filter_1x1, kernel=(1,1), pad=(0,0),
+            num_filter=num_filter_hyper, kernel=(1,1), pad=(0,0),
             use_global_stats=use_global_stats, fix_gamma=fix_gamma)
     return hyper_
 
-def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, clip=True, clone_idx=[]):
+def multibox_layer(from_layers, num_classes, sizes, ratios, strides, use_global_stats, clip=True, clone_idx=[]):
     ''' multibox layer '''
     # parameter check
     assert len(from_layers) > 0, "from_layers must not be empty list"
@@ -128,7 +128,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, cl
         pred_layers.append(pred_conv)
 
     anchors = mx.sym.Custom(*from_layers, op_type='multibox_prior_python', 
-            sizes=sizes, ratios=ratios, clip=int(clip))
+            sizes=sizes, ratios=ratios, strides=strides, clip=int(clip))
     preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
     return [preds, anchors]
 
@@ -179,12 +179,12 @@ def get_hjnet_preact(num_classes, patch_size, use_global_stats, fix_gamma=True, 
 
     # upsample features
     groups_u = []
-    nf_3x3 = (64, 32, 32)
+    nf_proj = (64, 32, 32)
     scales = (8, 4, 2)
     group_i = groups[-1]
     for i in range(2, -1, -1):
         group_i = upsample_group(groups[i], group_ctx, 'gup{}'.format(i+1), scale=scales[i],
-                num_filter_1x1=128, num_filter_3x3=nf_3x3[i],
+                num_filter_hyper=128, num_filter_proj=nf_proj[i],
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma)
         groups_u.insert(0, group_i)
 
@@ -213,15 +213,17 @@ def get_hjnet_preact(num_classes, patch_size, use_global_stats, fix_gamma=True, 
 
     clone_idx = range(clone_ref, n_from_layers)
 
-    rfs = [12.0 * (2**i) for i in range(n_from_layers)]
+    strides = [2**(i+1) for i in range(n_from_layers)]
+    # rfs = [12.0 * (2**i) for i in range(n_from_layers)]
     sizes = []
     for i in range(n_from_layers):
-        s = rfs[i] / float(patch_size)
+        s = strides[i] * 6.0
+        # s = rfs[i] / float(patch_size)
         sizes.append([s, s / np.sqrt(2.0)])
     ratios = [[1.0, 0.5, 0.8]] * len(sizes)
     clip = True
 
     preds, anchors = multibox_layer(from_layers, num_classes, 
-            sizes=sizes, ratios=ratios, 
+            sizes=sizes, ratios=ratios, strides=strides,  
             use_global_stats=use_global_stats, clip=False, clone_idx=clone_idx)
     return preds, anchors

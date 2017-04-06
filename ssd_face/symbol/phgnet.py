@@ -72,17 +72,28 @@ def clone_inception_group(data, prefix_group_name, src_syms):
         data = clone_bn_relu_conv(data, prefix_name=prefix_name+'proj/', src_syms=src_syms['proj_data'])
     return concat_ + data
 
-def build_hyperfeature(data, ctx_data, name, num_filter_proj, num_filter_hyper, scale, use_global_stats):
+def build_hyperfeature(layer, ctx_layer, name, num_filter_hyper, use_global_stats):
     """
     """
-    ctx_proj = mx.sym.Convolution(ctx_data, name=name+'/ctx/conv', 
-            num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), no_bias=True)
-    ctx_up = mx.symbol.UpSampling(ctx_proj, num_args=1, name=name+'/up', scale=scale, sample_type='nearest')
-    concat_ = mx.symbol.concat(data, ctx_up, name=name+'/concat')
-    hyper_ = bn_relu_conv(concat_, prefix_name=name+'/hyper/', 
+    concat_ = mx.sym.concat(layer, ctx_layer)
+    return bn_relu_conv(concat_, prefix_name=name+'/hyper/', 
             num_filter=num_filter_hyper, kernel=(1,1), pad=(0,0),
             use_global_stats=use_global_stats, fix_gamma=False)
-    return hyper_
+
+def upsample_feature(data, name, scale, num_filter_proj=0, num_filter_upsample=0, 
+        use_global_stats=False, fix_gamma=False):
+    ''' use subpixel_upsample to upsample a given layer '''
+    if num_filter_proj > 0:
+        proj = bn_relu_conv(data, prefix_name=name+'/proj/', 
+                num_filter=num_filter_proj, kernel=(1,1), pad=(0,0), 
+                use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+    else:
+        proj = data
+    nf = num_filter_upsample * scale * scale
+    conv = bn_relu_conv(proj, prefix_name=name+'/conv/', 
+            num_filter=nf, kernel=(3,3), pad=(1,1), 
+            use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+    return subpixel_upsample(conv, num_filter_upsample, scale, scale)
 
 def multibox_layer(from_layers, num_classes, sizes, ratios, strides, use_global_stats, clip=False, clone_idx=[]):
     ''' multibox layer '''
@@ -112,9 +123,6 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, strides, use_global_
         num_cls_pred = num_anchors * num_classes
 
         if k == clone_ref:
-            # pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
-            #         num_filter=num_loc_pred+num_cls_pred, kernel=(1,1), pad=(0,0), no_bias=False, 
-            #         use_global_stats=use_global_stats, fix_gamma=False, get_syms=True) # (n ac h w)
             pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
                     num_filter=num_loc_pred+num_cls_pred, kernel=(3,3), pad=(1,1), no_bias=False, 
                     use_dn=True, nch=128, 
@@ -137,7 +145,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, strides, use_global_
     preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
     return [preds, anchors]
 
-def get_pvtnet_preact(n_classes, patch_size, use_global_stats, fix_gamma=False, n_group=5):
+def get_phgnet(n_classes, patch_size, use_global_stats, fix_gamma=False, n_group=5):
     """ main shared conv layers """
     data = mx.sym.Variable(name='data')
 
@@ -154,6 +162,7 @@ def get_pvtnet_preact(n_classes, patch_size, use_global_stats, fix_gamma=False, 
     nf_3x3 = ((16, 8, 8), (24, 12, 12), (48, 24, 24)) # 12 24 48
     n_incep = (2, 2, 2)
 
+    # basic groups
     group_i = conv1_3
     groups = []
     n_curr_ch = 64
@@ -163,43 +172,31 @@ def get_pvtnet_preact(n_classes, patch_size, use_global_stats, fix_gamma=False, 
             group_i, n_curr_ch = inception_group(group_i, 'g{}/u{}'.format(i+1, j+1), n_curr_ch, 
                     num_filter_3x3=nf_3x3[i], use_crelu=(i < 2), 
                     use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=False) 
+        # experimental, 6px
+        if i == 0:
+            group_0 = bn_relu_conv(group_i, prefix_name='g0/', 
+                    num_filter=64, kernel=(3,3), pad=(1,1), 
+                    use_global_stats=use_global_stats, fix_gamma=False)
+            groups.append(group_0 + pool(conv1_3))
         groups.append(group_i)
 
-    # for context feature
+    # context layer
     n_curr_ch = 96
     nf_3x3_ctx = (64, 32, 32)
-    group_c = pool(groups[2])
+    group_ctx = pool(groups[-1])
     for i in range(2):
-        group_c, n_curr_ch = inception_group(group_c, 'g_ctx/u{}'.format(i+1), n_curr_ch,
+        group_ctx, n_curr_ch = inception_group(group_ctx, 'g_ctx/u{}'.format(i+1), n_curr_ch,
                 num_filter_3x3=nf_3x3_ctx, use_crelu=False, use_dn=False, 
                 use_global_stats=use_global_stats, fix_gamma=fix_gamma, get_syms=False)
+    ctx_layer = bn_relu_conv(group_ctx, prefix_name='hyper/ctx/', 
+            num_filter=32, kernel=(1,1), pad=(0,0), 
+            use_global_stats=use_global_stats, fix_gamma=False)
 
-    # # 12px 
-    # conv1_u = bn_relu_conv(groups[0], prefix_name='group1_u/', 
-    #         num_filter=32, kernel=(3,3), pad=(1,1), stride=(2,2), 
-    #         use_global_stats=use_global_stats, fix_gamma=fix_gamma)
-    # conv2_d = bn_relu_conv(groups[1], prefix_name='group2_d/', 
-    #         num_filter=32, kernel=(3,3), pad=(1,1), 
-    #         use_global_stats=use_global_stats, fix_gamma=fix_gamma)
-    # concat_12 = mx.sym.concat(conv1_u, conv2_d, name='concat_12')
-    #
-    # # experimental, 6px
-    # conv0_u = bn_relu_conv(conv1_3, prefix_name='group0_u/', 
-    #         num_filter=32, kernel=(3,3), pad=(1,1), stride=(2,2), 
-    #         use_global_stats=use_global_stats, fix_gamma=fix_gamma)
-    # conv1_d = bn_relu_conv(concat_12, prefix_name='group1_d/', 
-    #         num_filter=64, kernel=(3,3), pad=(1,1), 
-    #         use_global_stats=use_global_stats, fix_gamma=fix_gamma)
-    # conv1_d = subpixel_upsample(conv1_d, 16, 2, 2)
-    # concat_01 = mx.sym.concat(conv0_u, conv1_d, name='concat_01')
-    #
-    # groups = [concat_01, concat_12] + groups[1:]
-
-    clone_ref = 3
     # clone reference layer
-    clone_buffer = bn_relu_conv(groups[2], prefix_name='clone_buffer/', 
+    clone_buffer = bn_relu_conv(groups[-1], prefix_name='clone_buffer/', 
             num_filter=128, kernel=(1,1), pad=(0,0), 
             use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+
     nf_3x3_ref = (64, 32, 32)
     group_i, syms_proj = bn_relu_conv(clone_buffer, prefix_name='g4/proj/',
             num_filter=64, kernel=(3,3), pad=(1,1),
@@ -226,21 +223,19 @@ def get_pvtnet_preact(n_classes, patch_size, use_global_stats, fix_gamma=False, 
         groups.append(group_cloned)
 
     from_layers = []
-    # build hyperfeatures
-    ctx_layer = bn_relu(group_c, name='hyper/ctx', use_global_stats=use_global_stats, fix_gamma=False)
-
-    hyper_names = ['hyper012', 'hyper024', 'hyper048']
-    scales = [8, 4, 2]
-    nps = [64, 32, 32]
+    # small scale: hyperfeature
+    hyper_names = ['hyper006', 'hyper012', 'hyper024', 'hyper048']
+    scales = [8, 8, 4, 2]
+    nps = [6, 6, 6, 6]
     for i, s in enumerate(scales):
-        hyper_layer = build_hyperfeature(groups[i], ctx_layer, name=hyper_names[i], 
-                num_filter_proj=nps[i], num_filter_hyper=128, scale=s, use_global_stats=use_global_stats)
+        up_ctx = upsample_feature(ctx_layer, name='ctx_up{}'.format(i+1), scale=s, 
+                num_filter_upsample=nps[i], use_global_stats=use_global_stats)
+        hyper_layer = build_hyperfeature(groups[i], up_ctx, name=hyper_names[i], 
+                num_filter_hyper=128, use_global_stats=use_global_stats)
         from_layers.append(hyper_layer)
 
-    # 192
-    # conv192, src_syms = bn_relu_conv(out_layers[4], prefix_name='hyper192/conv/', 
-    #         num_filter=128, kernel=(3,3), pad=(1,1), 
-    #         use_global_stats=fix_bn, fix_gamma=False, get_syms=True)
+    # clone reference layer
+    clone_ref = 4
     conv096, src_syms = bn_relu_conv(groups[clone_ref], prefix_name='hyper096/conv/', 
             num_filter=128, kernel=(1,1), pad=(0,0), 
             use_dn=True, nch=128, 
@@ -250,18 +245,19 @@ def get_pvtnet_preact(n_classes, patch_size, use_global_stats, fix_gamma=False, 
     # remaining clone layers
     clone_idx = [clone_ref]
     for i in range(clone_ref+1, len(groups)):
-        rf = int((2.0**i) * 12.0)
+        rf = int((2.0**(i-1)) * 12.0)
         prefix_name = 'hyper{}/conv/'.format(rf)
         conv_ = clone_bn_relu_conv(groups[i], prefix_name=prefix_name, src_syms=src_syms)
         from_layers.append(conv_)
         clone_idx.append(i)
 
     n_from_layers = len(from_layers)
-    strides = [2**(i+1) for i in range(n_from_layers)]
+    strides = [2**i for i in range(n_from_layers)]
+    strides[0] = 2
     sizes = []
     sz_ratio = np.power(2.0, 1.0 / 3.0)
     for i in range(n_from_layers):
-        s = 12.0 * (2.0**i)
+        s = 12.0 * (2.0**(i-1))
         sizes.append([s, s*sz_ratio, s/sz_ratio])
     ratios = [[1.0,]] * len(sizes)
     clip = False
