@@ -115,7 +115,7 @@ def _transform_roi(reg, anc, variances):
 
 @mx.operator.register("multibox_detection")
 class MultiBoxDetectionProp(mx.operator.CustomOpProp):
-    def __init__(self, n_class, max_detection=1000, th_pos=0.7, th_nms=0.65, variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, n_class, max_detection=500, th_pos=0.5, th_nms=0.35, variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxDetectionProp, self).__init__(need_top_grad=True)
         self.n_class = int(n_class)

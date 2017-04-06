@@ -93,7 +93,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             n_pos_sample = np.maximum(n_pos_sample, len(anchor_locs))
 
         # negative samples
-        n_neg_sample = np.maximum(1, self.hard_neg_ratio * n_pos_sample)
+        n_neg_sample = 2 * np.maximum(1, self.hard_neg_ratio * n_pos_sample)
         anchor_locs_neg = []
         probs_neg = []
         for i in range(n_batch):
@@ -103,7 +103,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         n_max_sample_neg = len(anchor_locs_pos) * self.hard_neg_ratio 
 
-        sidx = np.argsort(np.array(probs_neg))[::-1]
+        sidx = np.random.permutation(np.arange(len(probs_neg)))
+        # sidx = np.argsort(np.array(probs_neg))[::-1]
         if len(sidx) > n_max_sample_neg:
             sidx = sidx[:n_max_sample_neg]
         anchor_locs_neg = np.array(anchor_locs_neg)[sidx, :]
