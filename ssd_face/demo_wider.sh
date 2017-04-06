@@ -7,4 +7,5 @@ python demo.py \
   --prefix /home/hyunjoon/github/additions_mxnet/ssd_face/model/hjnet_preact_768 \
   --epoch 14 \
   --data-shape 1024 768 \
+  --thresh 0.5 \
   --gpu 1

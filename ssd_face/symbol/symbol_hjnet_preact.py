@@ -6,7 +6,6 @@ from anchor_target_layer import *
 # from masked_l2dist_loss import *
 import numpy as np
 
-
 def get_symbol_train(num_classes, **kwargs):
     '''
     '''
