@@ -134,7 +134,7 @@ class Detector(object):
                     rect = plt.Rectangle((xmin, ymin), xmax - xmin,
                                          ymax - ymin, fill=False,
                                          edgecolor=colors[cls_id],
-                                         linewidth=3.5)
+                                         linewidth=2.5)
                     plt.gca().add_patch(rect)
                     class_name = str(cls_id)
                     if classes and len(classes) > cls_id:

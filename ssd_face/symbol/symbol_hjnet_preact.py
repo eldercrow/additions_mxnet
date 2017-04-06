@@ -12,15 +12,12 @@ def build_hyperfeature(data, ctx_data, name, num_filter_proj, num_filter_hyper, 
     """
     ctx_proj = mx.sym.Convolution(ctx_data, name=name+'/ctx/conv', 
             num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), no_bias=True)
-    # ctx_proj = bn_relu_conv(data=ctx_data, prefix_name=name+'/proj/', 
-    #         num_filter=num_filter_proj, kernel=(3,3), pad=(1,1), 
-    #         use_global_stats=use_global_stats, fix_gamma=False)
     ctx_up = mx.symbol.UpSampling(ctx_proj, num_args=1, name=name+'/up', scale=scale, sample_type='nearest')
-    data_ = bn_relu_conv(data, prefix_name=name+'/conv/', 
-            num_filter=num_filter_hyper-num_filter_proj, kernel=(3,3), pad=(1,1),
+    concat_ = mx.symbol.concat(data, ctx_up, name=name+'/concat')
+    hyper_ = bn_relu_conv(concat_, prefix_name=name+'/hyper/', 
+            num_filter=num_filter_hyper, kernel=(1,1), pad=(0,0),
             use_global_stats=use_global_stats, fix_gamma=False)
-    hyper = mx.symbol.Concat(data_, ctx_up, name=name+'/concat')
-    return hyper
+    return hyper_
 
 def multibox_layer(from_layers, num_classes, sizes, ratios, use_global_stats, clip=True, clone_idx=[]):
     ''' multibox layer '''

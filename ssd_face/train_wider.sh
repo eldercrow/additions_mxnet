@@ -31,6 +31,6 @@ python train.py \
     --frequent 20 \
     --lr 0.001 \
     --wd 0.0001 \
-    --pretrained model/pvtnet_preact_patch_256 \
-    --epoch 0 
-    # --resume 17 
+    --resume 9
+    # --pretrained model/pvtnet_preact_patch_256 \
+    # --epoch 0 

@@ -57,7 +57,7 @@ class WiderPatch(Imdb):
 
         self.config = { \
                 'patch_shape': 256, 
-                'min_roi_size': 4, 
+                'min_roi_size': 8, 
                 'max_roi_size': 256,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
@@ -462,6 +462,14 @@ class WiderPatch(Imdb):
         # make rois ralative to patch rois
         rois[:, 1] -= rois[:, 5]
         rois[:, 2] -= rois[:, 6]
+        # TODO: test, make roi square
+        cx = rois[:, 1] + (rois[:, 3] - 1.0) / 2.0
+        cy = rois[:, 2] + (rois[:, 4] - 1.0) / 2.0
+        max_roi_sz = np.maximum(rois[:, 3], rois[:, 4])
+        rois[:, 1] = cx - max_roi_sz / 2.0
+        rois[:, 2] = cy - max_roi_sz / 2.0
+        rois[:, 3] = max_roi_sz
+        rois[:, 4] = max_roi_sz
         # convert to [xmin, ymin, xmax, ymax]
         rois[:, 3] += rois[:, 1]
         rois[:, 4] += rois[:, 2]

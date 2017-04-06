@@ -43,7 +43,7 @@ class Wider(Imdb):
 
         self.config = { \
                 'use_difficult': False, 
-                'th_small': 4.0, 
+                'th_small': 8.0, 
                 'comp_id': 'comp4', 
                 'padding': 256 } 
 
@@ -290,6 +290,14 @@ class Wider(Imdb):
         """ labels: list of ndarrays """
         self.padding = np.maximum(self.max_objects, self.config['padding'])
         for (i, label) in enumerate(self.labels):
+            # TODO: test, make roi square
+            cx = (label[:, 1] + label[:, 3]) / 2.0
+            cy = (label[:, 2] + label[:, 4]) / 2.0
+            max_roi_sz = np.maximum(label[:, 3] - label[:, 1], label[:, 4] - label[:, 2])
+            label[:, 1] = cx - max_roi_sz / 2.0
+            label[:, 2] = cy - max_roi_sz / 2.0
+            label[:, 3] = cx + max_roi_sz / 2.0
+            label[:, 4] = cy + max_roi_sz / 2.0
             padded = np.tile(np.full((5,), -1, dtype=np.float32), (self.padding, 1))
             padded[:label.shape[0], :] = label
             self.labels[i] = padded

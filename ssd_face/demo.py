@@ -49,7 +49,7 @@ def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx,
 def parse_args():
     parser = argparse.ArgumentParser(description='Single-shot detection network demo')
     parser.add_argument('--network', dest='network', type=str, default='hjnet_preact',
-                        choices=['hjnet_preact'], help='which network to use')
+                        choices=['hjnet_preact', 'pvtnet_preact'], help='which network to use')
     parser.add_argument('--images', dest='images', type=str, default='./data/demo/dog.jpg',
                         help='run demo with images, use comma(without space) to seperate multiple images')
     parser.add_argument('--dir', dest='dir', nargs='?',
@@ -72,7 +72,7 @@ def parse_args():
                         help='green mean value')
     parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
                         help='blue mean value')
-    parser.add_argument('--thresh', dest='thresh', type=float, default=0.5,
+    parser.add_argument('--thresh', dest='thresh', type=float, default=0.6,
                         help='object visualize score threshold, default 0.6')
     parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.5,
                         help='non-maximum suppression threshold, default 0.5')
