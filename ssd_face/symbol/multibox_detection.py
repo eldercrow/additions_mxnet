@@ -48,34 +48,42 @@ class MultiBoxDetection(mx.operator.CustomOp):
         sidx_cls = mx.nd.argsort(max_probs, axis=-1).asnumpy().astype(int)[:, ::-1]
         max_probs = max_probs.asnumpy()
 
-        for n in range(n_batch):
-            pcls = max_probs[n] # (n_anchor, )
-            pcid = max_cid[n] # (n_anchor, )
-            sidx = sidx_cls[n] # (n_anchor, )
-            preg = preds_reg[n] # (n_anchor, 4)
+        for nn in range(n_batch):
+            pcls = max_probs[nn] # (n_anchor, )
+            pcid = max_cid[nn] # (n_anchor, )
+            sidx = sidx_cls[nn] # (n_anchor, )
+            preg = preds_reg[nn] # (n_anchor, 4)
 
-            ocls = out_cls[n]
-            ocid = out_cid[n]
-            oroi = out_roi[n]
-            oanc = out_anc[n]
+            ocls = out_cls[nn]
+            ocid = out_cid[nn]
+            oroi = out_roi[nn]
+            oanc = out_anc[nn]
+            # gather positive anchors
+            pos_idx = np.where(pcls > self.th_pos)[0]
+            pos_idx = np.sort(pos_idx)[::-1]
+            panc = mx.nd.zeros((len(pos_idx), 4), ctx=in_data[2].context)
+            proi = mx.nd.zeros((len(pos_idx), 4), ctx=in_data[2].context)
+            for i, p in enumerate(pos_idx):
+                proi[i] = preg[p]
+                panc[i] = anchors[p]
+            proi = _transform_roi(proi, panc, variances)
+            # apply nms
+            proi_t = mx.nd.transpose(proi, axes=(1, 0))
+            area_proi_t = (proi_t[2] - proi_t[0]) * (proi_t[3] - proi_t[1])
             k = 0
-            for i in sidx:
-                if pcls[i] < 0:
+            for i in range(len(pos_idx)):
+                if pos_idx[i] == -1: 
                     continue
-                elif pcls[i] < self.th_pos: 
-                    break
-                ocls[k] = pcls[i]
-                ocid[k] = pcid[i]
-                oroi[k] = preg[i]
-                oanc[k] = anchors[i]
-                # nms
-                nidx = _nms_anchor(anchors[i], anchors_t, area_anchors_t[i] + area_anchors_t, self.th_nms)
-                pcls[nidx] = -1
+                p = pos_idx[i]
+                ocls[k] = pcls[p]
+                ocid[k] = pcid[p]
+                oroi[k] = proi[i]
+                nidx = _nms_anchor(proi[i], proi_t, area_proi_t[i] + area_proi_t, self.th_nms)
+                pos_idx[nidx] = -1
                 k += 1
                 if k == self.max_detection:
                     break
-            out_roi[n] = _transform_roi(oroi, oanc, variances)
-            n_detection[n] = k
+            n_detection[nn] = k
 
         out_cls = mx.nd.reshape(out_cls, (0, 0, 1))
         out_cid = mx.nd.reshape(out_cid, (0, 0, 1))

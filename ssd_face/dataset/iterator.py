@@ -165,14 +165,14 @@ class DetIter(mx.io.DataIter):
             interp_methods = [cv2.INTER_LINEAR]
         interp_method = interp_methods[int(np.random.uniform(0, 1) * len(interp_methods))]
         data = mx.img.imresize(data, self._data_shape[1], self._data_shape[0], interp_method)
-        valid_mask = np.where(np.any(label != -1, axis=1))[0]
-        if self.is_train and self._rand_mirror:
-            if np.random.uniform(0, 1) > 0.5:
-                data = mx.nd.flip(data, axis=1)
-                tmp = 1.0 - label[valid_mask, 1]
-                label[valid_mask, 1] = 1.0 - label[valid_mask, 3]
-                label[valid_mask, 3] = tmp
         if self.is_train:
+            valid_mask = np.where(np.any(label != -1, axis=1))[0]
+            if self._rand_mirror:
+                if np.random.uniform(0, 1) > 0.5:
+                    data = mx.nd.flip(data, axis=1)
+                    tmp = 1.0 - label[valid_mask, 1]
+                    label[valid_mask, 1] = 1.0 - label[valid_mask, 3]
+                    label[valid_mask, 3] = tmp
             label[valid_mask, 1::2] *= data.shape[1]
             label[valid_mask, 2::2] *= data.shape[0]
         # img_draw = np.minimum(255., np.maximum(0., data.asnumpy())).astype(np.uint8)
