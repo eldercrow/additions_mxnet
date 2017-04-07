@@ -166,7 +166,10 @@ class PatchIter(mx.io.DataIter):
 
         self._data = {'data': batch_data}
         if self.is_train:
-            self._label = {'label': mx.nd.array(np.array(batch_label[:, 1:6]))}
+            labels = np.array(batch_label[:, 1:6])
+            labels[:, 1::2] *= self._data_shape[1]
+            labels[:, 2::2] *= self._data_shape[0]
+            self._label = {'label': mx.nd.array(labels)}
         else:
             self._label = {'label': None}
 

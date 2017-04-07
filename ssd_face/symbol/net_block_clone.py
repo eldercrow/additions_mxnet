@@ -33,7 +33,7 @@ def data_norm(data, name, nch, bias=None, eps=1e-03, get_syms=False):
     else:
         return data_
 
-def bn_relu(data, name, use_global_stats=False, fix_gamma=True):
+def bn_relu(data, name, use_global_stats=False, fix_gamma=False):
     #
     bn_ = mx.sym.BatchNorm(data, use_global_stats=use_global_stats, fix_gamma=fix_gamma, name=name)
     relu_ = mx.sym.Activation(bn_, act_type='relu')
@@ -57,7 +57,7 @@ def conv_poolup2(data, name, num_filter, kernel=(3,3), pad=(0,0), no_bias=True, 
 def bn_relu_conv(data, prefix_name='', postfix_name='', 
         num_filter=0, kernel=(3,3), pad=(0,0), stride=(1,1), use_crelu=False, 
         use_dn=False, nch=0, 
-        use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
+        use_global_stats=False, fix_gamma=False, no_bias=True, get_syms=False):
     #
     assert prefix_name != '' or postfix_name != ''
     conv_name = prefix_name + 'conv' + postfix_name
@@ -85,7 +85,7 @@ def bn_relu_conv(data, prefix_name='', postfix_name='',
 def bn_relu_conv_poolup2(data, prefix_name='', postfix_name='', 
         num_filter=0, kernel=(3,3), pad=(0,0), use_crelu=False, 
         use_dn=False, nch=0, 
-        use_global_stats=False, fix_gamma=True, no_bias=True, get_syms=False):
+        use_global_stats=False, fix_gamma=False, no_bias=True, get_syms=False):
     #
     assert prefix_name != '' or postfix_name != ''
     conv_name = prefix_name + 'conv' + postfix_name

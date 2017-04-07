@@ -28,8 +28,6 @@ class Detector(object):
         device to use, if None, use mx.cpu() as default context
     """
     def __init__(self, symbol, model_prefix, epoch, data_shape, mean_pixels, batch_size=1, ctx=None):
-        import ipdb
-        ipdb.set_trace()
         self.ctx = ctx
         if self.ctx is None:
             self.ctx = mx.cpu()

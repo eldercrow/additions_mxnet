@@ -16,7 +16,7 @@ def get_symbol_train(num_classes, **kwargs):
         patch_size = kwargs['patch_size']
 
     preds, anchors = get_phgnet(num_classes, patch_size, 
-            use_global_stats=fix_bn, fix_gamma=False, n_group=n_group)
+            use_global_stats=fix_bn, n_group=n_group)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
@@ -61,7 +61,7 @@ def get_symbol(num_classes, **kwargs):
         th_pos = kwargs['th_pos']
 
     preds, anchors = get_phgnet(num_classes, patch_size, 
-            use_global_stats=fix_bn, fix_gamma=False, n_group=n_group)
+            use_global_stats=fix_bn, n_group=n_group)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
