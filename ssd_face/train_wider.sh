@@ -5,11 +5,11 @@
 #     --image-set train \
 #     --val-image-set '' \
 #     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
-#     --network hjnet_preact_patch \
+#     --network phgnet_patch \
 #     --batch-size 16 \
 #     --from-scratch 1 \
 #     --gpu 0 \
-#     --prefix model/hjnet_preact_patch \
+#     --prefix model/phgnet_patch \
 #     --data-shape 256 \
 #     --frequent 20 \
 #     --monitor 500 \
@@ -22,15 +22,15 @@ python train.py \
     --image-set train \
     --val-image-set '' \
     --devkit-path /home/hyunjoon/fd/joint_cascade/data/wider \
-    --network hjnet_preact \
+    --network phgnet \
     --batch-size 2 \
     --gpu 0 \
-    --prefix model/hjnet_preact \
+    --prefix model/phgnet \
     --data-shape 768 \
     --monitor 1000 \
     --frequent 50 \
     --lr 0.0001 \
     --wd 0.0001 \
-    --resume 23
-    # --pretrained model/hjnet_preact_patch_256 \
+    --resume 59
+    # --pretrained model/phgnet_patch_256 \
     # --epoch 0 

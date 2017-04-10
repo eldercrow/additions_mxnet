@@ -57,11 +57,11 @@ class WiderPatch(Imdb):
 
         self.config = { \
                 'patch_shape': 256, 
-                'min_roi_size': 8, 
+                'min_roi_size': 4, 
                 'max_roi_size': 256,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
-                'max_patch_per_image': 18, 
+                'max_patch_per_image': 24, 
                 'use_difficult': True
                 }
         for k, v in kwargs.iteritems():

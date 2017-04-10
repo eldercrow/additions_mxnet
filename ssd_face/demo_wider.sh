@@ -1,11 +1,11 @@
 #!/bin/bash
 python demo.py \
-  --network hjnet_preact \
-  --images 1_410 \
+  --network phgnet \
+  --images 1_74 \
   --dir image \
   --ext .jpg \
-  --prefix /home/hyunjoon/github/additions_mxnet/ssd_face/model/hjnet_preact_768 \
-  --epoch 37 \
+  --prefix /home/hyunjoon/github/additions_mxnet/ssd_face/model/phgnet_768 \
+  --epoch 59 \
   --data-shape 768 1024 \
-  --thresh 0.6 \
+  --thresh 0.5 \
   --gpu 1

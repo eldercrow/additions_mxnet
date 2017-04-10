@@ -240,10 +240,9 @@ class MultiBoxTarget(mx.operator.CustomOp):
         eidx = np.argsort(max_probs)[::-1]
 
         # semi-hard sample
-        hidx = np.where(max_probs > self.mean_pos_prob)[0]
-        np.random.shuffle(hidx)
-        eidx[:len(hidx)] = hidx
-        # eidx = np.concatenate((hidx, eidx))
+        # hidx = np.where(max_probs > self.mean_pos_prob)[0]
+        # np.random.shuffle(hidx)
+        # eidx[:len(hidx)] = hidx
 
         # pick hard samples one by one
         for ii in eidx:
@@ -312,7 +311,7 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class, 
-            th_iou=0.55, th_nms=0.65, th_neg_nms=1.0/5.0, 
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/5.0, 
             n_max_label=768, sample_per_label=3, hard_neg_ratio=3., ignore_label=-1, 
             variances=(0.1, 0.1, 0.2, 0.2)):
         #

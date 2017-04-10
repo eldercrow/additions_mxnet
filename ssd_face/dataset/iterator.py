@@ -175,6 +175,16 @@ class DetIter(mx.io.DataIter):
                     label[valid_mask, 3] = tmp
             label[valid_mask, 1::2] *= data.shape[1]
             label[valid_mask, 2::2] *= data.shape[0]
+            cx = (label[valid_mask, 1] + label[valid_mask, 3]) / 2.0
+            cy = (label[valid_mask, 2] + label[valid_mask, 4]) / 2.0
+            pw = (label[valid_mask, 3] - label[valid_mask, 1]) / 2.0
+            ph = (label[valid_mask, 4] - label[valid_mask, 2]) / 2.0
+            pw = np.maximum(pw, ph)
+
+            label[valid_mask, 1] = cx - pw
+            label[valid_mask, 2] = cy - pw
+            label[valid_mask, 3] = cx + pw
+            label[valid_mask, 4] = cy + pw
         # img_draw = np.minimum(255., np.maximum(0., data.asnumpy())).astype(np.uint8)
         # img_draw = img_draw[:, :, ::-1]
         # img_draw = img_draw.copy()

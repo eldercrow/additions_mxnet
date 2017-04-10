@@ -23,7 +23,7 @@ class Wider(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170401_1' # for caching
+    IDX_VER = '170407_2' # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=False, is_train=False):
         super(Wider, self).__init__('wider_' + image_set) # e.g. wider_trainval
@@ -43,7 +43,7 @@ class Wider(Imdb):
 
         self.config = { \
                 'use_difficult': False, 
-                'th_small': 8.0, 
+                'th_small': 4.0, 
                 'comp_id': 'comp4', 
                 'padding': 256 } 
 
@@ -290,7 +290,7 @@ class Wider(Imdb):
         """ labels: list of ndarrays """
         self.padding = np.maximum(self.max_objects, self.config['padding'])
         for (i, label) in enumerate(self.labels):
-            # # TODO: test, make roi square
+            # TODO: test, make roi square
             # cx = (label[:, 1] + label[:, 3]) / 2.0
             # cy = (label[:, 2] + label[:, 4]) / 2.0
             # max_roi_sz = np.maximum(label[:, 3] - label[:, 1], label[:, 4] - label[:, 2])
