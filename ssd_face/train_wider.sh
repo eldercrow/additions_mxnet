@@ -29,8 +29,8 @@ python train.py \
     --data-shape 768 \
     --monitor 1000 \
     --frequent 50 \
-    --lr 0.0001 \
+    --lr 0.001 \
     --wd 0.0001 \
-    --resume 59
+    --resume 80
     # --pretrained model/phgnet_patch_256 \
     # --epoch 0 

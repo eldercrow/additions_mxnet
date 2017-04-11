@@ -112,8 +112,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         n_max_sample_neg = len(anchor_locs_pos) * self.hard_neg_ratio
 
-        sidx = np.random.permutation(np.arange(len(probs_neg)))
-        # sidx = np.argsort(np.array(probs_neg))[::-1]
+        # sidx = np.random.permutation(np.arange(len(probs_neg)))
+        sidx = np.argsort(np.array(probs_neg))[::-1]
         if len(sidx) > n_max_sample_neg:
             sidx = sidx[:n_max_sample_neg]
         anchor_locs_neg = np.array(anchor_locs_neg)[sidx, :]
@@ -181,7 +181,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         pos_target_reg = []
         pos_probs = []
         max_iou = np.zeros(n_anchors)
-        is_sampled = np.zeros(n_anchors, dtype=bool)
+        is_sampled = np.zeros(n_anchors)
 
         # valid gt labels
         labels = _get_valid_labels(labels)
@@ -193,6 +193,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
                 continue
 
             pidx = np.where(iou > self.th_iou)[0]
+            if pidx.size == 0:
+                pidx = np.array([np.argmax(iou)])
             pos_iou = iou[pidx]
             sidx = np.argsort(pos_iou)[::-1]
             pidx = pidx[sidx]
@@ -202,9 +204,16 @@ class MultiBoxTarget(mx.operator.CustomOp):
                 # pick positive
                 if iou[ii] <= self.th_iou:
                     continue
-                iou[ii] = 0
-                if is_sampled[ii] == False:
-                    is_sampled[ii] = True
+                # iou[ii] = 0
+                if is_sampled[ii] < iou[ii]:
+                    if is_sampled[ii] > 0:
+                        didx = pos_anchor_locs.index((batch_id, ii))
+                        del pos_anchor_locs[didx]
+                        del pos_target_cls[didx]
+                        del pos_target_reg[didx]
+                        del pos_probs[didx]
+                        k -= 1
+                    is_sampled[ii] = iou[ii]
                     pos_anchor_locs.append((batch_id, ii))
                     pos_target_cls.append(label[0])
                     target_reg = _compute_loc_target(label[1:], self.anchors[ii].asnumpy(), self.variances)
@@ -231,7 +240,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
     def _forward_batch_neg(self, n_neg_sample, max_probs, neg_iou, batch_id):
         # first remove positive samples from mining
-        pidx = np.where(neg_iou > 1.0/3.0)[0]
+        pidx = np.where(neg_iou > 1.0/2.0)[0]
         max_probs[pidx] = -1.0
 
         neg_probs = []
@@ -311,7 +320,7 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class, 
-            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/5.0, 
+            th_iou=0.65, th_nms=0.65, th_neg_nms=1.0/5.0, 
             n_max_label=768, sample_per_label=3, hard_neg_ratio=3., ignore_label=-1, 
             variances=(0.1, 0.1, 0.2, 0.2)):
         #

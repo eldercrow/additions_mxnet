@@ -291,6 +291,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Resume training with {} from epoch {}"
             .format(ctx_str, resume))
         _, args, auxs = mx.model.load_checkpoint(prefix, resume)
+        # import ipdb
+        # ipdb.set_trace()
         auxs.pop('multibox_target_target_loc_weight')
         begin_epoch = resume
         fixed_param_names = None

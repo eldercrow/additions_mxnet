@@ -165,7 +165,7 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
         # experimental, 6px
         if i == 0:
             group_0 = bn_relu_conv(conv1_3, prefix_name='g0/', 
-                    num_filter=64, kernel=(3,3), pad=(1,1), stride=(2,2), 
+                    num_filter=64, kernel=(2,2), pad=(0,0), stride=(2,2), 
                     use_global_stats=use_global_stats)
             groups.append(group_0 + pool(conv1_3))
         groups.append(group_i)

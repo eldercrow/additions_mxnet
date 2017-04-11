@@ -26,9 +26,12 @@ namespace ternarize {
 
 struct TernarizeParam : public dmlc::Parameter<TernarizeParam> {
   float th_zero_ratio;
+  bool soft_ternarization;
   DMLC_DECLARE_PARAMETER(TernarizeParam) {
     DMLC_DECLARE_FIELD(th_zero_ratio).set_default(0.7f)
     .describe("to be filled.");
+    DMLC_DECLARE_FIELD(soft_ternarization).set_default(false)
+    .describe("Apply soft ternarization, just push weights into ternary values.");
   }
 };
 
@@ -66,8 +69,15 @@ class TernarizeOp : public Operator {
         aux_thres /= static_cast<float>(in_data[ternarize::kData].Size());
         aux_thres *= param_.th_zero_ratio;
       }
-      thres = F<mshadow_op::identity>(aux_thres);
-      out_1d = F<mshadow_op::ternarize>(data_1d, broadcast<0>(thres, shape_1d));
+      if (param_.soft_ternarization) {
+        Assign(thres, req[ternarize::kThres], F<mshadow_op::identity>(aux_thres));
+        Assign(out_1d, req[ternarize::kOut], 
+            F<mshadow_op::ternarize>(data_1d, broadcast<0>(thres, shape_1d)));
+      } else {
+        thres = DType(1.f);
+        Assign(out_1d, req[ternarize::kOut], 
+            F<mshadow_op::clip>(data_1d, broadcast<0>(thres, shape_1d)));
+      }
       // out_1d *= broadcast<0>(thres, shape_1d);
     }
 
@@ -88,8 +98,15 @@ class TernarizeOp : public Operator {
       Shape<2> shape_1d = Shape2(1, out_grad[ternarize::kOut].Size());
       auto grad = out_grad[ternarize::kOut].get_with_shape<xpu, 2, DType>(shape_1d, s);
       auto gdata = in_grad[ternarize::kData].get_with_shape<xpu, 2, DType>(shape_1d, s);
-      
-      Assign(gdata, req[ternarize::kData], F<mshadow_op::identity>(grad));
+      auto aux_thres = 
+        aux_args[ternarize::kAuxThres].get<xpu, 1, DType>(s); // size 1 tensor
+
+      if (param_.soft_ternarization) {
+        Assign(gdata, req[ternarize::kData], F<mshadow_op::identity>(grad));
+      } else {
+        Assign(gdata, req[ternarize::kData], 
+            F<mshadow_op::clip_grad>(m_out_data, broadcast<0>(aux_thres, shape_1d)) * m_out_grad);
+      }
     }
 
   private:
