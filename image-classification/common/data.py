@@ -17,8 +17,6 @@ def add_data_args(parser):
     data.add_argument('--num-examples', type=int, help='the number of training examples')
     data.add_argument('--data-nthreads', type=int, default=4,
                       help='number of threads for data decoding')
-    data.add_argument('--batch-per-epoch', type=int, default=0, 
-                      help='apply mx.io.ResizeIter to reduce the size of each epoch')
     data.add_argument('--benchmark', type=int, default=0,
                       help='if 1, then feed the network with synthetic data')
     data.add_argument('--dtype', type=str, default='float32',
@@ -134,9 +132,6 @@ def get_rec_iter(args, kv=None):
         shuffle             = True,
         num_parts           = nworker,
         part_index          = rank)
-    # if args.batch_per_epoch > 0:
-    #     train = mx.io.ResizeIter(train, args.batch_per_epoch, reset_internal=True)
-    #     train.reset()
     if args.data_val is None:
         return (train, None)
     val = mx.io.ImageRecordIter(

@@ -11,8 +11,9 @@
 #     --gpu 0 \
 #     --prefix model/phgnet_patch \
 #     --data-shape 256 \
-#     --frequent 20 \
-#     --monitor 500 \
+#     --end-epoch 1 \
+#     --frequent 50 \
+#     --monitor 1000 \
 #     --lr 0.001 \
 #     --wd 0.0001
 
@@ -31,6 +32,6 @@ python train.py \
     --frequent 50 \
     --lr 0.001 \
     --wd 0.0001 \
-    --resume 80
+    --resume 1
     # --pretrained model/phgnet_patch_256 \
-    # --epoch 0 
+    # --epoch 1

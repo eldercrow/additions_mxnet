@@ -135,17 +135,11 @@ def fit(args, network, data_loader, **kwargs):
     # learning rate
     lr, lr_scheduler = _get_lr_scheduler(args, kv)
 
-    # fix gamma in BatchNorm
-    fixed_param_names = []
-    # fixed_param_names = [name for name in network.list_arguments() if name.endswith('_gamma')]
-
     # create model
     model = mx.mod.Module(
-        context           = devs,
-        symbol            = network, 
-        fixed_param_names = fixed_param_names
+        context       = devs,
+        symbol        = network
     )
-    logging.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
     lr_scheduler  = lr_scheduler
     if args.optimizer == 'sgd':
@@ -159,14 +153,15 @@ def fit(args, network, data_loader, **kwargs):
                 'learning_rate': lr,
                 'wd' : args.wd,
                 'lr_scheduler': lr_scheduler}
-    monitor = mx.mon.Monitor(args.monitor, pattern=".*weight|.*moving.*") if args.monitor > 0 else None
+
+    monitor = mx.mon.Monitor(args.monitor, pattern=".*") if args.monitor > 0 else None
 
     if args.network == 'alexnet':
         # AlexNet will not converge using Xavier
         initializer = mx.init.Normal()
     else:
         initializer = mx.init.Xavier(
-            rnd_type='gaussian', factor_type="in", magnitude=2.34)
+            rnd_type='gaussian', factor_type="in", magnitude=2)
     # initializer   = mx.init.Xavier(factor_type="in", magnitude=2.34),
 
     # evaluation metrices

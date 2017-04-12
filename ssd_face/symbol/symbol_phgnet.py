@@ -31,12 +31,12 @@ def get_symbol_train(num_classes, **kwargs):
     mask_reg = tmp[4]
 
     cls_loss = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, \
-        ignore_label=-1, use_ignore=True, grad_scale=4.0, 
+        ignore_label=-1, use_ignore=True, grad_scale=1.0, 
         normalization='valid', name="cls_prob")
     loc_diff = sample_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=0.5, \
+    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
         normalization='valid', name="loc_loss")
 
     label_cls = mx.sym.MakeLoss(target_cls, grad_scale=0, name='label_cls')

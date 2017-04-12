@@ -27,7 +27,7 @@ if __name__ == '__main__':
     data.set_data_aug_level(parser, 2)
     parser.set_defaults(
         # network
-        network        = 'resnet',
+        network        = 'inception-bn',
         num_layers     = 110,
         # data
         data_train     = train_fname,

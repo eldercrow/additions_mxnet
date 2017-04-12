@@ -240,7 +240,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
     def _forward_batch_neg(self, n_neg_sample, max_probs, neg_iou, batch_id):
         # first remove positive samples from mining
-        pidx = np.where(neg_iou > 1.0/2.0)[0]
+        pidx = np.where(neg_iou > 1.0/3.0)[0]
         max_probs[pidx] = -1.0
 
         neg_probs = []
@@ -320,8 +320,8 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class, 
-            th_iou=0.65, th_nms=0.65, th_neg_nms=1.0/5.0, 
-            n_max_label=768, sample_per_label=3, hard_neg_ratio=3., ignore_label=-1, 
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/5.0, 
+            n_max_label=768, sample_per_label=5, hard_neg_ratio=3., ignore_label=-1, 
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxTargetProp, self).__init__(need_top_grad=True)

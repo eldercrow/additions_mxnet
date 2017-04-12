@@ -98,6 +98,7 @@ class TernarizeOp : public Operator {
       Shape<2> shape_1d = Shape2(1, out_grad[ternarize::kOut].Size());
       auto grad = out_grad[ternarize::kOut].get_with_shape<xpu, 2, DType>(shape_1d, s);
       auto gdata = in_grad[ternarize::kData].get_with_shape<xpu, 2, DType>(shape_1d, s);
+      auto data_1d = out_data[ternarize::kOut].get_with_shape<xpu, 2, DType>(shape_1d, s);
       auto aux_thres = 
         aux_args[ternarize::kAuxThres].get<xpu, 1, DType>(s); // size 1 tensor
 
@@ -105,7 +106,7 @@ class TernarizeOp : public Operator {
         Assign(gdata, req[ternarize::kData], F<mshadow_op::identity>(grad));
       } else {
         Assign(gdata, req[ternarize::kData], 
-            F<mshadow_op::clip_grad>(m_out_data, broadcast<0>(aux_thres, shape_1d)) * m_out_grad);
+            F<mshadow_op::clip_grad>(data_1d, broadcast<0>(aux_thres, shape_1d)) * grad);
       }
     }
 
@@ -170,7 +171,7 @@ class TernarizeProp : public OperatorProperty {
       const std::vector<int> &out_grad,
       const std::vector<int> &in_data,
       const std::vector<int> &out_data) const override {
-      return {out_grad[ternarize::kOut], };
+      return {out_data[ternarize::kOut], out_grad[ternarize::kOut], };
     }
 
     int NumOutputs() const override {

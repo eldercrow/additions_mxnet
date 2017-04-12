@@ -153,39 +153,36 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
     n_incep = (2, 2, 2)
 
     # basic groups
-    group_i = conv1_3
-    groups = []
+    groups = [pool(conv1_3)]  # 384
     n_curr_ch = 64
     for i in range(len(nf_3x3)):
-        group_i = pool(group_i, kernel=(2,2), name='pool{}'.format(i+1)) # 48 24 12 6
+        group_i = groups[-1]
         for j in range(n_incep[i]):
             group_i, n_curr_ch = inception_group(group_i, 'g{}/u{}'.format(i+1, j+1), n_curr_ch, 
                     num_filter_3x3=nf_3x3[i], use_crelu=(i < 2), 
                     use_global_stats=use_global_stats, get_syms=False) 
-        # experimental, 6px
-        if i == 0:
-            group_0 = bn_relu_conv(conv1_3, prefix_name='g0/', 
-                    num_filter=64, kernel=(2,2), pad=(0,0), stride=(2,2), 
-                    use_global_stats=use_global_stats)
-            groups.append(group_0 + pool(conv1_3))
-        groups.append(group_i)
+        groups.append(pool(group_i)) # 192 96 48
 
     # context layer
     n_curr_ch = 96
     nf_3x3_ctx = (64, 32, 32)
-    group_ctx = pool(groups[-1])
+    group_ctx = groups[-1]
     for i in range(2):
         group_ctx, n_curr_ch = inception_group(group_ctx, 'g_ctx/u{}'.format(i+1), n_curr_ch,
                 num_filter_3x3=nf_3x3_ctx, use_crelu=False, use_dn=False, 
                 use_global_stats=use_global_stats, get_syms=False)
 
     # layers for hourglass model
-    ctx_scales = (1, 2, 4, 8)
+    ctx_strides = np.array((2, 4, 8, 16, 16)) 
     ctx_layers = []
     for i, g in enumerate((groups[1], groups[2], groups[3], group_ctx)):
-        ctx_layer = upsample_feature(g, name='ctx{}'.format(i+1), scale=ctx_scales[i], 
-                num_filter_proj=32, num_filter_upsample=8, use_global_stats=use_global_stats)
-        ctx_layers.append(ctx_layer)
+        cl = []
+        for j in range(i+1):
+            s = ctx_strides[i+1] / ctx_strides[j]
+            ctx_layer = upsample_feature(g, name='ctx{}/{}'.format(i+1, j), scale=s, 
+                    num_filter_proj=32, num_filter_upsample=8, use_global_stats=use_global_stats)
+            cl.append(ctx_layer)
+        ctx_layers.append(cl)
 
     # buffer layer for constructing clone layers
     clone_buffer = bn_relu_conv(groups[-1], prefix_name='clone_buffer/', 
@@ -198,7 +195,6 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
             num_filter=64, kernel=(3,3), pad=(1,1),
             use_dn=True, nch=128, 
             use_global_stats=use_global_stats, get_syms=True)
-    group_i = pool(group_i)
     n_curr_ch = 64
     syms_unit = []
     for j in range(2):
@@ -206,32 +202,26 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
                 num_filter_3x3=nf_3x3_ref, use_dn=True, 
                 use_global_stats=use_global_stats, get_syms=True) 
         syms_unit.append(syms)
-    groups.append(group_i)
+    groups.append(pool(group_i)) # 24
 
     # cloned layers
-    group_cloned = groups[-1]
     for i in range(len(groups), n_group):
+        group_cloned = groups[-1]
         group_cloned = clone_bn_relu_conv(group_cloned, 'g{}/proj'.format(i), '', syms_proj)
-        group_cloned = pool(group_cloned)
         for j in range(2):
             group_cloned = clone_inception_group(group_cloned, 'g{}/u{}'.format(i, j+1),  
                     syms_unit[j])
-        groups.append(group_cloned)
+        groups.append(pool(group_cloned)) # 12 6 3 
 
     from_layers = []
     # small scale: hyperfeature
     hyper_names = ['hyper006/', 'hyper012/', 'hyper024/', 'hyper048/']
-    ctx_scales = (1, 1, 2, 4)
     for i, g in enumerate(groups[:4]):
         # gather all the upper layers
-        ctxi = []
-        s = ctx_scales[i]
+        ctxi = [g]
         for j, c in enumerate(ctx_layers[i:]):
-            if s > 1:
-                ctxi.append(pool(c, kernel=(s, s), stride=(s, s), pool_type='avg'))
-            else:
-                ctxi.append(c)
-        concat = mx.sym.concat(*([g] + ctxi))
+            ctxi.append(ctx_layers[j+i][i])
+        concat = mx.sym.concat(*(ctxi))
         hyper = bn_relu_conv(concat, prefix_name=hyper_names[i], num_filter=128, 
                 kernel=(1,1), pad=(0,0), use_global_stats=use_global_stats)
         from_layers.append(hyper)
@@ -254,8 +244,7 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
         clone_idx.append(i)
 
     n_from_layers = len(from_layers)
-    strides = [2**i for i in range(n_from_layers)]
-    strides[0] = 2
+    strides = [2**(i+1) for i in range(n_from_layers)]
     sizes = []
     sz_ratio = np.power(2.0, 1.0 / 3.0)
     for i in range(n_from_layers):

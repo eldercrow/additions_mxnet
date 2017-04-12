@@ -18,6 +18,13 @@ struct ternarize {
   }
 };
 
+struct clip_grad {
+  template<typename DType>
+  MSHADOW_XINLINE static DType Map(DType x, DType bound) {
+    return (x > -bound && x < bound) ? DType(1.f) : DType(0.f);
+  }
+};
+
 // struct qrelu {
 //   template<typename DType>
 //   MSHADOW_XINLINE static DType Map(DType a, DType th) {

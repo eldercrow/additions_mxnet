@@ -5,7 +5,7 @@ python demo.py \
   --dir image \
   --ext .jpg \
   --prefix /home/hyunjoon/github/additions_mxnet/ssd_face/model/phgnet_768 \
-  --epoch 80 \
+  --epoch 91 \
   --data-shape 768 1024 \
   --thresh 0.5 \
   --gpu 1
