@@ -30,8 +30,8 @@ python train.py \
     --data-shape 768 \
     --monitor 1000 \
     --frequent 50 \
-    --lr 0.001 \
+    --lr 0.0001 \
     --wd 0.0001 \
-    --resume 1
+    --resume 35
     # --pretrained model/phgnet_patch_256 \
     # --epoch 1

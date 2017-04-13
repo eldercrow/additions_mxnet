@@ -337,7 +337,6 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     lr_scheduler = mx.lr_scheduler.FactorScheduler(iter_refactor, lr_refactor_ratio)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
-                      'lr_scheduler': lr_scheduler,
                       'clip_gradient': 4.0,
                       'rescale_grad': 1.0}
     # optimizer_params={'learning_rate':learning_rate,

@@ -52,7 +52,7 @@ def get_symbol(num_classes, **kwargs):
     fix_bn = True
     n_group = 8
     patch_size = 768
-    th_pos = 0.5
+    th_pos = 0.25
     if 'n_group' in kwargs:
         n_group = kwargs['n_group']
     if 'patch_size' in kwargs:
