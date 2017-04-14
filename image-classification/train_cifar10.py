@@ -49,5 +49,8 @@ if __name__ == '__main__':
     net = import_module('symbols.'+args.network)
     sym = net.get_symbol(**vars(args))
 
+    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+    os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
+
     # train
     fit.fit(args, sym, data.get_rec_iter)

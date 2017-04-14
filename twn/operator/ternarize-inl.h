@@ -69,14 +69,14 @@ class TernarizeOp : public Operator {
         aux_thres /= static_cast<float>(in_data[ternarize::kData].Size());
         aux_thres *= param_.th_zero_ratio;
       }
-      if (param_.soft_ternarization) {
+      if (!param_.soft_ternarization) {
         Assign(thres, req[ternarize::kThres], F<mshadow_op::identity>(aux_thres));
         Assign(out_1d, req[ternarize::kOut], 
             F<mshadow_op::ternarize>(data_1d, broadcast<0>(thres, shape_1d)));
       } else {
-        thres = DType(1.f);
         Assign(out_1d, req[ternarize::kOut], 
-            F<mshadow_op::clip>(data_1d, broadcast<0>(thres, shape_1d)));
+            F<mshadow_op::clip>(data_1d, broadcast<0>(aux_thres, shape_1d)));
+        thres = DType(1.f);
       }
       // out_1d *= broadcast<0>(thres, shape_1d);
     }
@@ -102,7 +102,7 @@ class TernarizeOp : public Operator {
       auto aux_thres = 
         aux_args[ternarize::kAuxThres].get<xpu, 1, DType>(s); // size 1 tensor
 
-      if (param_.soft_ternarization) {
+      if (!param_.soft_ternarization) {
         Assign(gdata, req[ternarize::kData], F<mshadow_op::identity>(grad));
       } else {
         Assign(gdata, req[ternarize::kData], 
