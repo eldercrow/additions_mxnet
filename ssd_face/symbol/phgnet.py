@@ -63,13 +63,31 @@ def clone_inception_group(data, prefix_group_name, src_syms):
         data = clone_bn_relu_conv(data, prefix_name=prefix_name+'proj/', src_syms=src_syms['proj_data'])
     return concat_ + data
 
-def build_hyperfeature(layer, ctx_layer, name, num_filter_hyper, use_global_stats):
+def subsample_pool(data, name, num_filter, use_global_stats):
+    #
+    # conv3x3 = bn_relu_conv(data, prefix_name=name+'/', postfix_name='3x3', 
+    #         num_filter=num_filter, kernel=(3,3), pad=(1,1), 
+    #         use_global_stats=use_global_stats, fix_gamma=False)
+    conv3x3 = bn_relu_conv(data, prefix_name=name+'/', postfix_name='3x3', 
+            num_filter=num_filter*4, kernel=(3,3), pad=(1,1), 
+            use_global_stats=use_global_stats, fix_gamma=False)
+    sub_groups = mx.sym.SliceChannel(conv3x3, num_outputs=4, axis=1)
+    return mx.sym.add_n(*sub_groups)
+    # res0 = mx.sym.maximum(sub_groups[0], sub_groups[1])
+    # res1 = mx.sym.maximum(sub_groups[2], sub_groups[3])
+    # return mx.sym.maximum(res0, res1)
+
+def build_hyperfeature(layer, ctx_layer, name, num_filter_ctx, num_filter_hyper, use_global_stats):
     """
     """
-    concat_ = mx.sym.concat(layer, ctx_layer)
-    return bn_relu_conv(concat_, prefix_name=name+'/hyper/', 
-            num_filter=num_filter_hyper, kernel=(1,1), pad=(0,0),
+    ctx_ = upsample_feature(ctx_layer, name=name+'/upconv/', scale=2, 
+            num_filter_proj=32, num_filter_upsample=num_filter_ctx, 
             use_global_stats=use_global_stats)
+    layer_ = bn_relu_conv(layer, prefix_name=name+'/proj/', 
+            num_filter=num_filter_hyper-num_filter_ctx, kernel=(1,1), pad=(0,0),
+            use_global_stats=use_global_stats)
+    concat_ = mx.sym.concat(layer_, ctx_)
+    return concat_
 
 def upsample_feature(data, name, scale, num_filter_proj=0, num_filter_upsample=0, use_global_stats=False):
     ''' use subpixel_upsample to upsample a given layer '''
@@ -142,17 +160,29 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
     conv1_1 = mx.sym.Convolution(data/128.0, name='conv1/1', num_filter=16, 
             kernel=(3,3), pad=(1,1), no_bias=True) # 32, 198
     concat1_1 = mx.sym.concat(conv1_1, -conv1_1, name='concat1/1')
-    conv1_2 = bn_relu_conv(concat1_1, postfix_name='1/2', 
-            num_filter=32, kernel=(3,3), pad=(1,1), use_crelu=True, 
+    conv1_2_1 = bn_relu_conv(concat1_1, postfix_name='1/2_1', 
+            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
             use_global_stats=use_global_stats) # 48, 196 
-    conv1_3 = bn_relu_conv(conv1_2, postfix_name='1/3', 
-            num_filter=32, kernel=(3,3), pad=(1,1), use_crelu=True, 
+    conv1_2_2 = bn_relu_conv(conv1_2_1, postfix_name='1/2_2', 
+            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
+            use_global_stats=use_global_stats) # 48, 196 
+    conv1_2 = mx.sym.concat(conv1_2_1, conv1_2_2)
+    conv1_3_1 = bn_relu_conv(conv1_2, postfix_name='1/3_1', 
+            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
             use_global_stats=use_global_stats) # 48, 192 
+    conv1_3_2 = bn_relu_conv(conv1_3_1, postfix_name='1/3_2', 
+            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
+            use_global_stats=use_global_stats) # 48, 192 
+    conv1_3 = mx.sym.concat(conv1_3_1, conv1_3_2)
 
     nf_3x3 = ((16, 8, 8), (24, 12, 12), (48, 24, 24)) # nch: 64 96 96
     n_incep = (2, 2, 2)
 
     # basic groups
+    # groups = [pool(subsample_pool(conv1_3, name='pool0', num_filter=64, use_global_stats=use_global_stats))]
+    # sub1_3 = subsample_pool(conv1_3, num_filter=16, name='sub0', use_global_stats=use_global_stats)
+    # pool1_3 = convaspool(sub1_3, num_filter=64, name='pool0', use_global_stats=use_global_stats)
+    # groups = [pool1_3]  # 384
     groups = [pool(conv1_3)]  # 384
     n_curr_ch = 64
     for i in range(len(nf_3x3)):
@@ -160,8 +190,13 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
         for j in range(n_incep[i]):
             group_i, n_curr_ch = inception_group(group_i, 'g{}/u{}'.format(i+1, j+1), n_curr_ch, 
                     num_filter_3x3=nf_3x3[i], use_crelu=(i < 2), 
-                    use_global_stats=use_global_stats, get_syms=False) 
-        groups.append(pool(group_i)) # 192 96 48
+                    use_global_stats=use_global_stats, get_syms=False)
+        pool_i = pool(group_i)
+        # sub_i = subsample_pool(group_i, name='sub{}'.format(i+1), 
+        #         num_filter=n_curr_ch/4, use_global_stats=use_global_stats)
+        # pool_i = convaspool(sub_i, name='pool{}'.format(i+1), 
+        #         num_filter=n_curr_ch, use_global_stats=use_global_stats)
+        groups.append(pool_i) # 192 96 48
 
     # context layer
     n_curr_ch = 96
@@ -171,18 +206,7 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
         group_ctx, n_curr_ch = inception_group(group_ctx, 'g_ctx/u{}'.format(i+1), n_curr_ch,
                 num_filter_3x3=nf_3x3_ctx, use_crelu=False, use_dn=False, 
                 use_global_stats=use_global_stats, get_syms=False)
-
-    # layers for hourglass model
-    ctx_strides = np.array((2, 4, 8, 16, 16)) 
-    ctx_layers = []
-    for i, g in enumerate((groups[1], groups[2], groups[3], group_ctx)):
-        cl = []
-        for j in range(i+1):
-            s = ctx_strides[i+1] / ctx_strides[j]
-            ctx_layer = upsample_feature(g, name='ctx{}/{}'.format(i+1, j), scale=s, 
-                    num_filter_proj=32, num_filter_upsample=8, use_global_stats=use_global_stats)
-            cl.append(ctx_layer)
-        ctx_layers.append(cl)
+    group_ctx = pool(group_ctx)
 
     # buffer layer for constructing clone layers
     clone_buffer = bn_relu_conv(groups[-1], prefix_name='clone_buffer/', 
@@ -214,17 +238,28 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
         groups.append(pool(group_cloned)) # 12 6 3 
 
     from_layers = []
+    # # small scale: hyperfeature
+    # hyper_names = ['hyper006/', 'hyper012/', 'hyper024/', 'hyper048/']
+    # for i, g in enumerate(groups[:4]):
+    #     # gather all the upper layers
+    #     ctxi = [g]
+    #     for j, c in enumerate(ctx_layers[i:]):
+    #         ctxi.append(ctx_layers[j+i][i])
+    #     concat = mx.sym.concat(*(ctxi))
+    #     hyper = bn_relu_conv(concat, prefix_name=hyper_names[i], num_filter=128, 
+    #             kernel=(1,1), pad=(0,0), use_global_stats=use_global_stats)
+    #     from_layers.append(hyper)
     # small scale: hyperfeature
-    hyper_names = ['hyper006/', 'hyper012/', 'hyper024/', 'hyper048/']
-    for i, g in enumerate(groups[:4]):
-        # gather all the upper layers
-        ctxi = [g]
-        for j, c in enumerate(ctx_layers[i:]):
-            ctxi.append(ctx_layers[j+i][i])
-        concat = mx.sym.concat(*(ctxi))
-        hyper = bn_relu_conv(concat, prefix_name=hyper_names[i], num_filter=128, 
-                kernel=(1,1), pad=(0,0), use_global_stats=use_global_stats)
-        from_layers.append(hyper)
+    hyper = build_hyperfeature(groups[3], group_ctx, name='hyper048', 
+            num_filter_ctx=32, num_filter_hyper=128, use_global_stats=use_global_stats)
+    from_layers.insert(0, hyper)
+    hyper_names = ['hyper024', 'hyper012', 'hyper006']
+    nf_ctx = [48, 64, 96]
+    for i, g in enumerate([groups[2], groups[1], groups[0]]):
+        hyper = build_hyperfeature(g, from_layers[0], name=hyper_names[i], 
+                num_filter_ctx=nf_ctx[i], num_filter_hyper=128, 
+                use_global_stats=use_global_stats)
+        from_layers.insert(0, hyper)
 
     # clone reference layer
     clone_ref = 4

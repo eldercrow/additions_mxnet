@@ -59,9 +59,9 @@ def parse_args():
                         help='green mean value')
     parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
                         help='blue mean value')
-    parser.add_argument('--lr-epoch', dest='lr_refactor_epoch', type=int, default=50,
-                        help='refactor learning rate every N epoch')
-    parser.add_argument('--lr-ratio', dest='lr_refactor_ratio', type=float, default=0.9,
+    parser.add_argument('--lr-steps', dest='lr_refactor_step', type=str, default='150, 200',
+                        help='refactor learning rate at specified epochs')
+    parser.add_argument('--lr-factor', dest='lr_refactor_ratio', type=str, default=0.1,
                         help='ratio to refactor learning rate')
     parser.add_argument('--log', dest='log_file', type=str, default="train.log",
                         help='save training log to file')
@@ -82,5 +82,5 @@ if __name__ == '__main__':
               args.from_scratch, 
               args.epoch, args.prefix, ctx, args.begin_epoch, args.end_epoch,
               args.frequent, args.learning_rate, args.momentum, args.weight_decay,
-              args.val_image_set, args.lr_refactor_epoch,
+              args.val_image_set, args.lr_refactor_step,
               args.lr_refactor_ratio, args.monitor, args.log_file)

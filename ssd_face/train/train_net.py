@@ -132,11 +132,51 @@ def load_wider_patch(image_set, devkit_path, shuffle=False, data_shape=192):
 #         del args['fc8_bias']
 #     return args
 
+def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
+                     num_example, batch_size, begin_epoch):
+    """
+    Compute learning rate and refactor scheduler
+
+    Parameters:
+    ---------
+    learning_rate : float
+        original learning rate
+    lr_refactor_step : comma separated str
+        epochs to change learning rate
+    lr_refactor_ratio : float
+        lr *= ratio at certain steps
+    num_example : int
+        number of training images, used to estimate the iterations given epochs
+    batch_size : int
+        training batch size
+    begin_epoch : int
+        starting epoch
+
+    Returns:
+    ---------
+    (learning_rate, mx.lr_scheduler) as tuple
+    """
+    assert lr_refactor_ratio > 0
+    iter_refactor = [int(r) for r in lr_refactor_step.split(',') if r.strip()]
+    if lr_refactor_ratio >= 1:
+        return (learning_rate, None)
+    else:
+        lr = learning_rate
+        epoch_size = num_example // batch_size
+        for s in iter_refactor:
+            if begin_epoch >= s:
+                lr *= lr_refactor_ratio
+        if lr != learning_rate:
+            logging.getLogger().info("Adjusted learning rate to {} for epoch {}".format(lr, begin_epoch))
+        steps = [epoch_size * (x - begin_epoch) for x in iter_refactor if x > begin_epoch]
+        lr_scheduler = mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=lr_refactor_ratio)
+        return (lr, lr_scheduler)
+
 def train_net(net, dataset, image_set, devkit_path, batch_size,
-               data_shape, mean_pixels, resume, finetune, pretrained, from_scratch, epoch, prefix,
-               ctx, begin_epoch, end_epoch, frequent, learning_rate,
+               data_shape, mean_pixels, resume, finetune, pretrained, from_scratch, epoch, 
+               prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
                momentum, weight_decay, val_set, 
-               lr_refactor_epoch, lr_refactor_ratio,
+               lr_refactor_step, lr_refactor_ratio, 
                iter_monitor=0, log_file=None):
     """
     Wrapper for training module
@@ -285,15 +325,22 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     # fixed_param_names = [name for name in net.list_arguments() \
     #     if name.startswith('conv1_') or name.startswith('conv2_') or name.endswith('_gamma')]
 
+    # init training module
+    mod = None
+
     # load pretrained or resume from previous state
     ctx_str = '('+ ','.join([str(c) for c in ctx]) + ')'
     if resume > 0:
         logger.info("Resume training with {} from epoch {}"
             .format(ctx_str, resume))
-        _, args, auxs = mx.model.load_checkpoint(prefix, resume)
+        mod = mx.mod.Module.load(prefix, resume, load_optimizer_states=True,
+                label_names=[('label')], logger=logger, context=ctx)
+        args = None
+        auxs = None
+        # _, args, auxs = mx.model.load_checkpoint(prefix, resume)
         # import ipdb
         # ipdb.set_trace()
-        auxs.pop('multibox_target_target_loc_weight')
+        # auxs.pop('multibox_target_target_loc_weight')
         begin_epoch = resume
         fixed_param_names = None
     elif finetune > 0:
@@ -302,8 +349,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         _, args, auxs = mx.model.load_checkpoint(prefix, finetune)
         begin_epoch = finetune
         # the prediction convolution layers name starts with relu, so it's fine
-        fixed_param_names = [name for name in net.list_arguments() \
-            if name.startswith('conv')]
+        # fixed_param_names = [name for name in net.list_arguments() \
+        #     if name.startswith('conv')]
     elif from_scratch:
         logger.info("Experimental: start training from scratch with {}"
             .format(ctx_str))
@@ -326,17 +373,18 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     if fixed_param_names:
         logger.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
-    # init training module
-    mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
-                        fixed_param_names=fixed_param_names)
-
+    if mod is None:
+        mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
+                            fixed_param_names=fixed_param_names)
     # fit
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
-    epoch_end_callback = mx.callback.do_checkpoint(prefix)
-    iter_refactor = lr_refactor_epoch * imdb.num_images // train_iter.batch_size
-    lr_scheduler = mx.lr_scheduler.FactorScheduler(iter_refactor, lr_refactor_ratio)
+    epoch_end_callback = mx.callback.module_checkpoint(mod, prefix, 1, True)
+    num_example=imdb.num_images
+    learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
+            lr_refactor_ratio, num_example, batch_size, begin_epoch)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
+                      'lr_scheduler': lr_scheduler, 
                       'clip_gradient': 4.0,
                       'rescale_grad': 1.0}
     # optimizer_params={'learning_rate':learning_rate,
