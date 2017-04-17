@@ -16,29 +16,30 @@ class Ternarize(mx.operator.CustomOp):
     def forward(self, is_train, req, in_data, out_data, aux):
         #
         weight = in_data[0]
-        self.th_w = mx.nd.mean(mx.nd.abs(weight), axis=()) * self.th_ratio
+        self.th_w = mx.nd.mean(mx.nd.abs(weight)) * self.th_ratio
 
-        if not soft_ternarize:
-            Assign(out_data[0], req[0], 
-                    mx.nd.clip(mx.nd.fix(weight / th_w), -1, 1) * th_w)
+        if not self.soft_ternarize:
+            self.assign(out_data[0], req[0], 
+                    mx.nd.clip(mx.nd.fix(weight / self.th_w), -1, 1) * self.th_w)
         else:
-            Assign(out_data[0], req[0], mx.nd.clip(weight, -th_w, th_w))
+            self.assign(out_data[0], req[0], mx.nd.clip(weight / self.th_w, -1, 1) * self.th_w)
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         #
         if not self.soft_ternarize:
-            Assign(in_grad[0], req[0], out_grad[0])
+            self.assign(in_grad[0], req[0], out_grad[0])
         else:
-            mask_in = out_data[0] < self.th_w
-            mask_in *= out_data[0] > -self.th_w
-            Assign(in_grad[0], req[0], out_grad[0] * mask_in)
+            self.assign(in_grad[0], req[0], out_grad[0])
+            # mask_in = out_data[0] < self.th_w
+            # mask_in *= out_data[0] > -self.th_w
+            # self.assign(in_grad[0], req[0], out_grad[0] * mask_in)
 
 @mx.operator.register("ternarize")
 class TernarizeOp(mx.operator.CustomOpProp):
     def __init__(self, soft_ternarize):
         #
         super(TernarizeOp, self).__init__(need_top_grad=True)
-        self.soft_ternarize = bool(ast.literal_eval(soft_ternarize))
+        self.soft_ternarize = bool(ast.literal_eval(str(soft_ternarize)))
 
     def list_arguments(self):
         return ['weight']
@@ -48,6 +49,10 @@ class TernarizeOp(mx.operator.CustomOpProp):
 
     def infer_shape(self, in_shape):
         return in_shape, in_shape, []
+
+    def infer_type(self, in_type):
+        dtype = in_type[0]
+        return [dtype], [dtype], []
 
     def create_operator(self, ctx, shapes, dtypes):
         return Ternarize(self.soft_ternarize)
