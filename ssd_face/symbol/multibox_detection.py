@@ -45,13 +45,13 @@ class MultiBoxDetection(mx.operator.CustomOp):
         probs_cls = mx.nd.transpose(probs_cls, axes=(2, 0, 1)) # (n_class - 1, n_batch, n_anchor)
         max_probs = mx.nd.max(probs_cls[1:], axis=0) # (n_batch, n_anchor)
         max_cid = mx.nd.argmax(probs_cls[1:], axis=0) + 1 # (n_batch, n_anchor)
-        sidx_cls = mx.nd.argsort(max_probs, axis=-1).asnumpy().astype(int)[:, ::-1]
+        # sidx_cls = mx.nd.argsort(max_probs, axis=-1).asnumpy().astype(int)[:, ::-1]
         max_probs = max_probs.asnumpy()
 
         for nn in range(n_batch):
             pcls = max_probs[nn] # (n_anchor, )
             pcid = max_cid[nn] # (n_anchor, )
-            sidx = sidx_cls[nn] # (n_anchor, )
+            # sidx = sidx_cls[nn] # (n_anchor, )
             preg = preds_reg[nn] # (n_anchor, 4)
 
             ocls = out_cls[nn]
@@ -60,7 +60,8 @@ class MultiBoxDetection(mx.operator.CustomOp):
             oanc = out_anc[nn]
             # gather positive anchors
             pos_idx = np.where(pcls > self.th_pos)[0]
-            pos_idx = np.sort(pos_idx)[::-1]
+            sidx = np.argsort(pcls[pos_idx])[::-1]
+            pos_idx = pos_idx[sidx]
             panc = mx.nd.zeros((len(pos_idx), 4), ctx=in_data[2].context)
             proi = mx.nd.zeros((len(pos_idx), 4), ctx=in_data[2].context)
             for i, p in enumerate(pos_idx):

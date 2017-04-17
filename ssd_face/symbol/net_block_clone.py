@@ -55,7 +55,7 @@ def conv_poolup2(data, name, num_filter, kernel=(3,3), pad=(0,0), no_bias=True, 
         return up_
 
 def bn_relu_conv(data, prefix_name='', postfix_name='', 
-        num_filter=0, kernel=(3,3), pad=(0,0), stride=(1,1), use_crelu=False, 
+        num_filter=0, kernel=(3,3), pad=(0,0), stride=(1,1), num_group=1, use_crelu=False, 
         use_dn=False, nch=0, 
         use_global_stats=False, fix_gamma=False, no_bias=True, get_syms=False):
     #
@@ -71,7 +71,7 @@ def bn_relu_conv(data, prefix_name='', postfix_name='',
         syms['bn'] = bn_
     relu_ = mx.sym.Activation(bn_, act_type='relu')
     conv_ = mx.sym.Convolution(relu_, name=conv_name, num_filter=num_filter, 
-            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
+            num_group=num_group, kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
     syms['conv'] = conv_
     if use_crelu:
         concat_name = prefix_name + 'concat' + postfix_name
@@ -113,6 +113,15 @@ def bn_relu_conv_poolup2(data, prefix_name='', postfix_name='',
 def pool(data, name=None, kernel=(2,2), stride=(2,2), pool_type='max'):
     pool_ = mx.sym.Pooling(data=data, name=name, kernel=kernel, stride=stride, pool_type=pool_type)
     return pool_
+
+def convaspool(data, num_filter, name='', use_global_stats=False, fix_gamma=False):
+    #
+    proj_ = bn_relu_conv(data, prefix_name=name+'/pproj/', 
+            num_filter=num_filter/4, kernel=(1,1), use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+    conv_ = bn_relu_conv(proj_, prefix_name=name+'/pconv/', 
+            num_filter=num_filter, kernel=(2,2), stride=(2,2), 
+            use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+    return conv_
 
 '''
 Cloning blocks
