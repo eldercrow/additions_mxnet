@@ -3,8 +3,7 @@ import os
 # MXNET_CPU_WORKER_NTHREADS must be greater than 1 for custom op to work on CPU
 os.environ["MXNET_CPU_WORKER_NTHREADS"] = "4"
 import mxnet as mx
-import numpy as np
-import logging
+import ast
 
 class Ternarize(mx.operator.CustomOp):
     ''' ternarize a given weight '''
@@ -34,3 +33,21 @@ class Ternarize(mx.operator.CustomOp):
             mask_in *= out_data[0] > -self.th_w
             Assign(in_grad[0], req[0], out_grad[0] * mask_in)
 
+@mx.operator.register("ternarize")
+class TernarizeOp(mx.operator.CustomOpProp):
+    def __init__(self, soft_ternarize):
+        #
+        super(TernarizeOp, self).__init__(need_top_grad=True)
+        self.soft_ternarize = bool(ast.literal_eval(soft_ternarize))
+
+    def list_arguments(self):
+        return ['weight']
+
+    def list_outputs(self):
+        return ['output']
+
+    def infer_shape(self, in_shape):
+        return in_shape, in_shape, []
+
+    def create_operator(self, ctx, shapes, dtypes):
+        return Ternarize(self.soft_ternarize)

@@ -11,6 +11,10 @@ arXiv:1502.03167, 2015.
 """
 from __future__ import print_function
 import mxnet as mx
+import sys, os
+
+sys.path.append('/home/hyunjoon/github/additions_mxnet/twn/pythonop')
+from ternarize import *
 
 eps = 1e-10 + 1e-5
 bn_mom = 0.9
@@ -23,10 +27,9 @@ def ConvFactory(data, shape, stride=(1,1), pad=(0, 0), name=None, suffix=''):
     act_name = 'relu_{}{}'.format(name, suffix)
 
     conv_weight = mx.sym.var(name=conv_name+'_weight', shape=shape, attr={'__wd_mult__': '0.0'})
-    weight, alpha = mx.sym.Ternarize(conv_weight, soft_ternarization=False)
+    weight = mx.sym.Custom(conv_weight, op_type='ternarize', soft_ternarize=False)
     conv = mx.sym.Convolution(data=data, weight=weight, name=conv_name, num_filter=shape[0], 
             kernel=shape[2:], pad=pad, stride=stride, no_bias=True)
-    conv = mx.sym.broadcast_mul(conv, alpha)
     bn = mx.sym.BatchNorm(data=conv, fix_gamma=fix_gamma, eps=eps, momentum=bn_mom, name=bn_name)
     act = mx.sym.Activation(data=bn, act_type='relu', name=act_name)
     return act
