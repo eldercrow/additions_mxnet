@@ -23,7 +23,7 @@ def ConvFactory(data, shape, stride=(1,1), pad=(0, 0), name=None, suffix=''):
     act_name = 'relu_{}{}'.format(name, suffix)
 
     conv_weight = mx.sym.var(name=conv_name+'_weight', shape=shape, attr={'__wd_mult__': '0.0'})
-    weight, alpha = mx.sym.Ternarize(conv_weight, soft_ternarization=True)
+    weight, alpha = mx.sym.Ternarize(conv_weight, soft_ternarization=False)
     conv = mx.sym.Convolution(data=data, weight=weight, name=conv_name, num_filter=shape[0], 
             kernel=shape[2:], pad=pad, stride=stride, no_bias=True)
     conv = mx.sym.broadcast_mul(conv, alpha)

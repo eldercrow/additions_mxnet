@@ -65,9 +65,12 @@ class TernarizeOp : public Operator {
         out_data[ternarize::kThres].get<xpu, 1, DType>(s); // size 1 tensor
 
       if(ctx.is_train) {
-        aux_thres = sumall_except_dim<0>(F<mshadow_op::abs>(data_1d));
-        aux_thres /= static_cast<float>(in_data[ternarize::kData].Size());
-        aux_thres *= param_.th_zero_ratio;
+        float scaler = static_cast<float>(in_data[ternarize::kData].Size()) * param_.th_zero_ratio;
+        Assign(aux_thres, req[ternarize::kAuxThres], 
+          sumall_except_dim<0>(F<mshadow_op::abs>(data_1d)) * scaler);
+        // aux_thres = sumall_except_dim<0>(F<mshadow_op::abs>(data_1d));
+        // aux_thres /= static_cast<float>(in_data[ternarize::kData].Size());
+        // aux_thres *= param_.th_zero_ratio;
       }
       if (!param_.soft_ternarization) {
         Assign(thres, req[ternarize::kThres], F<mshadow_op::identity>(aux_thres));
