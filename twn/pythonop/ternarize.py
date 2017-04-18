@@ -19,20 +19,23 @@ class Ternarize(mx.operator.CustomOp):
         self.th_w = mx.nd.mean(mx.nd.abs(weight)) * self.th_ratio
 
         if not self.soft_ternarize:
+            abs_weight = mx.nd.abs(weight)
+            amask = abs_weight >= self.th_w
+            self.alpha = mx.nd.sum(abs_weight * amask) / mx.nd.sum(amask)
             self.assign(out_data[0], req[0], 
-                    mx.nd.clip(mx.nd.fix(weight / self.th_w), -1, 1) * self.th_w)
+                    mx.nd.clip(mx.nd.fix(weight / self.th_w), -1, 1) * self.alpha)
         else:
-            self.assign(out_data[0], req[0], mx.nd.clip(weight / self.th_w, -1, 1) * self.th_w)
+            self.assign(out_data[0], req[0], mx.nd.clip(weight / self.th_w, -1, 1) * self.alpha)
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         #
-        if not self.soft_ternarize:
-            self.assign(in_grad[0], req[0], out_grad[0])
-        else:
-            self.assign(in_grad[0], req[0], out_grad[0])
-            # mask_in = out_data[0] < self.th_w
-            # mask_in *= out_data[0] > -self.th_w
-            # self.assign(in_grad[0], req[0], out_grad[0] * mask_in)
+        self.assign(in_grad[0], req[0], out_grad[0])
+        # if not self.soft_ternarize:
+        #     self.assign(in_grad[0], req[0], out_grad[0])
+        # else:
+        #     mask_in = out_data[0] < self.th_w
+        #     mask_in *= out_data[0] > -self.th_w
+        #     self.assign(in_grad[0], req[0], out_grad[0] * mask_in)
 
 @mx.operator.register("ternarize")
 class TernarizeOp(mx.operator.CustomOpProp):

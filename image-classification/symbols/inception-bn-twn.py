@@ -27,7 +27,7 @@ def ConvFactory(data, shape, stride=(1,1), pad=(0, 0), name=None, suffix=''):
     act_name = 'relu_{}{}'.format(name, suffix)
 
     conv_weight = mx.sym.var(name=conv_name+'_weight', shape=shape, attr={'__wd_mult__': '0.0'}, dtype='float32')
-    weight = mx.sym.Custom(conv_weight, op_type='ternarize', soft_ternarize=True)
+    weight = mx.sym.Custom(conv_weight, op_type='ternarize', soft_ternarize=False)
     conv = mx.sym.Convolution(data=data, weight=weight, name=conv_name, num_filter=shape[0], 
             kernel=shape[2:], pad=pad, stride=stride, no_bias=True)
     bn = mx.sym.BatchNorm(data=conv, fix_gamma=fix_gamma, eps=eps, momentum=bn_mom, name=bn_name)
