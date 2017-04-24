@@ -9,14 +9,4 @@ gpu=${1:0:1}
 export MXNET_CUDNN_AUTOTUNE_DEFAULT=0
 export PYTHONUNBUFFERED=1
 
-python train_end2end.py \
-  --network pvanet_twn \
-  --gpu 1 \
-  --resume \
-  --prefix model/pvanet_voc07 \
-  --image_set 2007_trainval+2012_trainval
-  --begin_epoch 10 \
-  --end_epoch 100 \
-  --lr_step 30,60,100
-# python test.py --network resnet --gpu 1
-
+python test.py --network pvanet_twn --gpu 0 --prefix /home/hyunjoon/github/additions_mxnet/rcnn/model/pvanet_voc0712 --epoch 62

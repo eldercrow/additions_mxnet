@@ -4,19 +4,19 @@ import cv2
 import mxnet as mx
 import numpy as np
 from rcnn.config import config
-from rcnn.symbol import get_vgg_test, get_vgg_rpn_test, get_pvanet_test
+from rcnn.symbol import get_vgg_test, get_vgg_rpn_test, get_pvanet_test, get_pvanet_twn_test
 from rcnn.io.image import resize, transform
 from rcnn.core.tester import Predictor, im_detect, im_proposal, vis_all_detection, draw_all_detection
 from rcnn.utils.load_model import load_param
 from rcnn.processing.nms import py_nms_wrapper, cpu_nms_wrapper, gpu_nms_wrapper
 
 
-CLASSES = ('__background__',
-           'aeroplane', 'bicycle', 'bird', 'boat',
-           'bottle', 'bus', 'car', 'cat', 'chair',
-           'cow', 'diningtable', 'dog', 'horse',
-           'motorbike', 'person', 'pottedplant',
-           'sheep', 'sofa', 'train', 'tvmonitor')
+CLASSES = ['__background__',  # always index 0
+            'aeroplane', 'bicycle', 'bird', 'boat',
+            'bottle', 'bus', 'car', 'cat', 'chair',
+            'cow', 'diningtable', 'dog', 'horse',
+            'motorbike', 'person', 'pottedplant',
+            'sheep', 'sofa', 'train', 'tvmonitor']
 config.TEST.HAS_RPN = True
 
 config.IMAGE_STRIDE = 32
@@ -25,6 +25,8 @@ config.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
 config.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
 # config.TEST.RPN_NMS_THRESH = 0.4
+# config.TEST.BBOX_STDS = (0.1, 0.1, 0.2, 0.2)
+# config.PVTDB_LABEL = True
 
 SHORT_SIDE = config.SCALES[0][0]
 LONG_SIDE = config.SCALES[0][1]

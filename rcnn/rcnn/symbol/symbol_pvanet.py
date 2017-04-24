@@ -111,13 +111,18 @@ def inception(data, group_name,
         incep_layers.append(incep_p_proj)
 
     incep = mx.symbol.Concat(name=group_name, *incep_layers)
-    out_conv = mx.symbol.Convolution(name=group_name.replace('_incep', '_out_conv'), data=incep, 
-            num_filter=filter_out, kernel=(1,1), stride=(1,1), pad=(0,0))
+    # out_conv = mx.symbol.Convolution(name=group_name.replace('_incep', '_out_conv'), data=incep, 
+    #         num_filter=filter_out, kernel=(1,1), stride=(1,1), pad=(0,0))
 
     # final_bn is to handle stupid redundancy in the original model
     if final_bn:
+        out_conv = mx.symbol.Convolution(name=group_name.replace('_incep', '_out_conv'), data=incep, 
+                num_filter=filter_out, kernel=(1,1), stride=(1,1), pad=(0,0), no_bias=True)
         out_conv = mx.symbol.BatchNorm(name=group_name.replace('_incep', '_out_bn'), data=out_conv, 
                 use_global_stats=use_global, fix_gamma=False)
+    else:
+        out_conv = mx.symbol.Convolution(name=group_name.replace('_incep', '_out_conv'), data=incep, 
+            num_filter=filter_out, kernel=(1,1), stride=(1,1), pad=(0,0))
     
     if n_curr_ch != filter_out or stride[0] > 1:
         out_proj = mx.symbol.Convolution(name=group_name.replace('_incep', '_proj'), data=data, 
@@ -317,7 +322,7 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
 
 def get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS):
     data = mx.symbol.Variable(name="data")
-    im_info = mx.symbol.Variable(name="im_info")
+    im_info = mx.symbol.Variable(name="im_info", init=mx.init.Zero())
 
     # shared conv layers
     reluf_rpn, concat_convf = pvanet_preact(data, is_test=True)

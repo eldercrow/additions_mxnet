@@ -17,6 +17,7 @@ config.SCALES = [(600, 1000)]  # first is scale (the shorter side); second is ma
 config.ANCHOR_SCALES = (8, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 1, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
+config.PVTDB_LABEL = False
 
 config.TRAIN = edict()
 
@@ -68,7 +69,7 @@ config.TEST = edict()
 
 # R-CNN testing
 # use rpn to generate proposal
-config.TEST.HAS_RPN = False
+config.TEST.HAS_RPN = True
 # size of images for each device
 config.TEST.BATCH_IMAGES = 1
 
@@ -148,6 +149,20 @@ network.pvanet.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
 network.pvanet.NUM_ANCHORS = len(network.pvanet.ANCHOR_SCALES) * len(network.pvanet.ANCHOR_RATIOS)
 network.pvanet.FIXED_PARAMS = ['conv1_1', 'conv2_1', 'gamma', 'beta']
 network.pvanet.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'stage2', 'stage3', 'gamma', 'beta']
+network.pvanet.PVTDB_LABEL = True
+
+network.pvanet_twn = edict()
+network.pvanet_twn.pretrained = 'model/pvanet_bn_freezed'
+network.pvanet_twn.pretrained_epoch = 0
+network.pvanet_twn.SCALES = [(608, 1024)]  # first is scale (the shorter side); second is max size
+network.pvanet_twn.IMAGE_STRIDE = 32
+network.pvanet_twn.RPN_FEAT_STRIDE = 16
+network.pvanet_twn.RCNN_FEAT_STRIDE = 16
+network.pvanet_twn.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
+network.pvanet_twn.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
+network.pvanet_twn.NUM_ANCHORS = len(network.pvanet_twn.ANCHOR_SCALES) * len(network.pvanet_twn.ANCHOR_RATIOS)
+network.pvanet_twn.FIXED_PARAMS = ['conv1', 'gamma', 'beta']
+network.pvanet_twn.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'gamma', 'beta']
 
 # dataset settings
 dataset = edict()

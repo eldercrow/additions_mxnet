@@ -93,7 +93,7 @@ def nonlinear_pred(boxes, box_deltas):
     ctr_x = boxes[:, 0] + 0.5 * (widths - 1.0)
     ctr_y = boxes[:, 1] + 0.5 * (heights - 1.0)
 
-    dx = box_deltas[:, 0::4]
+    dx = box_deltas[:, 0::4] 
     dy = box_deltas[:, 1::4]
     dw = box_deltas[:, 2::4]
     dh = box_deltas[:, 3::4]
