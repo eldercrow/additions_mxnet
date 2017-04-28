@@ -11,7 +11,7 @@ def conv_bn_relu(data, group_name, num_filter, kernel, pad, stride, use_global):
 
     conv = mx.symbol.Convolution(name=conv_name, data=data, 
             num_filter=num_filter, pad=pad, kernel=kernel, stride=stride, no_bias=True)
-    bn = mx.symbol.BatchNorm(name=bn_name, data=conv, use_global_stats=use_global, fix_gamma=False)
+    bn = mx.symbol.BatchNorm(name=bn_name, data=conv, use_global_stats=use_global, fix_gamma=False, eps=1e-05)
     relu = mx.symbol.Activation(name=relu_name, data=bn, act_type='relu')
 
     return relu
@@ -22,7 +22,7 @@ def bn_relu_conv(data, group_name, num_filter, kernel, pad, stride, use_global):
     relu_name = group_name + '_relu'
     conv_name = group_name + '_conv'
 
-    bn = mx.symbol.BatchNorm(name=bn_name, data=data, use_global_stats=use_global, fix_gamma=False)
+    bn = mx.symbol.BatchNorm(name=bn_name, data=data, use_global_stats=use_global, fix_gamma=False, eps=1e-05)
     relu = mx.symbol.Activation(name=relu_name, data=bn, act_type='relu')
     conv = mx.symbol.Convolution(name=conv_name, data=relu, 
             num_filter=num_filter, pad=pad, kernel=kernel, stride=stride, no_bias=False)
@@ -37,7 +37,7 @@ def bn_crelu_conv(data, group_name, num_filter, kernel, pad, stride, use_global)
     conv_name = group_name + '_conv'
 
     concat = mx.symbol.Concat(name=concat_name, *[data, -data])
-    bn = mx.symbol.BatchNorm(name=bn_name, data=concat, use_global_stats=use_global, fix_gamma=False)
+    bn = mx.symbol.BatchNorm(name=bn_name, data=concat, use_global_stats=use_global, fix_gamma=False, eps=1e-05)
     relu = mx.symbol.Activation(name=relu_name, data=bn, act_type='relu')
     conv = mx.symbol.Convolution(name=conv_name, data=relu, 
             num_filter=num_filter, pad=pad, kernel=kernel, stride=stride, no_bias=False)
@@ -82,7 +82,7 @@ def inception(data, group_name,
     group_name_5 = group_name + '_2'
 
     incep_bn = mx.symbol.BatchNorm(name=group_name+'_bn', data=data, 
-        use_global_stats=use_global, fix_gamma=False)
+        use_global_stats=use_global, fix_gamma=False, eps=1e-05)
     incep_relu = mx.symbol.Activation(name=group_name+'_relu', data=incep_bn, act_type='relu')
 
     incep_0 = conv_bn_relu(data=incep_relu, group_name=group_name_1, 
@@ -119,10 +119,10 @@ def inception(data, group_name,
         out_conv = mx.symbol.Convolution(name=group_name.replace('_incep', '_out_conv'), data=incep, 
                 num_filter=filter_out, kernel=(1,1), stride=(1,1), pad=(0,0), no_bias=True)
         out_conv = mx.symbol.BatchNorm(name=group_name.replace('_incep', '_out_bn'), data=out_conv, 
-                use_global_stats=use_global, fix_gamma=False)
+                use_global_stats=use_global, fix_gamma=False, eps=1e-05)
     else:
         out_conv = mx.symbol.Convolution(name=group_name.replace('_incep', '_out_conv'), data=incep, 
-            num_filter=filter_out, kernel=(1,1), stride=(1,1), pad=(0,0))
+                num_filter=filter_out, kernel=(1,1), stride=(1,1), pad=(0,0))
     
     if n_curr_ch != filter_out or stride[0] > 1:
         out_proj = mx.symbol.Convolution(name=group_name.replace('_incep', '_proj'), data=data, 
@@ -139,7 +139,7 @@ def pvanet_preact(data, is_test):
             num_filter=16, pad=(3,3), kernel=(7,7), stride=(2,2), no_bias=True)
     conv1_1_concat = mx.symbol.Concat(name='conv1_1_concat', *[conv1_1_conv, -conv1_1_conv])
     conv1_1_bn = mx.symbol.BatchNorm(name='conv1_1_bn', data=conv1_1_concat, 
-            use_global_stats=is_test, fix_gamma=False)
+            use_global_stats=is_test, fix_gamma=False, eps=1e-05)
     conv1_1_relu = mx.symbol.Activation(name='conv1_1_relu', data=conv1_1_bn, act_type='relu')
     pool1 = mx.symbol.Pooling(name='pool1', data=conv1_1_relu, 
             pooling_convention='full', pad=(0,0), kernel=(3,3), stride=(2,2), pool_type='max')
@@ -197,7 +197,8 @@ def pvanet_preact(data, is_test):
             stride=(1,1), use_global=is_test, n_curr_ch=n_curr_ch, final_bn=True)
 
     # final layers
-    conv5_4_last_bn = mx.symbol.BatchNorm(name='conv5_4_last_bn', data=conv5_4, use_global_stats=is_test)
+    conv5_4_last_bn = mx.symbol.BatchNorm(name='conv5_4_last_bn', data=conv5_4, 
+            use_global_stats=is_test, eps=1e-05, fix_gamma=False)
     conv5_4_last_relu = mx.symbol.Activation(name='conv5_4_last_relu', data=conv5_4_last_bn, act_type='relu')
 
     # hyperfeature
@@ -293,11 +294,11 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
             pooled_size=(6, 6), spatial_scale=1.0 / config.RCNN_FEAT_STRIDE)
     flat5 = mx.symbol.Flatten(name='flat5', data=roi_pool)
     fc6 = mx.symbol.FullyConnected(name='fc6', data=flat5, num_hidden=4096, no_bias=False)
-    fc6_bn = mx.symbol.BatchNorm(name='fc6_bn', data=fc6, use_global_stats=True, fix_gamma=False)
+    fc6_bn = mx.symbol.BatchNorm(name='fc6_bn', data=fc6, use_global_stats=True, fix_gamma=False, eps=1e-05)
     fc6_dropout = mx.symbol.Dropout(name='fc6_dropout', data=fc6_bn, p=0.25)
     fc6_relu = mx.symbol.Activation(name='fc6_relu', data=fc6_dropout, act_type='relu')
     fc7 = mx.symbol.FullyConnected(name='fc7', data=fc6_relu, num_hidden=4096, no_bias=False)
-    fc7_bn = mx.symbol.BatchNorm(name='fc7_bn', data=fc7, use_global_stats=True, fix_gamma=False)
+    fc7_bn = mx.symbol.BatchNorm(name='fc7_bn', data=fc7, use_global_stats=True, fix_gamma=False, eps=1e-05)
     fc7_dropout = mx.symbol.Dropout(name='fc7_dropout', data=fc7_bn, p=0.25)
     fc7_relu = mx.symbol.Activation(name='fc7_relu', data=fc7_dropout, act_type='relu')
 
@@ -370,11 +371,11 @@ def get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHO
             pooled_size=(6, 6), spatial_scale=1.0 / config.RCNN_FEAT_STRIDE)
     flat5 = mx.symbol.Flatten(name='flat5', data=roi_pool)
     fc6 = mx.symbol.FullyConnected(name='fc6', data=flat5, num_hidden=4096, no_bias=False)
-    fc6_bn = mx.symbol.BatchNorm(name='fc6_bn', data=fc6, use_global_stats=True, fix_gamma=False)
+    fc6_bn = mx.symbol.BatchNorm(name='fc6_bn', data=fc6, use_global_stats=True, fix_gamma=False, eps=1e-05)
     # fc6_dropout = mx.symbol.Dropout(name='fc6_dropout', data=fc6_bn, p=0.25)
     fc6_relu = mx.symbol.Activation(name='fc6_relu', data=fc6_bn, act_type='relu')
     fc7 = mx.symbol.FullyConnected(name='fc7', data=fc6_relu, num_hidden=4096, no_bias=False)
-    fc7_bn = mx.symbol.BatchNorm(name='fc7_bn', data=fc7, use_global_stats=True, fix_gamma=False)
+    fc7_bn = mx.symbol.BatchNorm(name='fc7_bn', data=fc7, use_global_stats=True, fix_gamma=False, eps=1e-05)
     # fc7_dropout = mx.symbol.Dropout(name='fc7_dropout', data=fc7_bn, p=0.25)
     fc7_relu = mx.symbol.Activation(name='fc7_relu', data=fc7_bn, act_type='relu')
 

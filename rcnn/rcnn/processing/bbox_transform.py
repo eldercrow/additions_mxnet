@@ -94,9 +94,9 @@ def nonlinear_pred(boxes, box_deltas):
     ctr_y = boxes[:, 1] + 0.5 * (heights - 1.0)
 
     dx = box_deltas[:, 0::4] 
-    dy = box_deltas[:, 1::4]
-    dw = box_deltas[:, 2::4]
-    dh = box_deltas[:, 3::4]
+    dy = box_deltas[:, 1::4] 
+    dw = box_deltas[:, 2::4] 
+    dh = box_deltas[:, 3::4] 
 
     pred_ctr_x = dx * widths[:, np.newaxis] + ctr_x[:, np.newaxis]
     pred_ctr_y = dy * heights[:, np.newaxis] + ctr_y[:, np.newaxis]
