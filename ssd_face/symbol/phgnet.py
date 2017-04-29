@@ -80,8 +80,8 @@ def subsample_pool(data, name, num_filter, use_global_stats):
 def build_hyperfeature(layer, ctx_layer, name, num_filter_ctx, num_filter_hyper, use_global_stats):
     """
     """
-    ctx_ = upsample_feature(ctx_layer, name=name+'/upconv/', scale=2, 
-            num_filter_proj=32, num_filter_upsample=num_filter_ctx, 
+    ctx_ = upsample_feature(ctx_layer, name=name+'/upconv', scale=2, 
+            num_filter_proj=64, num_filter_upsample=num_filter_ctx, 
             use_global_stats=use_global_stats)
     layer_ = bn_relu_conv(layer, prefix_name=name+'/proj/', 
             num_filter=num_filter_hyper-num_filter_ctx, kernel=(1,1), pad=(0,0),
@@ -133,7 +133,7 @@ def multibox_layer(from_layers, num_classes, sizes, ratios, strides, use_global_
         if k == clone_ref:
             pred_conv, ref_syms = bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
                     num_filter=num_loc_pred+num_cls_pred, kernel=(3,3), pad=(1,1), no_bias=False, 
-                    use_dn=True, nch=128, 
+                    use_dn=True, nch=256, 
                     use_global_stats=use_global_stats, get_syms=True) # (n ac h w)
         elif k in clone_idx:
             pred_conv = clone_bn_relu_conv(from_layer, prefix_name='{}_pred/'.format(from_name), 
@@ -157,46 +157,28 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
     """ main shared conv layers """
     data = mx.sym.Variable(name='data')
 
-    conv1_1 = mx.sym.Convolution(data/128.0, name='conv1/1', num_filter=16, 
+    conv1_1 = mx.sym.Convolution(data/128.0, name='conv1/1', num_filter=32, 
             kernel=(3,3), pad=(1,1), no_bias=True) # 32, 198
     concat1_1 = mx.sym.concat(conv1_1, -conv1_1, name='concat1/1')
-    conv1_2_1 = bn_relu_conv(concat1_1, postfix_name='1/2_1', 
-            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
-            use_global_stats=use_global_stats) # 48, 196 
-    conv1_2_2 = bn_relu_conv(conv1_2_1, postfix_name='1/2_2', 
-            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
-            use_global_stats=use_global_stats) # 48, 196 
-    conv1_2 = mx.sym.concat(conv1_2_1, conv1_2_2)
-    conv1_3_1 = bn_relu_conv(conv1_2, postfix_name='1/3_1', 
-            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
-            use_global_stats=use_global_stats) # 48, 192 
-    conv1_3_2 = bn_relu_conv(conv1_3_1, postfix_name='1/3_2', 
-            num_filter=16, kernel=(3,3), pad=(1,1), use_crelu=True, 
-            use_global_stats=use_global_stats) # 48, 192 
-    conv1_3 = mx.sym.concat(conv1_3_1, conv1_3_2)
 
-    nf_3x3 = ((16, 8, 8), (24, 12, 12), (48, 24, 24)) # nch: 64 96 96
-    n_incep = (2, 2, 2)
+    nf_3x3 = ((32, 16, 16), (64, 32, 32)) # nch: 64 96 96
+    n_incep = (2, 2)
 
     # basic groups
     # groups = [pool(subsample_pool(conv1_3, name='pool0', num_filter=64, use_global_stats=use_global_stats))]
     # sub1_3 = subsample_pool(conv1_3, num_filter=16, name='sub0', use_global_stats=use_global_stats)
     # pool1_3 = convaspool(sub1_3, num_filter=64, name='pool0', use_global_stats=use_global_stats)
     # groups = [pool1_3]  # 384
-    groups = [pool(conv1_3)]  # 384
+    groups = [pool(concat1_1)]  # 384
     n_curr_ch = 64
     for i in range(len(nf_3x3)):
         group_i = groups[-1]
         for j in range(n_incep[i]):
             group_i, n_curr_ch = inception_group(group_i, 'g{}/u{}'.format(i+1, j+1), n_curr_ch, 
-                    num_filter_3x3=nf_3x3[i], use_crelu=(i < 2), 
+                    num_filter_3x3=nf_3x3[i], use_crelu=True, 
                     use_global_stats=use_global_stats, get_syms=False)
         pool_i = pool(group_i)
-        # sub_i = subsample_pool(group_i, name='sub{}'.format(i+1), 
-        #         num_filter=n_curr_ch/4, use_global_stats=use_global_stats)
-        # pool_i = convaspool(sub_i, name='pool{}'.format(i+1), 
-        #         num_filter=n_curr_ch, use_global_stats=use_global_stats)
-        groups.append(pool_i) # 192 96 48
+        groups.append(pool_i) 
 
     # context layer
     n_curr_ch = 96
@@ -250,21 +232,21 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
     #             kernel=(1,1), pad=(0,0), use_global_stats=use_global_stats)
     #     from_layers.append(hyper)
     # small scale: hyperfeature
-    hyper = build_hyperfeature(groups[3], group_ctx, name='hyper048', 
-            num_filter_ctx=32, num_filter_hyper=128, use_global_stats=use_global_stats)
+    hyper = build_hyperfeature(groups[2], group_ctx, name='hyper048', 
+            num_filter_ctx=48, num_filter_hyper=128, use_global_stats=use_global_stats)
     from_layers.insert(0, hyper)
-    hyper_names = ['hyper024', 'hyper012', 'hyper006']
-    nf_ctx = [48, 64, 96]
-    for i, g in enumerate([groups[2], groups[1], groups[0]]):
+    hyper_names = ['hyper024', 'hyper012']
+    nf_ctx = [96, 192]
+    for i, g in enumerate([groups[1], groups[0]]):
         hyper = build_hyperfeature(g, from_layers[0], name=hyper_names[i], 
-                num_filter_ctx=nf_ctx[i], num_filter_hyper=128, 
+                num_filter_ctx=nf_ctx[i], num_filter_hyper=256, 
                 use_global_stats=use_global_stats)
         from_layers.insert(0, hyper)
 
     # clone reference layer
-    clone_ref = 4
+    clone_ref = 3
     conv096, src_syms = bn_relu_conv(groups[clone_ref], prefix_name='hyper096/conv/', 
-            num_filter=128, kernel=(1,1), pad=(0,0), 
+            num_filter=256, kernel=(1,1), pad=(0,0), 
             use_dn=True, nch=128, 
             use_global_stats=use_global_stats, get_syms=True)
     from_layers.append(conv096)
@@ -272,7 +254,7 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
     # remaining clone layers
     clone_idx = [clone_ref]
     for i in range(clone_ref+1, len(groups)):
-        rf = int((2.0**i) * 6.0)
+        rf = int((2.0**i) * 12.0)
         prefix_name = 'hyper{}/conv/'.format(rf)
         conv_ = clone_bn_relu_conv(groups[i], prefix_name=prefix_name, src_syms=src_syms)
         from_layers.append(conv_)
@@ -283,7 +265,7 @@ def get_phgnet(n_classes, patch_size, use_global_stats, n_group=5):
     sizes = []
     sz_ratio = np.power(2.0, 1.0 / 3.0)
     for i in range(n_from_layers):
-        s = 6.0 * (2.0**i)
+        s = 12.0 * (2.0**i)
         sizes.append([s, s*sz_ratio, s/sz_ratio])
     ratios = [[1.0,]] * len(sizes)
     clip = False

@@ -6,7 +6,7 @@ def get_symbol_train(num_classes, **kwargs):
     '''
     '''
     fix_bn = False
-    n_group = 6
+    n_group = 5
     patch_size = 256
     if 'n_group' in kwargs:
         n_group = kwargs['n_group']
@@ -45,7 +45,7 @@ def get_symbol_train(num_classes, **kwargs):
 if __name__ == '__main__':
     import os
     os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
-    net = get_symbol_train(2, n_group=6, patch_size=256)
+    net = get_symbol_train(2, n_group=5, patch_size=256)
 
     mod = mx.mod.Module(net, data_names=['data'], label_names=['label'])
     mod.bind(data_shapes=[('data', (2, 3, 256, 256))], label_shapes=[('label', (2, 5))])

@@ -8,7 +8,7 @@ def get_symbol_train(num_classes, **kwargs):
     '''
     '''
     fix_bn = False
-    n_group = 8
+    n_group = 7
     patch_size = 768
     if 'n_group' in kwargs:
         n_group = kwargs['n_group']
@@ -50,7 +50,7 @@ def get_symbol(num_classes, **kwargs):
     '''
     '''
     fix_bn = True
-    n_group = 8
+    n_group = 7
     patch_size = 768
     th_pos = 0.25
     if 'n_group' in kwargs:
@@ -75,7 +75,7 @@ def get_symbol(num_classes, **kwargs):
 if __name__ == '__main__':
     import os
     os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
-    net = get_symbol_train(2, n_group=8, patch_size=768)
+    net = get_symbol_train(2, n_group=7, patch_size=768)
 
     mod = mx.mod.Module(net, data_names=['data'], label_names=['label'])
     mod.bind(data_shapes=[('data', (2, 3, 768, 768))], label_shapes=[('label', (2, 5))])

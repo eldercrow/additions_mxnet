@@ -43,7 +43,7 @@ class WiderPatch(Imdb):
         if random crop is enabled, defines the maximum trial time
         if trial exceed this number, will give up cropping
     """
-    IDX_VER = '170320_1' # for caching
+    IDX_VER = '170422_2' # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=True, is_train=True, **kwargs):
         super(WiderPatch, self).__init__('widerpatch_' + image_set) # e.g. wider_trainval
@@ -57,12 +57,12 @@ class WiderPatch(Imdb):
 
         self.config = { \
                 'patch_shape': 256, 
-                'min_roi_size': 4, 
+                'min_roi_size': 8, 
                 'max_roi_size': 256,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
-                'max_patch_per_image': 24, 
-                'use_difficult': True
+                'max_patch_per_image': 16, 
+                'use_difficult': False
                 }
         for k, v in kwargs.iteritems():
             assert k in self.config, 'Unknown parameter %s.' % k

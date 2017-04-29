@@ -5,11 +5,11 @@
 #     --image-set train \
 #     --val-image-set '' \
 #     --devkit-path /home/hyunjoon/dataset/wider \
-#     --network phgnet_patch \
+#     --network spotnet_patch \
 #     --batch-size 16 \
 #     --from-scratch 1 \
 #     --gpu 1 \
-#     --prefix model/phgnet_patch \
+#     --prefix model/spotnet_patch \
 #     --data-shape 256 \
 #     --end-epoch 1 \
 #     --frequent 50 \
@@ -23,17 +23,17 @@ python train.py \
     --image-set train \
     --val-image-set '' \
     --devkit-path /home/hyunjoon/dataset/wider \
-    --network phgnet \
+    --network spotnet_xy \
     --batch-size 2 \
-    --gpu 0 \
-    --prefix model/phgnet \
+    --gpu 1 \
+    --prefix model/spotnet_xy \
     --data-shape 768 \
-    --monitor 1000 \
     --frequent 50 \
     --lr 0.001 \
-    --lr-steps 25,40,50 \
+    --lr-steps 10,20,25,30,35,40 \
     --lr-factor 0.316228 \
-    --wd 0.0001 \
-    --pretrained model/phgnet_patch_256 \
-    --epoch 1
-    # --resume 1
+    --wd 1e-05 \
+    --pretrained model/spotnet_xy_768 \
+    --epoch 0
+    # --resume 0
+    # --monitor 200 \

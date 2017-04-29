@@ -361,6 +361,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Start training with {} from pretrained model {}"
             .format(ctx_str, pretrained))
         _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
+        # del auxs['multibox_target_mean_pos_prob_bias']
+        # del auxs['multibox_target_target_loc_weight']
         # args = convert_pretrained(pretrained, args)
     else:
         logger.info("Experimental: start training from scratch with {}"
@@ -385,7 +387,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'lr_scheduler': lr_scheduler, 
-                      'clip_gradient': 4.0,
+                      'clip_gradient': -1.0,
                       'rescale_grad': 1.0}
     # optimizer_params={'learning_rate':learning_rate,
     #                   'momentum':momentum,
@@ -393,7 +395,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     #                   'lr_scheduler':lr_scheduler,
     #                   'clip_gradient':4.0,
     #                   'rescale_grad': 1.0}
-    monitor = mx.mon.Monitor(iter_monitor, pattern=".*") if iter_monitor > 0 else None
+    monitor_pattern = '.*weight|.*bias|.*beta|.*gamma|.*moving_mean|.*moving_var'
+    monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     initializer = mx.init.Mixed([".*scale", ".*"], \
         [ScaleInitializer(), mx.init.Xavier(magnitude=2.34)])
 
@@ -402,7 +405,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             eval_metric=eval_metric, # MultiBoxMetric(),
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
-            optimizer='adam',
+            optimizer='rmsprop',
             optimizer_params=optimizer_params,
             kvstore = kv,
             begin_epoch=begin_epoch,
