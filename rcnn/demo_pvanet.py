@@ -4,27 +4,47 @@ import cv2
 import mxnet as mx
 import numpy as np
 from rcnn.config import config
-from rcnn.symbol import get_vgg_test, get_vgg_rpn_test, get_pvanet_test
+from rcnn.symbol import get_vgg_test, get_vgg_rpn_test, get_pvanet_test, get_pvanet_twn_test
 from rcnn.io.image import resize, transform
 from rcnn.core.tester import Predictor, im_detect, im_proposal, vis_all_detection, draw_all_detection
 from rcnn.utils.load_model import load_param
 from rcnn.processing.nms import py_nms_wrapper, cpu_nms_wrapper, gpu_nms_wrapper
 
 
-CLASSES = ('__background__',
-           'aeroplane', 'bicycle', 'bird', 'boat',
-           'bottle', 'bus', 'car', 'cat', 'chair',
-           'cow', 'diningtable', 'dog', 'horse',
-           'motorbike', 'person', 'pottedplant',
-           'sheep', 'sofa', 'train', 'tvmonitor')
+# CLASSES = ('__background__', # always index 0
+#            'bicycle', 'bird', 'bus', 'car', 'cat', 
+#            'dog', 'horse', 'motorbike', 'person', 'train',
+#            'aeroplane', 'boat', 'bottle', 'chair', 'cow', 
+#            'diningtable', 'pottedplant', 'sheep', 'sofa', 'tvmonitor',
+#            'cake', 'vase', 'truck', 'traffic light', 'fire hydrant', 
+#            'stop sign', 'parking meter', 'bench', 'elephant', 'bear', 
+#            'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 
+#            'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 
+#            'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 
+#            'surfboard', 'tennis racket', 'wine glass', 'cup', 'fork', 
+#            'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 
+#            'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 
+#            'donut', 'bed', 'toilet', 'laptop', 'mouse', 
+#            'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 
+#            'toaster', 'sink', 'refrigerator', 'book', 'clock', 
+#            'scissors', 'teddy bear', 'hair drier', 'toothbrush')
+CLASSES = ['__background__',  # always index 0
+            'aeroplane', 'bicycle', 'bird', 'boat',
+            'bottle', 'bus', 'car', 'cat', 'chair',
+            'cow', 'diningtable', 'dog', 'horse',
+            'motorbike', 'person', 'pottedplant',
+            'sheep', 'sofa', 'train', 'tvmonitor']
+config.NUM_CLASSES = len(CLASSES)
 config.TEST.HAS_RPN = True
 
 config.IMAGE_STRIDE = 32
 config.SCALES = [(640, 1024)]
-config.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
-config.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
+config.ANCHOR_SCALES = (3, 6, 9, 16, 32)
+config.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
 # config.TEST.RPN_NMS_THRESH = 0.4
+# config.TEST.BBOX_STDS = (0.1, 0.1, 0.2, 0.2)
+# config.PVTDB_LABEL = True
 
 SHORT_SIDE = config.SCALES[0][0]
 LONG_SIDE = config.SCALES[0][1]
@@ -34,7 +54,7 @@ LABEL_NAMES = ['cls_prob_label']
 DATA_SHAPES = [('data', (1, 3, LONG_SIDE, SHORT_SIDE)), ('im_info', (1, 3))]
 LABEL_SHAPES = None
 # visualization
-CONF_THRESH = 0.7
+CONF_THRESH = 0.8
 NMS_THRESH = 0.3
 nms = py_nms_wrapper(NMS_THRESH)
 
@@ -132,6 +152,7 @@ def parse_args():
     parser.add_argument('--prefix', help='saved model prefix', type=str)
     parser.add_argument('--epoch', help='epoch of pretrained model', type=int)
     parser.add_argument('--gpu', help='GPU device to use', default=0, type=int)
+    parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--vis', help='display result', action='store_true')
     args = parser.parse_args()
     return args
@@ -140,7 +161,10 @@ def parse_args():
 def main():
     os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
     args = parse_args()
-    ctx = mx.gpu(args.gpu)
+    if args.cpu:
+        ctx = mx.cpu()
+    else:
+        ctx = mx.gpu(args.gpu)
     symbol = get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     predictor = get_net(symbol, args.prefix, args.epoch, ctx)
     demo_net(predictor, args.image, args.vis)

@@ -118,6 +118,29 @@ def im_detect(predictor, data_batch, data_names, scale):
     scores = output['cls_prob_reshape_output'].asnumpy()[0]
     bbox_deltas = output['bbox_pred_reshape_output'].asnumpy()[0]
 
+    # pascal_voc_cls = ['__background__',  # always index 0
+    #                 'aeroplane', 'bicycle', 'bird', 'boat',
+    #                 'bottle', 'bus', 'car', 'cat', 'chair',
+    #                 'cow', 'diningtable', 'dog', 'horse',
+    #                 'motorbike', 'person', 'pottedplant',
+    #                 'sheep', 'sofa', 'train', 'tvmonitor']
+    # # pvtdb legend
+    # pvtdb_cls = ['__background__', 
+    #                 'bicycle', 'bird', 'bus', 'car', 'cat', 
+    #                 'dog', 'horse', 'motorbike', 'person', 
+    #                 'train', 'aeroplane', 'boat', 'bottle', 
+    #                 'chair', 'cow', 'diningtable', 'pottedplant', 
+    #                 'sheep', 'sofa', 'tvmonitor',]
+    # pidx = [pvtdb_cls.index(k) for k in pascal_voc_cls]
+    # pidx = np.array(pidx)
+    #
+    # import ipdb
+    # ipdb.set_trace()
+    # if config.has_key('PVTDB_LABEL') and config.PVTDB_LABEL:
+    #     scores = scores[:, pidx]
+    #     for i in range(4):
+    #         bbox_deltas[:, i::4] = bbox_deltas[:, (pidx*4+i)]
+
     # post processing
     pred_boxes = bbox_pred(rois, bbox_deltas)
     pred_boxes = clip_boxes(pred_boxes, im_shape[-2:])

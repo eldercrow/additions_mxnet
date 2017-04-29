@@ -4,7 +4,8 @@ from easydict import EasyDict as edict
 config = edict()
 
 # network related params
-config.PIXEL_MEANS = np.array([103.939, 116.779, 123.68])
+# config.PIXEL_MEANS = np.array([103.939, 116.779, 123.68])
+config.PIXEL_MEANS = np.array([102.9801, 115.9465, 122.7717])
 config.IMAGE_STRIDE = 0
 config.RPN_FEAT_STRIDE = 16
 config.RCNN_FEAT_STRIDE = 16
@@ -17,6 +18,7 @@ config.SCALES = [(600, 1000)]  # first is scale (the shorter side); second is ma
 config.ANCHOR_SCALES = (8, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 1, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
+config.PVTDB_LABEL = False
 
 config.TRAIN = edict()
 
@@ -68,7 +70,7 @@ config.TEST = edict()
 
 # R-CNN testing
 # use rpn to generate proposal
-config.TEST.HAS_RPN = False
+config.TEST.HAS_RPN = True
 # size of images for each device
 config.TEST.BATCH_IMAGES = 1
 
@@ -81,7 +83,7 @@ config.TEST.RPN_MIN_SIZE = config.RPN_FEAT_STRIDE
 
 # RPN generate proposal
 config.TEST.PROPOSAL_NMS_THRESH = 0.7
-config.TEST.PROPOSAL_PRE_NMS_TOP_N = 20000
+config.TEST.PROPOSAL_PRE_NMS_TOP_N = 12000
 config.TEST.PROPOSAL_POST_NMS_TOP_N = 2000
 config.TEST.PROPOSAL_MIN_SIZE = config.RPN_FEAT_STRIDE
 
@@ -137,17 +139,30 @@ network.resnet.FIXED_PARAMS = ['conv0', 'stage1', 'gamma', 'beta']
 network.resnet.FIXED_PARAMS_SHARED = ['conv0', 'stage1', 'stage2', 'stage3', 'gamma', 'beta']
 
 network.pvanet = edict()
-network.pvanet.pretrained = 'model/pvanet_bn_freezed'
-network.pvanet.pretrained_epoch = 0
-network.pvanet.SCALES = [(608, 1024)]  # first is scale (the shorter side); second is max size
+# network.pvanet.pretrained = 'model/pvanet_bn_freezed'
+# network.pvanet.pretrained_epoch = 0
+network.pvanet.SCALES = [(640, 1024)]  # first is scale (the shorter side); second is max size
 network.pvanet.IMAGE_STRIDE = 32
 network.pvanet.RPN_FEAT_STRIDE = 16
 network.pvanet.RCNN_FEAT_STRIDE = 16
-network.pvanet.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
-network.pvanet.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
+network.pvanet.ANCHOR_SCALES = (3, 6, 9, 16, 32)
+network.pvanet.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 network.pvanet.NUM_ANCHORS = len(network.pvanet.ANCHOR_SCALES) * len(network.pvanet.ANCHOR_RATIOS)
 network.pvanet.FIXED_PARAMS = ['conv1_1', 'conv2_1', 'gamma', 'beta']
 network.pvanet.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'stage2', 'stage3', 'gamma', 'beta']
+
+network.pvanet_twn = edict()
+network.pvanet_twn.pretrained = 'model/pvanet_bn_freezed'
+network.pvanet_twn.pretrained_epoch = 0
+network.pvanet_twn.SCALES = [(608, 1024)]  # first is scale (the shorter side); second is max size
+network.pvanet_twn.IMAGE_STRIDE = 32
+network.pvanet_twn.RPN_FEAT_STRIDE = 16
+network.pvanet_twn.RCNN_FEAT_STRIDE = 16
+network.pvanet_twn.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
+network.pvanet_twn.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
+network.pvanet_twn.NUM_ANCHORS = len(network.pvanet_twn.ANCHOR_SCALES) * len(network.pvanet_twn.ANCHOR_RATIOS)
+network.pvanet_twn.FIXED_PARAMS = ['conv1', 'gamma', 'beta']
+network.pvanet_twn.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'gamma', 'beta']
 
 # dataset settings
 dataset = edict()

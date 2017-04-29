@@ -12,11 +12,13 @@ export PYTHONUNBUFFERED=1
 python train_end2end.py \
   --network pvanet_twn \
   --gpu 1 \
+  --prefix model/pvanet_voc0712 \
+  --dataset coco \
   --resume \
-  --prefix model/pvanet_voc07 \
-  --image_set 2007_trainval+2012_trainval
-  --begin_epoch 10 \
-  --end_epoch 100 \
+  --begin_epoch 0 \
+  --end_epoch 150 \
   --lr_step 30,60,100
+  # --pretrained model/pvanet_voc07 \
+  # --pretrained_epoch 10 \
 # python test.py --network resnet --gpu 1
 

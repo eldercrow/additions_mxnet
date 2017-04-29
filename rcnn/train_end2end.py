@@ -91,6 +91,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
         assert arg_params[k].shape == arg_shape_dict[k], \
             'shape inconsistent for ' + k + ' inferred ' + str(arg_shape_dict[k]) + ' provided ' + str(arg_params[k].shape)
     for k in sym.list_auxiliary_states():
+        if k.endswith('_aux_thres'): continue
         assert k in aux_params, k + ' not initialized'
         assert aux_params[k].shape == aux_shape_dict[k], \
             'shape inconsistent for ' + k + ' inferred ' + str(aux_shape_dict[k]) + ' provided ' + str(aux_params[k].shape)
@@ -136,12 +137,15 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
                         'lr_scheduler': lr_scheduler,
                         'rescale_grad': (1.0 / batch_size),
                         'clip_gradient': 5}
+    initializer = mx.init.Xavier(magnitude=2.34)
 
     # train
     mod.fit(train_data, eval_metric=eval_metrics, epoch_end_callback=epoch_end_callback,
             batch_end_callback=batch_end_callback, kvstore=args.kvstore,
             optimizer='sgd', optimizer_params=optimizer_params,
-            arg_params=arg_params, aux_params=aux_params, begin_epoch=begin_epoch, num_epoch=end_epoch)
+            initializer=initializer,
+            arg_params=arg_params, aux_params=aux_params, allow_missing=True, 
+            begin_epoch=begin_epoch, num_epoch=end_epoch)
 
 
 def parse_args():
@@ -175,9 +179,11 @@ def parse_args():
 
 
 def main():
+    # import os
+    # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     print('Called with argument:', args)
-    ctx = [mx.gpu(int(i)) for i in args.gpus.split(',')]
+    ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]
     train_net(args, ctx, args.pretrained, args.pretrained_epoch, args.prefix, args.begin_epoch, args.end_epoch,
               lr=args.lr, lr_step=args.lr_step)
 

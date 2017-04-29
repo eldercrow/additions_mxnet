@@ -66,8 +66,7 @@ class TernarizeOp : public Operator {
 
       if(ctx.is_train) {
         float scaler = static_cast<float>(in_data[ternarize::kData].Size()) * param_.th_zero_ratio;
-        Assign(aux_thres, req[ternarize::kAuxThres], 
-          sumall_except_dim<0>(F<mshadow_op::abs>(data_1d)) * scaler);
+        Assign(aux_thres, req[ternarize::kAuxThres], sum_rows(F<mshadow_op::abs>(data_1d)));
         // aux_thres = sumall_except_dim<0>(F<mshadow_op::abs>(data_1d));
         // aux_thres /= static_cast<float>(in_data[ternarize::kData].Size());
         // aux_thres *= param_.th_zero_ratio;
@@ -146,10 +145,10 @@ class TernarizeProp : public OperatorProperty {
     bool InferType(std::vector<int> *in_type,
                    std::vector<int> *out_type,
                    std::vector<int> *aux_type) const override {
-      CHECK_GE(in_type->size(), 1);
+      CHECK_GE(in_type->size(), 1U);
       nnvm::NodeAttrs attrs;
       attrs.name = "Ternarize";
-      bool is_good = ElemwiseAttr<int, type_is_none, type_assign, true>(
+      bool is_good = ElemwiseAttr<int, type_is_none, type_assign, true, type_string>(
         attrs, in_type, out_type, -1);
       aux_type->clear();
       aux_type->push_back(in_type->at(0));

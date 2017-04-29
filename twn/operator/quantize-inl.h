@@ -154,7 +154,7 @@ class QuantizeProp : public OperatorProperty {
       CHECK_GE(in_type->size(), 1);
       nnvm::NodeAttrs attrs;
       attrs.name = "Quantize";
-      return ElemwiseAttr<int, type_is_none, type_assign, true>(
+      return ElemwiseAttr<int, type_is_none, type_assign, true, type_string>(
         attrs, in_type, out_type, -1);
     }
 
