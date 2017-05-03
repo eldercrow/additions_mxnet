@@ -4,7 +4,7 @@ import mxnet as mx
 import os
 import importlib
 import sys
-from detect.detector import Detector
+from detect.face_detector import FaceDetector
 
 CLASSES = ('__background__', 'face')
 
@@ -18,7 +18,7 @@ CLASSES = ('__background__', 'face')
 def get_detector(net,
                  prefix,
                  epoch,
-                 data_shape,
+                 max_data_shapes,
                  mean_pixels,
                  ctx,
                  nms_thresh=0.5,
@@ -44,14 +44,9 @@ def get_detector(net,
         force suppress different categories
     """
     sys.path.append(os.path.join(os.getcwd(), 'symbol'))
-    net = importlib.import_module("symbol_" + net) \
-        .get_symbol(len(CLASSES))
-    if isinstance(data_shape, int):
-        detector = Detector(net, prefix + "_" + str(data_shape), epoch, \
-            data_shape, mean_pixels, ctx=ctx)
-    else:
-        detector = Detector(net, prefix, epoch, \
-            data_shape, mean_pixels, ctx=ctx)
+    net = importlib.import_module("symbol_" + net).get_symbol(len(CLASSES))
+    detector = FaceDetector(
+        net, prefix, epoch, max_data_shapes, mean_pixels, ctx=ctx)
     return detector
 
 
@@ -109,11 +104,11 @@ def parse_args():
         default=0,
         help='GPU device id to detect with')
     parser.add_argument(
-        '--data-shape',
-        dest='data_shape',
+        '--max-data-shapes',
+        dest='max_data_shapes',
         nargs='+',
         type=int,
-        default=300,
+        default=1280,
         help='set image shape')
     parser.add_argument(
         '--mean-r',
@@ -137,13 +132,13 @@ def parse_args():
         '--thresh',
         dest='thresh',
         type=float,
-        default=0.6,
+        default=0.5,
         help='object visualize score threshold, default 0.6')
     parser.add_argument(
         '--nms',
         dest='nms_thresh',
         type=float,
-        default=0.5,
+        default=0.3,
         help='non-maximum suppression threshold, default 0.5')
     parser.add_argument(
         '--force',
@@ -174,9 +169,9 @@ if __name__ == '__main__':
     assert len(image_list) > 0, "No valid image specified to detect"
 
     detector = get_detector(args.network, args.prefix, args.epoch,
-                            args.data_shape, (args.mean_r, args.mean_g,
-                                              args.mean_b), ctx,
-                            args.nms_thresh, args.force_nms)
+                            args.max_data_shapes, 
+                            (args.mean_r, args.mean_g, args.mean_b), 
+                            ctx, args.nms_thresh, args.force_nms)
     # run detection
     detector.detect_and_visualize(image_list, args.dir, args.extension,
                                   CLASSES, args.thresh, args.show_timer)

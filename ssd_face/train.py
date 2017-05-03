@@ -166,7 +166,7 @@ def parse_args():
     parser.add_argument(
         '--lr-factor',
         dest='lr_refactor_ratio',
-        type=str,
+        type=float,
         default=0.1,
         help='ratio to refactor learning rate')
     parser.add_argument(

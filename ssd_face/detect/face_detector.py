@@ -3,10 +3,12 @@ import mxnet as mx
 import numpy as np
 from timeit import default_timer as timer
 from dataset.testdb import TestDB
-from dataset.iterator import DetIter
+from dataset.face_test_iter import FaceTestIter
+from mutable_module import MutableModule
 import os
 
-class Detector(object):
+
+class FaceDetector(object):
     """
     SSD detector which hold a detection network and wraps detection API
 
@@ -27,20 +29,41 @@ class Detector(object):
     ctx : mx.ctx
         device to use, if None, use mx.cpu() as default context
     """
-    def __init__(self, symbol, model_prefix, epoch, data_shape, mean_pixels, batch_size=1, ctx=None):
+
+    def __init__(self,
+                 symbol,
+                 model_prefix,
+                 epoch,
+                 max_data_shapes,
+                 mean_pixels,
+                 img_stride=32,
+                 ctx=None):
         self.ctx = ctx
         if self.ctx is None:
             self.ctx = mx.cpu()
-        _, args, auxs = mx.model.load_checkpoint(model_prefix, epoch)
-        self.mod = mx.mod.Module(symbol, label_names=None, context=ctx)
-        self.data_shape = data_shape
-        if isinstance(data_shape, int):
-            self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape, data_shape))])
-        else:
-            self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape[0], data_shape[1]))])
-        self.mod.set_params(args, auxs)
-        self.data_shape = data_shape
+        _, self.args, self.auxs = mx.model.load_checkpoint(model_prefix, epoch)
+        assert max_data_shapes[0] % img_stride == 0 and max_data_shapes[1] % img_stride == 0
+        self.max_data_shapes = max_data_shapes
+        max_data_shapes = {
+            'data': (1, 3, max_data_shapes[0], max_data_shapes[1]), 
+            'im_scale': (1, 2)
+        }
+        # self.mod = mx.mod.Module(
+        #     symbol,
+        #     data_names=('data', 'im_scale'),
+        #     label_names=None,
+        #     context=ctx)
+        self.mod = MutableModule(
+            symbol,
+            data_names = ('data', 'im_scale'),
+            label_names=None,
+            context=ctx,
+            max_data_shapes=max_data_shapes)
+        # self.data_shape = provide_data
+        # self.mod.bind(data_shapes=max_data_shapes)
+        # self.mod.set_params(args, auxs)
         self.mean_pixels = mean_pixels
+        self.img_stride = img_stride
 
     def detect(self, det_iter, show_timer=False):
         """
@@ -60,6 +83,13 @@ class Detector(object):
         num_images = det_iter._size
         if not isinstance(det_iter, mx.io.PrefetchingIter):
             det_iter = mx.io.PrefetchingIter(det_iter)
+        if not self.mod.binded:
+            self.mod.bind(
+                data_shapes=det_iter.provide_data,
+                label_shapes=None,
+                for_training=False,
+                force_rebind=True)
+            self.mod.set_params(self.args, self.auxs)
         start = timer()
         detections = self.mod.predict(det_iter).asnumpy()
         time_elapsed = timer() - start
@@ -73,7 +103,11 @@ class Detector(object):
             result.append(res)
         return result
 
-    def im_detect(self, im_list, root_dir=None, extension=None, show_timer=False):
+    def im_detect(self,
+                  im_list,
+                  root_dir=None,
+                  extension=None,
+                  show_timer=False):
         """
         wrapper for detecting multiple images
 
@@ -93,8 +127,8 @@ class Detector(object):
         format np.array([id, score, xmin, ymin, xmax, ymax]...)
         """
         test_db = TestDB(im_list, root_dir=root_dir, extension=extension)
-        test_iter = DetIter(test_db, 1, self.data_shape, self.mean_pixels,
-                            is_train=False)
+        test_iter = FaceTestIter(test_db, self.max_data_shapes,
+                                 self.mean_pixels, self.img_stride)
         return self.detect(test_iter, show_timer)
 
     def visualize_detection(self, img, dets, classes=[], thresh=0.6):
@@ -116,10 +150,10 @@ class Detector(object):
         import matplotlib.pyplot as plt
         import random
         plt.imshow(img)
-        height = img.shape[0]
-        width = img.shape[1]
-        wr = width / float(self.data_shape[1])
-        hr = height / float(self.data_shape[0])
+        # height = img.shape[0]
+        # width = img.shape[1]
+        # wr = width / float(self.data_shape[1])
+        # hr = height / float(self.data_shape[0])
         colors = dict()
         for i in range(dets.shape[0]):
             cls_id = int(dets[i, 0])
@@ -127,35 +161,50 @@ class Detector(object):
                 score = dets[i, 1]
                 if score > thresh:
                     if cls_id not in colors:
-                        colors[cls_id] = (random.random(), random.random(), random.random())
+                        colors[cls_id] = (random.random(), random.random(),
+                                          random.random())
                     # xmin = int(dets[i, 2] * width)
                     # ymin = int(dets[i, 3] * height)
                     # xmax = int(dets[i, 4] * width)
                     # ymax = int(dets[i, 5] * height)
-                    xmin = int(dets[i, 2] * wr)
-                    ymin = int(dets[i, 3] * hr)
-                    xmax = int(dets[i, 4] * wr)
-                    ymax = int(dets[i, 5] * hr)
-                    rect = plt.Rectangle((xmin, ymin), xmax - xmin,
-                                         ymax - ymin, fill=False,
-                                         edgecolor=colors[cls_id],
-                                         linewidth=2.5)
+                    xmin = int(dets[i, 2])
+                    ymin = int(dets[i, 3])
+                    xmax = int(dets[i, 4])
+                    ymax = int(dets[i, 5])
+                    rect = plt.Rectangle(
+                        (xmin, ymin),
+                        xmax - xmin,
+                        ymax - ymin,
+                        fill=False,
+                        edgecolor=colors[cls_id],
+                        linewidth=2.5)
                     plt.gca().add_patch(rect)
                     class_name = str(cls_id)
                     if classes and len(classes) > cls_id:
                         class_name = classes[cls_id]
-                    plt.gca().text(xmin, ymin - 2,
-                                    '{:.3f}'.format(score),
-                                    bbox=dict(facecolor=colors[cls_id], alpha=0.5),
-                                    fontsize=7, color='white')
-                    # plt.gca().text(xmin, ymin - 2,
-                    #                 '{:s} {:.3f}'.format(class_name, score),
-                    #                 bbox=dict(facecolor=colors[cls_id], alpha=0.5),
-                    #                 fontsize=6, color='white')
+                    plt.gca().text(
+                        xmin,
+                        ymin - 2,
+                        '{:.3f}'.format(score),
+                        bbox=dict(facecolor=colors[cls_id], alpha=0.5),
+                        fontsize=7,
+                        color='white')
+                    # plt.gca().text(
+                    #     xmin,
+                    #     ymin - 2,
+                    #     '{:s} {:.3f}'.format(class_name, score),
+                    #     bbox=dict(facecolor=colors[cls_id], alpha=0.5),
+                    #     fontsize=7,
+                    #     color='white')
         plt.show()
 
-    def detect_and_visualize(self, im_list, root_dir=None, extension=None,
-                             classes=[], thresh=0.6, show_timer=False):
+    def detect_and_visualize(self,
+                             im_list,
+                             root_dir=None,
+                             extension=None,
+                             classes=[],
+                             thresh=0.6,
+                             show_timer=False):
         """
         wrapper for im_detect and visualize_detection
 
@@ -174,7 +223,8 @@ class Detector(object):
 
         """
         import cv2
-        dets = self.im_detect(im_list, root_dir, extension, show_timer=show_timer)
+        dets = self.im_detect(
+            im_list, root_dir, extension, show_timer=show_timer)
         root_dir = '' if not root_dir else root_dir
         extension = '' if not extension else extension
         if not isinstance(im_list, list):

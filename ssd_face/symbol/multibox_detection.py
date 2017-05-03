@@ -34,6 +34,7 @@ class MultiBoxDetection(mx.operator.CustomOp):
         anchors = in_data[2] # (n_anchors, 4)
         anchors_t = mx.nd.transpose(anchors, axes=(1, 0))
         area_anchors_t = (anchors_t[2] - anchors_t[0]) * (anchors_t[3] - anchors_t[1])
+        im_scale = in_data[3]
 
         out_cid = mx.nd.full((n_batch, self.max_detection), -1, ctx=in_data[0].context)
         out_cls = mx.nd.full((n_batch, self.max_detection), -1, ctx=in_data[0].context)
@@ -67,7 +68,7 @@ class MultiBoxDetection(mx.operator.CustomOp):
             for i, p in enumerate(pos_idx):
                 proi[i] = preg[p]
                 panc[i] = anchors[p]
-            proi = _transform_roi(proi, panc, variances)
+            proi = _transform_roi(proi, panc, variances, ratio=0.8)
             # apply nms
             proi_t = mx.nd.transpose(proi, axes=(1, 0))
             area_proi_t = (proi_t[2] - proi_t[0]) * (proi_t[3] - proi_t[1])
@@ -78,9 +79,14 @@ class MultiBoxDetection(mx.operator.CustomOp):
                 p = pos_idx[i]
                 ocls[k] = pcls[p]
                 ocid[k] = pcid[p]
-                oroi[k] = proi[i]
                 nidx = _nms_anchor(proi[i], proi_t, area_proi_t[i] + area_proi_t, self.th_nms)
                 pos_idx[nidx] = -1
+                roii = proi[i]
+                roii[0] /= im_scale[nn][1]
+                roii[1] /= im_scale[nn][0]
+                roii[2] /= im_scale[nn][1]
+                roii[3] /= im_scale[nn][0]
+                oroi[k] = roii #proi[i]
                 k += 1
                 if k == self.max_detection:
                     break
@@ -103,7 +109,7 @@ def _nms_anchor(anc, anchors_t, U, th_nms):
     iou = (I / mx.nd.maximum(U - I, 1e-06)).asnumpy()
     return np.where(iou > th_nms)[0]
 
-def _transform_roi(reg, anc, variances):
+def _transform_roi(reg, anc, variances, ratio=1.0):
     reg_t = mx.nd.transpose(reg, axes=(1, 0))
     reg_t = mx.nd.broadcast_mul(reg_t, variances)
     anc_t = mx.nd.transpose(anc, axes=(1, 0))
@@ -111,6 +117,7 @@ def _transform_roi(reg, anc, variances):
     cx = (anc_t[2] + anc_t[0]) * 0.5
     cy = (anc_t[3] + anc_t[1]) * 0.5
     aw = anc_t[2] - anc_t[0]
+    aw *= ratio
     ah = anc_t[3] - anc_t[1]
     cx += reg_t[0] * aw
     cy += reg_t[1] * ah
@@ -124,7 +131,7 @@ def _transform_roi(reg, anc, variances):
 
 @mx.operator.register("multibox_detection")
 class MultiBoxDetectionProp(mx.operator.CustomOpProp):
-    def __init__(self, n_class, max_detection=1000, th_pos=0.5, th_nms=0.5, variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, n_class, max_detection=1000, th_pos=0.5, th_nms=0.3333, variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxDetectionProp, self).__init__(need_top_grad=True)
         self.n_class = int(n_class)
@@ -136,7 +143,7 @@ class MultiBoxDetectionProp(mx.operator.CustomOpProp):
         self.variances = np.array(variances)
 
     def list_arguments(self):
-        return ['probs_cls', 'preds_reg', 'anchors']
+        return ['probs_cls', 'preds_reg', 'anchors', 'im_scale']
 
     def list_outputs(self):
         return ['output', 'n_detection']

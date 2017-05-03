@@ -179,7 +179,9 @@ class DetIter(mx.io.DataIter):
             cy = (label[valid_mask, 2] + label[valid_mask, 4]) / 2.0
             pw = (label[valid_mask, 3] - label[valid_mask, 1]) / 2.0
             ph = (label[valid_mask, 4] - label[valid_mask, 2]) / 2.0
+            # TODO: remove this later
             # pw = np.maximum(pw, ph)
+            # ph = pw
 
             label[valid_mask, 1] = cx - pw
             label[valid_mask, 2] = cy - ph

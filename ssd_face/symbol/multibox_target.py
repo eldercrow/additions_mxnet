@@ -33,6 +33,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
         assert self.ignore_label == -1
 
         self.th_iou_neg = 1.0/3.0
+        self.img_shape = (0, 0, 768, 768)
+        self.th_anc_overlap = 0.6
 
         # self.mean_pos_prob = 0.5
 
@@ -74,6 +76,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
                     (self.anchors_t[2] - self.anchors_t[0]) * (self.anchors_t[3] - self.anchors_t[1])
             self.nidx_neg = [[]] * n_anchors
             self.nidx_pos = [[]] * n_anchors
+            overlaps = _compute_overlap(self.anchors_t, self.area_anchors_t, self.img_shape) 
+            self.oob_mask = (overlaps <= self.th_anc_overlap)
 
         # process each batch
         sample_cls = mx.nd.zeros((sample_per_batch, nch), ctx=in_data[0].context)
@@ -132,7 +136,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             sample_cls[k] = preds_cls[bid][aid]
             target_reg[k] = tr_pos[i]
             sample_reg[k] = preds_reg[bid][aid]
-            mask_reg[k] = 1
+            mask_reg[k] = 1 
             anchor_locs_all[k] = aloc
             k += 1
 
@@ -193,7 +197,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
         labels = _get_valid_labels(labels)
         np.random.shuffle(labels)
         for label in labels:
-            iou = _compute_iou(label[1:], self.anchors_t, self.area_anchors_t) 
+            lsq = _fit_box_ratio(label[1:], 1.0)
+            iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t) 
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
@@ -221,31 +226,35 @@ class MultiBoxTarget(mx.operator.CustomOp):
                 # if k >= self.sample_per_label/3 and iou[ii] > self.th_iou:
                 #     continue
                 # iou[ii] = 0
-                if is_sampled[ii] < iou[ii]:
-                    if is_sampled[ii] > 0:
-                        didx = pos_anchor_locs.index((batch_id, ii))
-                        del pos_anchor_locs[didx]
-                        del pos_target_cls[didx]
-                        del pos_target_reg[didx]
-                        k -= 1
-                    is_sampled[ii] = iou[ii]
-                    pos_anchor_locs.append((batch_id, ii))
-                    if iou[ii] > self.th_iou:
-                        pos_target_cls.append(label[0])
-                    else:
-                        pos_target_cls.append(-1)
-                    target_reg = _compute_loc_target(label[1:], self.anchors[ii].asnumpy(), self.variances)
-                    pos_target_reg.append(target_reg.tolist())
-                    # # apply nms
-                    # if len(self.nidx_pos[ii]) == 0:
-                    #     self.nidx_pos[ii] = _compute_nms_cands( \
-                    #             self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms)
-                    # # assert len(self.nidx_pos) > 0
-                    # nidx = self.nidx_pos[ii]
-                    # iou[nidx] = 0.0
-                    k += 1
-                    if k >= self.sample_per_label:
-                        break
+                if self.oob_mask[ii] or is_sampled[ii] >= iou[ii]:
+                    continue
+
+                if is_sampled[ii] > 0:
+                    didx = pos_anchor_locs.index((batch_id, ii))
+                    del pos_anchor_locs[didx]
+                    del pos_target_cls[didx]
+                    del pos_target_reg[didx]
+                    k -= 1
+                is_sampled[ii] = iou[ii]
+                pos_anchor_locs.append((batch_id, ii))
+                if iou[ii] > self.th_iou:
+                    pos_target_cls.append(label[0])
+                else:
+                    pos_target_cls.append(-1)
+                asq = _fit_box_ratio(self.anchors[ii].asnumpy(), 0.8)
+                target_reg = _compute_loc_target(label[1:], asq, self.variances)
+                # target_reg = _compute_loc_target(label[1:], self.anchors[ii].asnumpy(), self.variances)
+                pos_target_reg.append(target_reg.tolist())
+                # # apply nms
+                # if len(self.nidx_pos[ii]) == 0:
+                #     self.nidx_pos[ii] = _compute_nms_cands( \
+                #             self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms)
+                # # assert len(self.nidx_pos) > 0
+                # nidx = self.nidx_pos[ii]
+                # iou[nidx] = 0.0
+                k += 1
+                if k >= self.sample_per_label:
+                    break
 
         n_max_sample = self.n_max_label * self.sample_per_label
 
@@ -272,7 +281,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         # pick hard samples one by one
         for ii in eidx:
-            if max_probs[ii] < 0.0:
+            if max_probs[ii] < 0.0 or self.oob_mask[ii]:
                 continue
 
             neg_probs.append(max_probs[ii])
@@ -290,6 +299,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         return neg_anchor_locs, neg_probs
 
 def _get_valid_labels(labels):
+    #
     n_valid_label = 0
     for label in labels:
         if np.all(label == -1.0): 
@@ -298,6 +308,18 @@ def _get_valid_labels(labels):
         # if n_valid_label == max_sample:
         #     break
     return labels[:n_valid_label, :]
+
+def _fit_box_ratio(bb, ratio):
+    #
+    cx = (bb[0] + bb[2]) / 2.0
+    cy = (bb[1] + bb[3]) / 2.0
+    sz2 = np.maximum(bb[2] - bb[0], bb[3] - bb[1]) / 2.0
+    res = bb.copy() 
+    res[0] = cx - sz2 * ratio
+    res[1] = cy - sz2
+    res[2] = cx + sz2 * ratio
+    res[3] = cy + sz2
+    return res
 
 def _compute_nms_cands(anc, anchors_t, area_anchors_t, th_nms):
     #
@@ -314,6 +336,14 @@ def _compute_iou(label, anchors_t, area_anchors_t):
     
     iou = I / mx.nd.maximum((U - I), 0.000001)
     return iou.asnumpy() # (num_anchors, )
+
+def _compute_overlap(anchors_t, area_anchors_t, img_shape):
+    #
+    iw = mx.nd.minimum(img_shape[2], anchors_t[2]) - mx.nd.maximum(img_shape[0], anchors_t[0])
+    ih = mx.nd.minimum(img_shape[3], anchors_t[3]) - mx.nd.maximum(img_shape[1], anchors_t[1])
+    I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
+    overlap = I / area_anchors_t
+    return overlap.asnumpy()
 
 def _compute_loc_target(gt_bb, bb, variances):
     loc_target = np.zeros((4, ), dtype=np.float32)
@@ -337,7 +367,7 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class, 
-            th_iou=0.65, th_nms=0.65, th_neg_nms=1.0/3.0, 
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/3.0, 
             n_max_label=768, sample_per_label=15, hard_neg_ratio=1., ignore_label=-1, 
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
