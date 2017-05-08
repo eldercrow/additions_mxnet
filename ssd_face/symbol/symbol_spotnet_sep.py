@@ -1,4 +1,4 @@
-from spotnet_lite2 import get_spotnet
+from spotnet_sep import get_spotnet_sep
 from multibox_target import *
 from anchor_target_layer import *
 from multibox_detection import *
@@ -15,7 +15,7 @@ def get_symbol_train(num_classes, **kwargs):
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
-    preds, anchors = get_spotnet(num_classes, patch_size, 
+    preds, anchors = get_spotnet_sep(num_classes, patch_size, 
             use_global_stats=fix_bn, n_group=n_group)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
@@ -55,17 +55,14 @@ def get_symbol(num_classes, **kwargs):
     n_group = 7
     patch_size = 768
     th_pos = 0.25
-    th_nms = 1.0 / 3.0
     if 'n_group' in kwargs:
         n_group = kwargs['n_group']
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
     if 'th_pos' in kwargs:
         th_pos = kwargs['th_pos']
-    if 'nms' in kwargs:
-        th_nms = kwargs['nms']
 
-    preds, anchors = get_spotnet(num_classes, patch_size, 
+    preds, anchors = get_spotnet_sep(num_classes, patch_size, 
             use_global_stats=fix_bn, n_group=n_group)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
@@ -74,7 +71,7 @@ def get_symbol(num_classes, **kwargs):
     probs_cls = mx.sym.SoftmaxActivation(probs_cls)
 
     tmp = mx.symbol.Custom(*[probs_cls, preds_reg, anchors, im_scale], op_type='multibox_detection', 
-            name='multibox_detection', th_pos=th_pos, n_class=2, th_nms=th_nms, max_detection=2000)
+            name='multibox_detection', th_pos=th_pos, n_class=2, max_detection=500)
     return tmp[0]
 
 if __name__ == '__main__':

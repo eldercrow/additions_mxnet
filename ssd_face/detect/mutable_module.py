@@ -80,7 +80,7 @@ class MutableModule(BaseModule):
         return self._curr_module.get_params()
 
     def init_params(self, initializer=Uniform(0.01), arg_params=None, aux_params=None,
-                    allow_missing=False, force_init=False):
+                    allow_missing=True, force_init=True):
         if self.params_initialized and not force_init:
             return
         assert self.binded, 'call bind before initializing the parameters'
@@ -143,7 +143,7 @@ class MutableModule(BaseModule):
 
         # copy back saved params, if already initialized
         if self.params_initialized:
-            self.set_params(arg_params, aux_params)
+            self.set_params(arg_params, aux_params, allow_missing=True)
 
     def init_optimizer(self, kvstore='local', optimizer='sgd',
                        optimizer_params=(('learning_rate', 0.01),), force_init=False):
@@ -178,17 +178,20 @@ class MutableModule(BaseModule):
                 shape_changed = True
 
         if shape_changed:
+            arg_params, aux_params = self.get_params()
             module = Module(self._symbol, self._data_names, self._label_names,
                             logger=self.logger, context=self._context,
                             work_load_list=self._work_load_list,
                             fixed_param_names=self._fixed_param_names)
             module.bind(data_batch.provide_data, None, self._curr_module.for_training,
                         self._curr_module.inputs_need_grad, force_rebind=False,
-                        shared_module=self._curr_module)
+                        shared_module=None)
+
             # module.bind(data_batch.provide_data, data_batch.provide_label, self._curr_module.for_training,
             #             self._curr_module.inputs_need_grad, force_rebind=False,
             #             shared_module=self._curr_module)
             self._curr_module = module
+            self.set_params(arg_params, aux_params, allow_missing=True)
 
         self._curr_module.forward(data_batch, is_train=is_train)
 

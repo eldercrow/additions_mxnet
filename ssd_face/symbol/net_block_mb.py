@@ -2,14 +2,9 @@ import mxnet as mx
 '''
 Basic blocks
 '''
-
-def data_norm(data, name, nch, bias=None, eps=1e-05, get_syms=False):
-    bias_name = name + '_beta'
-    if bias:
-        bias_ = bias
-    else:
-        bias_ = mx.sym.var(name=bias_name, shape=(1, nch, 1, 1))
-
+'''
+def data_norm(data, name, eps=1e-05):
+    #
     kernel = (3, 3)
     pad = (1, 1)
     ones_ = mx.sym.ones(shape=(1, 1, kernel[0], kernel[1])) / 9.0
@@ -36,12 +31,8 @@ def data_norm(data, name, nch, bias=None, eps=1e-05, get_syms=False):
     data_ = mx.sym.broadcast_sub(data, mean_)
     data_ = mx.sym.broadcast_div(data_, norm_)
     data_ = mx.sym.broadcast_add(data_, bias_)
-
-    if get_syms:
-        syms = {'bias': bias_}
-        return data_, syms
-    else:
-        return data_
+    return data_
+'''
 
 
 def bn_relu_conv(data,
@@ -50,7 +41,6 @@ def bn_relu_conv(data,
                  kernel=(3, 3),
                  pad=(0, 0),
                  stride=(1, 1),
-                 num_group=1, 
                  use_crelu=False,
                  use_global_stats=False,
                  fix_gamma=False,
@@ -75,7 +65,6 @@ def bn_relu_conv(data,
         kernel=kernel,
         pad=pad,
         stride=stride,
-        num_group=num_group, 
         no_bias=no_bias)
     syms['conv'] = conv_
     if use_crelu:
@@ -86,6 +75,54 @@ def bn_relu_conv(data,
         return conv_, syms
     else:
         return conv_
+
+
+def conv_sep_unit(data,
+                  prefix_name='',
+                  nf3=0,
+                  nf1=0,
+                  stride=(1, 1),
+                  num_group=1,
+                  use_global_stats=False,
+                  get_syms=False):
+    #
+    assert prefix_name != ''
+    conv3_name = prefix_name + 'conv3'
+    bn3_name = prefix_name + 'bn3'
+    syms = {}
+
+    bn3 = mx.sym.BatchNorm(
+        data,
+        use_global_stats=use_global_stats,
+        fix_gamma=False,
+        name=bn3_name)
+    syms['bn3'] = bn3
+    relu3 = mx.sym.Activation(bn3, act_type='relu')
+    conv3_weight = mx.sym.var(name=conv3_name+'_weight', lr_mult=1.0, wd_mult=1e-03)
+    conv3 = mx.sym.Convolution(
+        data=relu3,
+        name=conv3_name,
+        weight=conv3_weight, 
+        num_filter=nf3,
+        num_group=num_group,
+        kernel=(3, 3),
+        pad=(1, 1),
+        stride=stride,
+        no_bias=True)
+    syms['conv3'] = conv3
+    conv1, syms1 = bn_relu_conv(
+        conv3,
+        prefix_name=prefix_name,
+        num_filter=nf1,
+        kernel=(1, 1),
+        pad=(0, 0),
+        use_global_stats=use_global_stats,
+        get_syms=True)
+    syms.update(syms1)
+    if get_syms:
+        return conv1, syms
+    else:
+        return conv1
 
 
 def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
@@ -139,6 +176,18 @@ def clone_bn_relu_conv(data, prefix_name='', src_syms=None):
         concat_name = prefix_name + 'concat'
         conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
     return conv_
+
+
+def clone_conv_sep_unit(data, prefix_name='', src_syms=None):
+    assert prefix_name != ''
+    conv3_name = prefix_name + 'conv3'
+    bn3_name = prefix_name + 'bn3'
+
+    bn3 = clone_bn(data, bn3_name, src_syms['bn3'])
+    relu3 = mx.sym.Activation(bn3, act_type='relu')
+    conv3 = clone_conv(relu3, conv3_name, src_syms['conv3'])
+    conv = clone_bn_relu_conv(conv3, prefix_name, src_syms)
+    return conv
 
 
 '''

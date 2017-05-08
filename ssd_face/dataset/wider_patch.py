@@ -104,8 +104,8 @@ class WiderPatch(Imdb):
         # self._debug_save_patches()
         # prepare for the next epoch
         self.data_queue = Queue()
-        self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
-        self.p.start()
+        # self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
+        # self.p.start()
 
     @property
     def cache_path(self):
@@ -125,12 +125,12 @@ class WiderPatch(Imdb):
         # is data for the next epoch ready?
         if self.data_queue.empty(): 
             return
-        self.patch_im_path, self.patch_labels = self.data_queue.get()
-        self.num_images = len(self.patch_im_path)
-        if self.p.is_alive():
-            self.p.terminate()
-        self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
-        self.p.start()
+        # self.patch_im_path, self.patch_labels = self.data_queue.get()
+        # self.num_images = len(self.patch_im_path)
+        # if self.p.is_alive():
+        #     self.p.terminate()
+        # self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
+        # self.p.start()
 
     def _load_from_cache(self):
         fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')

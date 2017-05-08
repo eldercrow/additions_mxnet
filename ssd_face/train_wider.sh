@@ -5,11 +5,11 @@
 #     --image-set train \
 #     --val-image-set '' \
 #     --devkit-path /home/hyunjoon/dataset/wider \
-#     --network spotnet_lite_patch \
+#     --network spotnet_sep_patch \
 #     --batch-size 16 \
 #     --from-scratch 1 \
 #     --gpu 1 \
-#     --prefix model/spotnet_lite_patch \
+#     --prefix model/spotnet_sep_patch \
 #     --data-shape 256 \
 #     --end-epoch 1 \
 #     --frequent 50 \
@@ -26,14 +26,14 @@ python train.py \
     --network spotnet_lite \
     --batch-size 4 \
     --gpu 1 \
-    --prefix model/spotnet_lite \
+    --prefix model/spotnet_lite2 \
     --data-shape 768 \
-    --frequent 50 \
-    --lr 1e-05 \
-    --lr-steps 10,20,25,30,35,40 \
+    --frequent 200 \
+    --monitor 2000 \
+    --lr 1e-04 \
+    --lr-steps 10,20,30,40,45,50 \
     --lr-factor 0.316228 \
     --wd 1e-05 \
-    --resume 1
-    # --pretrained model/spotnet_lite_768 \
-    # --epoch 10
-    # --monitor 200 \
+    --pretrained model/spotnet_lite2_768 \
+    --epoch 72
+    # --resume 10 

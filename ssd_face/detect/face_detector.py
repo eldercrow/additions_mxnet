@@ -1,12 +1,11 @@
 from __future__ import print_function
-import mxnet as mx
-import numpy as np
+import os
 from timeit import default_timer as timer
 from dataset.testdb import TestDB
 from dataset.face_test_iter import FaceTestIter
 from mutable_module import MutableModule
-import os
-
+import mxnet as mx
+import numpy as np
 
 class FaceDetector(object):
     """
@@ -37,6 +36,7 @@ class FaceDetector(object):
                  max_data_shapes,
                  mean_pixels,
                  img_stride=32,
+                 th_nms=0.3333,
                  ctx=None):
         self.ctx = ctx
         if self.ctx is None:
@@ -64,6 +64,7 @@ class FaceDetector(object):
         # self.mod.set_params(args, auxs)
         self.mean_pixels = mean_pixels
         self.img_stride = img_stride
+        self.th_nms = th_nms
 
     def detect(self, det_iter, show_timer=False):
         """
@@ -81,8 +82,8 @@ class FaceDetector(object):
         list of detection results
         """
         num_images = det_iter._size
-        if not isinstance(det_iter, mx.io.PrefetchingIter):
-            det_iter = mx.io.PrefetchingIter(det_iter)
+        # if not isinstance(det_iter, mx.io.PrefetchingIter):
+        #     det_iter = mx.io.PrefetchingIter(det_iter)
         if not self.mod.binded:
             self.mod.bind(
                 data_shapes=det_iter.provide_data,
@@ -91,16 +92,27 @@ class FaceDetector(object):
                 force_rebind=True)
             self.mod.set_params(self.args, self.auxs)
         start = timer()
+        result = []
         detections = self.mod.predict(det_iter).asnumpy()
+        # import ipdb
+        # ipdb.set_trace()
+        for i in range(detections.shape[0]):
+            dets = detections[i]
+            n_detections = 0
+            for i in range(dets.shape[0]):
+                if dets[i][0] == -1:
+                    break
+                n_detections += 1
+            vdets = mx.nd.array(dets[:n_detections], ctx=self.mod._context)
+            vdets = self._transform_roi(vdets)
+            vidx = self._do_nms(vdets)
+            vdets = vdets.asnumpy()
+            vdets = vdets[vidx, :]
+            result.append(vdets)
         time_elapsed = timer() - start
         if show_timer:
             print("Detection time for {} images: {:.4f} sec".format(
                 num_images, time_elapsed))
-        result = []
-        for i in range(detections.shape[0]):
-            det = detections[i, :, :]
-            res = det[np.where(det[:, 0] >= 0)[0]]
-            result.append(res)
         return result
 
     def im_detect(self,
@@ -235,3 +247,41 @@ class FaceDetector(object):
             img = cv2.imread(fn_img)
             img[:, :, (0, 1, 2)] = img[:, :, (2, 1, 0)]
             self.visualize_detection(img, det, classes, thresh)
+
+    def _transform_roi(self, dets, ratio=0.8):
+        #
+        dets_t = mx.nd.transpose(dets, axes=(1,0))
+        cx = (dets_t[6] + dets_t[8]) * 0.5
+        cy = (dets_t[7] + dets_t[9]) * 0.5
+        aw = (dets_t[8] - dets_t[6])
+        aw *= ratio
+        ah = (dets_t[9] - dets_t[7])
+        cx += dets_t[2] * aw
+        cy += dets_t[3] * ah
+        w = (2.0**dets_t[4]) * aw
+        h = (2.0**dets_t[5]) * ah
+        dets_t[2] = cx - w / 2.0
+        dets_t[3] = cy - h / 2.0
+        dets_t[4] = cx + w / 2.0
+        dets_t[5] = cy + h / 2.0
+        return mx.nd.transpose(dets_t[:6], axes=(1, 0))
+
+    def _do_nms(self, dets):
+        #
+        dets_t = mx.nd.transpose(dets, axes=(1,0))
+        areas_t = (dets_t[4] - dets_t[2]) * (dets_t[5] - dets_t[3])
+
+        vmask = np.ones((dets.shape[0],), dtype=int)
+        vidx = []
+        
+        for i in range(dets.shape[0]):
+            if vmask[i] == 0:
+                continue
+            iw = mx.nd.minimum(dets[i][4], dets_t[4][i:]) - mx.nd.maximum(dets[i][2], dets_t[2][i:])
+            ih = mx.nd.minimum(dets[i][5], dets_t[5][i:]) - mx.nd.maximum(dets[i][3], dets_t[3][i:])
+            I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
+            iou = (I / mx.nd.maximum(areas_t[i:] + areas_t[i] - I, 1e-06)).asnumpy()
+            nidx = np.where(iou > self.th_nms)[0] + i
+            vmask[nidx] = 0
+            vidx.append(i)
+        return vidx

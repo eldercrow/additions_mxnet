@@ -395,7 +395,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     #                   'lr_scheduler':lr_scheduler,
     #                   'clip_gradient':4.0,
     #                   'rescale_grad': 1.0}
-    monitor_pattern = '.*weight|.*bias|.*beta|.*gamma|.*moving_mean|.*moving_var'
+    monitor_pattern = '.*moving_mean|.*moving_var'
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     initializer = mx.init.Mixed([".*scale", ".*"], \
         [ScaleInitializer(), mx.init.Xavier(magnitude=2.34)])
@@ -405,7 +405,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             eval_metric=eval_metric, # MultiBoxMetric(),
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
-            optimizer='rmsprop',
+            optimizer='adam',
             optimizer_params=optimizer_params,
             kvstore = kv,
             begin_epoch=begin_epoch,

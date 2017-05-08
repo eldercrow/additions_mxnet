@@ -52,6 +52,7 @@ class FaceTestIter(mx.io.DataIter):
             self._get_batch()
             data_batch = mx.io.DataBatch(data=self._data.values(),
                                    label=self._label.values(),
+                                   provide_data=self.provide_data, provide_label=self.provide_label,
                                    pad=self.getpad(), index=self.getindex())
             self._current += self.batch_size
             return data_batch
@@ -103,15 +104,16 @@ class FaceTestIter(mx.io.DataIter):
         sf = np.minimum(1.0, np.minimum(sf_x, sf_y))
         sy = int(np.round(data.shape[0] * sf))
         sx = int(np.round(data.shape[1] * sf))
-            # data = mx.img.imresize(data, sx, sy)
+        data = mx.img.imresize(data, sx, sy).asnumpy()
         # pad image w.r.t. image stride
         sy = np.ceil(sy / float(self._img_stride)) * self._img_stride
         sx = np.ceil(sx / float(self._img_stride)) * self._img_stride
-        sf_y = sy / data.shape[0] 
-        sf_x = sx / data.shape[1]
-        data = mx.img.imresize(data, int(sx), int(sy)) # ignore slight aspect ratio break
-
-        data = mx.nd.transpose(data, (2,0,1))
-        data = data.astype('float32')
-        data = data - self._mean_pixels
-        return data, mx.nd.array((sf_y, sf_x))
+        sy = int(np.maximum(sy, 768))
+        sx = int(np.maximum(sx, 768))
+        padded = np.reshape(self._mean_pixels.asnumpy(), (1, 1, 3))
+        padded = np.tile(padded, (sy, sx, 1))
+        padded[:(data.shape[0]), :(data.shape[1]), :] = data
+        # data = mx.img.imresize(data, int(sx), int(sy)).asnumpy() # ignore slight aspect ratio break
+        data = np.transpose(padded, (2, 0, 1)).astype(float)
+        data = data - self._mean_pixels.asnumpy()
+        return mx.nd.array(data), mx.nd.array((sf, sf))
