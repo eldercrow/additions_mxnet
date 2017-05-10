@@ -38,7 +38,9 @@ config.NUM_CLASSES = len(CLASSES)
 config.TEST.HAS_RPN = True
 
 config.IMAGE_STRIDE = 32
-config.SCALES = [(640, 1024)]
+config.SCALES = [(608, 1024)]
+# config.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
+# config.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
 config.ANCHOR_SCALES = (3, 6, 9, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
@@ -54,7 +56,7 @@ LABEL_NAMES = ['cls_prob_label']
 DATA_SHAPES = [('data', (1, 3, LONG_SIDE, SHORT_SIDE)), ('im_info', (1, 3))]
 LABEL_SHAPES = None
 # visualization
-CONF_THRESH = 0.8
+CONF_THRESH = 0.7
 NMS_THRESH = 0.3
 nms = py_nms_wrapper(NMS_THRESH)
 
@@ -165,7 +167,7 @@ def main():
         ctx = mx.cpu()
     else:
         ctx = mx.gpu(args.gpu)
-    symbol = get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
+    symbol = get_pvanet_twn_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     predictor = get_net(symbol, args.prefix, args.epoch, ctx)
     demo_net(predictor, args.image, args.vis)
 

@@ -23,7 +23,7 @@ class Predictor(object):
         self._mod.init_params(arg_params=arg_params, aux_params=aux_params)
 
     def predict(self, data_batch):
-        self._mod.forward(data_batch)
+        self._mod.forward(data_batch, True)
         return dict(zip(self._mod.output_names, self._mod.get_outputs()))
 
 
@@ -106,6 +106,8 @@ def generate_proposals(predictor, test_data, imdb, vis=False, thresh=0.):
 
 def im_detect(predictor, data_batch, data_names, scale):
     output = predictor.predict(data_batch)
+    # import ipdb
+    # ipdb.set_trace()
 
     data_dict = dict(zip(data_names, data_batch.data))
     if config.TEST.HAS_RPN:

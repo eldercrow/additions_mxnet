@@ -15,7 +15,7 @@ def conv_bn_relu(data, group_name, num_filter, kernel, pad, stride, use_global=T
     relu = mx.sym.Activation(name=relu_name, data=bn, act_type='relu')
     return relu
 
-def bn_relu_conv(data, group_name, num_filter, kernel, pad, stride, use_global=True, use_crelu=False):
+def bn_relu_conv(data, group_name, num_filter, kernel, pad, stride, use_global=True, use_crelu=False, get_syms=False):
     """ used in mCReLU """
     bn_name = group_name + '/bn'
     relu_name = group_name + '/relu'
@@ -27,32 +27,45 @@ def bn_relu_conv(data, group_name, num_filter, kernel, pad, stride, use_global=T
     bn = mx.sym.BatchNorm(name=bn_name, data=data, use_global_stats=use_global, fix_gamma=False, eps=1e-05)
     relu = mx.sym.Activation(name=relu_name, data=bn, act_type='relu')
     conv = mx.sym.Convolution(name=conv_name, data=relu, 
-            num_filter=num_filter, pad=pad, kernel=kernel, stride=stride, no_bias=False)
-    return conv
+            num_filter=num_filter, pad=pad, kernel=kernel, stride=stride, no_bias=False, cudnn_off=False)
+    if get_syms:
+        syms = {'bn': bn, 'relu': relu, 'conv': conv}
+        return conv, syms
+    else:
+        return conv
 
 def mCReLU(data, group_name, filters, strides, use_global, n_curr_ch):
     """ 
     """
     kernels = ((1,1), (3,3), (1,1))
     pads = ((0,0), (1,1), (0,0))
-    crelu = (False, False, True)
+    crelu= (False, False, True)
+
+    # syms = {}
+    ssyms = []
 
     conv = data
     for i in range(3):
-        conv = bn_relu_conv(data=conv, group_name=group_name+'/{}'.format(i+1), 
+        conv, s = bn_relu_conv(data=conv, group_name=group_name+'/{}'.format(i+1), 
                 num_filter=filters[i], pad=pads[i], kernel=kernels[i], stride=strides[i], 
-                use_global=use_global, use_crelu=crelu[i])
+                use_global=use_global, use_crelu=crelu[i], get_syms=True)
+        # syms['conv{}'.format(i+1)] = conv
+        ssyms.append(s)
 
     ss = 1
     for s in strides:
         ss *= s[0]
     need_proj = (n_curr_ch != filters[2]) or (ss != 1)
     if need_proj:
-        proj = mx.sym.Convolution(data=data, name=group_name+'/proj',
-                num_filter=filters[2], pad=(0,0), kernel=(1,1), stride=(ss,ss))
-        return conv + proj, filters[2], proj
+        proj = mx.sym.Convolution(data=ssyms[0]['relu'], name=group_name+'/proj',
+                num_filter=filters[2], pad=(0,0), kernel=(1,1), stride=(ss,ss), cudnn_off=False)
+        res = conv + proj
+        return res, filters[2], proj
+        # syms['proj'] = proj
     else:
-        return conv + data, filters[2]
+        res = conv + data
+        return res, filters[2]
+    # return res, filters[2]# , syms
 
 # final_bn is to handle stupid redundancy in the original model
 def inception(data, group_name, 

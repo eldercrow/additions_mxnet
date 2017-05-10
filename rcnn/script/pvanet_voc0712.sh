@@ -12,13 +12,14 @@ export PYTHONUNBUFFERED=1
 python train_end2end.py \
   --network pvanet_twn \
   --gpu 1 \
-  --prefix model/pvanet_voc0712 \
+  --prefix model/pva911_twn_voc0712 \
   --image_set 2007_trainval+2012_trainval \
   --resume \
   --begin_epoch 0 \
-  --end_epoch 150 \
-  --lr_step 30,60,100
-  # --pretrained model/pvanet_voc07 \
-  # --pretrained_epoch 10 \
+  --end_epoch 100 \
+  --lr_step 30,60,90 \
+  # --pretrained /home/hyunjoon/github/model_mxnet/pva911/pva911_21cls \
+  # --pretrained_epoch 0
+  # --resume \
 # python test.py --network resnet --gpu 1
 
