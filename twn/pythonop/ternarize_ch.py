@@ -5,11 +5,11 @@ os.environ["MXNET_CPU_WORKER_NTHREADS"] = "4"
 import mxnet as mx
 import ast
 
-class Ternarize(mx.operator.CustomOp):
+class TernarizeCh(mx.operator.CustomOp):
     ''' ternarize a given weight '''
-    def __init__(self, soft_ternarize):
+    def __init__(self):
         #
-        super(Ternarize, self).__init__()
+        super(TernarizeCh, self).__init__()
         self.soft_ternarize = soft_ternarize
         self.th_ratio = 1.0 # arxiv: 1705.01462
 
@@ -17,14 +17,11 @@ class Ternarize(mx.operator.CustomOp):
         #
         weight = in_data[0]
         abs_weight = mx.nd.abs(weight)
-        self.th_w = _comp_sum(abs_weight) / float(weight.size) * self.th_ratio
+        self.th_w = _comp_sum(abs_weight) / float(weight.size / weight.shape[0]) * self.th_ratio
 
-        if not self.soft_ternarize:
-            amask = abs_weight >= self.th_w
-            self.alpha = _comp_sum(abs_weight * amask) / _comp_sum(amask)
-            self.assign(out_data[0], req[0], mx.nd.sign(weight * amask) * self.alpha)
-        else:
-            self.assign(out_data[0], req[0], mx.nd.clip(weight / self.th_w, -1, 1) * self.alpha)
+        amask = abs_weight >= self.th_w
+        self.alpha = _comp_sum(abs_weight * amask) / _comp_sum(amask)
+        self.assign(out_data[0], req[0], mx.nd.sign(weight * amask) * self.alpha)
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         #
@@ -37,14 +34,17 @@ class Ternarize(mx.operator.CustomOp):
         #     self.assign(in_grad[0], req[0], out_grad[0] * mask_in)
 
 def _comp_sum(w):
-    return mx.nd.sum(mx.nd.sum(w, axis=(1,)))
+    # per filter sum
+    if w.ndim == 4:
+        return mx.nd.reshape(mx.nd.sum(w, axis=(1, 2, 3)), shape=(-1, 1, 1, 1))
+    else:
+        return mx.nd.reshape(mx.nd.sum(w, axis=(1,)), shape=(-1, 1))
 
-@mx.operator.register("ternarize")
-class TernarizeOp(mx.operator.CustomOpProp):
-    def __init__(self, soft_ternarize):
+@mx.operator.register("ternarize_ch")
+class TernarizeChOp(mx.operator.CustomOpProp):
+    def __init__(self):
         #
-        super(TernarizeOp, self).__init__(need_top_grad=True)
-        self.soft_ternarize = bool(ast.literal_eval(str(soft_ternarize)))
+        super(TernarizeChOp, self).__init__(need_top_grad=True)
 
     def list_arguments(self):
         return ['weight']
@@ -60,4 +60,4 @@ class TernarizeOp(mx.operator.CustomOpProp):
         return [dtype], [dtype], []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return Ternarize(self.soft_ternarize)
+        return TernarizeCh()

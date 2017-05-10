@@ -7,7 +7,7 @@ import numpy as np
 def get_symbol_train(num_classes, **kwargs):
     '''
     '''
-    fix_bn = False
+    fix_bn = True
     n_group = 7
     patch_size = 768
     if 'n_group' in kwargs:
@@ -49,8 +49,6 @@ def get_symbol_train(num_classes, **kwargs):
 def get_symbol(num_classes, **kwargs):
     '''
     '''
-    # im_scale = mx.sym.Variable(name='im_scale')
-
     fix_bn = True
     n_group = 7
     patch_size = 768

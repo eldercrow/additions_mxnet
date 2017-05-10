@@ -23,17 +23,17 @@ python train.py \
     --image-set train \
     --val-image-set '' \
     --devkit-path /home/hyunjoon/dataset/wider \
-    --network spotnet_lite \
+    --network spotnet_lite_bnfixed \
     --batch-size 4 \
     --gpu 1 \
-    --prefix model/spotnet_lite2 \
+    --prefix model/spotnet_lite2_bnfixed \
     --data-shape 768 \
-    --frequent 200 \
-    --monitor 2000 \
+    --frequent 100 \
     --lr 1e-04 \
     --lr-steps 10,20,30,40,45,50 \
     --lr-factor 0.316228 \
     --wd 1e-05 \
-    --pretrained model/spotnet_lite2_768 \
-    --epoch 72
-    # --resume 10 
+    --resume 35
+    # --pretrained model/spotnet_lite3_768_bnfixed \
+    # --epoch 10
+    # --monitor 2000 \

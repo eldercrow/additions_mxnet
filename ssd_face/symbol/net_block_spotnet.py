@@ -3,6 +3,7 @@ import mxnet as mx
 Basic blocks
 '''
 
+
 def data_norm(data, name, nch, bias=None, eps=1e-05, get_syms=False):
     bias_name = name + '_beta'
     if bias:
@@ -15,21 +16,25 @@ def data_norm(data, name, nch, bias=None, eps=1e-05, get_syms=False):
     ones_ = mx.sym.ones(shape=(1, 1, kernel[0], kernel[1])) / 9.0
 
     mean_ = mx.sym.mean(data, axis=1, keepdims=True)
-    mean_ = mx.sym.Convolution(
-        data=mean_,
-        num_filter=1,
-        weight=ones_,
-        kernel=kernel,
-        pad=pad,
-        no_bias=True)
+    mean_ = mx.sym.Pooling(
+        mean_, kernel=(3, 3), pad=(1, 1), stride=(1, 1), pool_type='avg')
+    # mean_ = mx.sym.Convolution(
+    #     data=mean_,
+    #     num_filter=1,
+    #     weight=ones_,
+    #     kernel=kernel,
+    #     pad=pad,
+    #     no_bias=True)
     var_ = mx.sym.mean(mx.sym.square(data), axis=1, keepdims=True)
-    var_ = mx.sym.Convolution(
-        data=var_,
-        num_filter=1,
-        weight=ones_,
-        kernel=kernel,
-        pad=pad,
-        no_bias=True)
+    var_ = mx.sym.Pooling(
+        var_, kernel=(3, 3), pad=(1, 1), stride=(1, 1), pool_type='avg')
+    # var_ = mx.sym.Convolution(
+    #     data=var_,
+    #     num_filter=1,
+    #     weight=ones_,
+    #     kernel=kernel,
+    #     pad=pad,
+    #     no_bias=True)
     var_ = mx.sym.maximum(var_ - mx.sym.square(mean_), 0.0)
     # var_ = mx.sym.broadcast_maximum(var_ - mx.sym.square(mean_), mx.sym.zeros(shape=(1,)))
     norm_ = mx.sym.sqrt(var_ + eps)
@@ -50,7 +55,7 @@ def bn_relu_conv(data,
                  kernel=(3, 3),
                  pad=(0, 0),
                  stride=(1, 1),
-                 num_group=1, 
+                 num_group=1,
                  use_crelu=False,
                  use_global_stats=False,
                  fix_gamma=False,
@@ -75,7 +80,7 @@ def bn_relu_conv(data,
         kernel=kernel,
         pad=pad,
         stride=stride,
-        num_group=num_group, 
+        num_group=num_group,
         no_bias=no_bias)
     syms['conv'] = conv_
     if use_crelu:

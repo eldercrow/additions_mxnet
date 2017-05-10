@@ -76,8 +76,12 @@ def evaluate_net(net, dataset, devkit_path, mean_pixels, data_shape,
         # model_prefix += "_" + str(data_shape)
         detector = FaceDetector(net, model_prefix, epoch, max_data_shapes, mean_pixels, ctx=ctx)
         logger.info("Start evaluation with {} images, be patient...".format(imdb.num_images))
-        detections = detector.detect(data_iter)
-        import ipdb
-        ipdb.set_trace()
+        detections, im_paths = detector.detect(data_iter)
+        # import ipdb
+        # ipdb.set_trace()
+        import cPickle as pickle
+        with open('wider_eval_res.pkl', 'wb') as fh:
+            pickle.dump(detections, fh)
+            pickle.dump(im_paths, fh)
     else:
         raise NotImplementedError("No support for dataset: " + dataset)
