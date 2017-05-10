@@ -361,6 +361,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Start training with {} from pretrained model {}"
             .format(ctx_str, pretrained))
         _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
+        # del auxs['multibox_target_mean_pos_prob_bias']
+        # del auxs['multibox_target_target_loc_weight']
         # args = convert_pretrained(pretrained, args)
     else:
         logger.info("Experimental: start training from scratch with {}"
@@ -377,7 +379,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
                             fixed_param_names=fixed_param_names)
     # fit
-    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
+    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=False)
     epoch_end_callback = mx.callback.module_checkpoint(mod, prefix, 1, True)
     num_example=imdb.num_images
     learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
@@ -385,7 +387,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'lr_scheduler': lr_scheduler, 
-                      'clip_gradient': 4.0,
+                      'clip_gradient': -1.0,
                       'rescale_grad': 1.0}
     # optimizer_params={'learning_rate':learning_rate,
     #                   'momentum':momentum,
@@ -393,7 +395,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     #                   'lr_scheduler':lr_scheduler,
     #                   'clip_gradient':4.0,
     #                   'rescale_grad': 1.0}
-    monitor = mx.mon.Monitor(iter_monitor, pattern=".*") if iter_monitor > 0 else None
+    monitor_pattern = '.*moving_mean|.*moving_var'
+    monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     initializer = mx.init.Mixed([".*scale", ".*"], \
         [ScaleInitializer(), mx.init.Xavier(magnitude=2.34)])
 

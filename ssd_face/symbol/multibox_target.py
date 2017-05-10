@@ -32,7 +32,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.area_anchors_t = None
         assert self.ignore_label == -1
 
-        self.mean_pos_prob = 0.5
+        self.th_iou_neg = 1.0/3.0
+        self.img_shape = (0, 0, 768, 768)
+        self.th_anc_overlap = 0.6
+
+        # self.mean_pos_prob = 0.5
 
     def forward(self, is_train, req, in_data, out_data, aux):
         """ 
@@ -72,37 +76,40 @@ class MultiBoxTarget(mx.operator.CustomOp):
                     (self.anchors_t[2] - self.anchors_t[0]) * (self.anchors_t[3] - self.anchors_t[1])
             self.nidx_neg = [[]] * n_anchors
             self.nidx_pos = [[]] * n_anchors
+            overlaps = _compute_overlap(self.anchors_t, self.area_anchors_t, self.img_shape) 
+            self.oob_mask = (overlaps <= self.th_anc_overlap)
 
         # process each batch
         sample_cls = mx.nd.zeros((sample_per_batch, nch), ctx=in_data[0].context)
         target_cls = np.full((sample_per_batch), -1, dtype=np.float32)
         sample_reg = mx.nd.zeros((sample_per_batch, 4), ctx=in_data[0].context)
         target_reg = np.full((sample_per_batch, 4), -1, dtype=np.float32)
+        mask_reg = np.zeros((sample_per_batch), dtype=np.float32)
         anchor_locs_all = np.full((sample_per_batch, 2), -1, dtype=np.int32)
 
         # positive samples
         anchor_locs_pos = []
         tc_pos = []
         tr_pos = []
-        probs_pos = []
+        # probs_pos = []
         max_iou_pos = []
         n_pos_sample = 0
         for i in range(n_batch):
-            anchor_locs, tc, tr, p, max_iou = self._forward_batch_pos(labels_all[i], max_probs_cls[i], i)
+            anchor_locs, tc, tr, max_iou = self._forward_batch_pos(labels_all[i], max_probs_cls[i], i)
             anchor_locs_pos += anchor_locs
             tc_pos += tc
             tr_pos += tr
-            probs_pos += p
+            # probs_pos += p
             max_iou_pos.append(max_iou)
             n_pos_sample = np.maximum(n_pos_sample, len(anchor_locs))
 
-        if len(probs_pos) > 0:
-            mean_pos_prob = np.mean(np.array(probs_pos))
-            a = 1e-04 * len(probs_pos)
-            self.mean_pos_prob = mean_pos_prob * a + (1.0-a) * self.mean_pos_prob
+        # if len(probs_pos) > 0:
+        #     mean_pos_prob = np.mean(np.array(probs_pos))
+        #     a = 1e-04 * len(probs_pos)
+            # self.mean_pos_prob = mean_pos_prob * a + (1.0-a) * self.mean_pos_prob
 
         # negative samples
-        n_neg_sample = 2 * np.maximum(1, self.hard_neg_ratio * n_pos_sample)
+        n_neg_sample = np.maximum(1, self.hard_neg_ratio * n_pos_sample)
         anchor_locs_neg = []
         probs_neg = []
         for i in range(n_batch):
@@ -129,6 +136,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             sample_cls[k] = preds_cls[bid][aid]
             target_reg[k] = tr_pos[i]
             sample_reg[k] = preds_reg[bid][aid]
+            mask_reg[k] = 1 
             anchor_locs_all[k] = aloc
             k += 1
 
@@ -144,10 +152,10 @@ class MultiBoxTarget(mx.operator.CustomOp):
             anchor_locs_all[k] = aloc
             k += 1
 
-        mask_reg = np.reshape(target_cls > 0, (-1, 1))
+        mask_reg = np.reshape(mask_reg, (-1, 1))
 
         self.assign(aux[0], 'write', mx.nd.array(anchor_locs_all))
-        self.assign(aux[1], 'write', mx.nd.array([self.mean_pos_prob]))
+        # self.assign(aux[1], 'write', mx.nd.array([self.mean_pos_prob]))
         self.assign(out_data[0], req[0], mx.nd.reshape(sample_cls, (-1, nch)))
         self.assign(out_data[1], req[1], mx.nd.reshape(sample_reg, (-1, 4)))
         self.assign(out_data[2], req[2], mx.nd.array(target_cls, ctx=in_data[0].context))
@@ -179,15 +187,18 @@ class MultiBoxTarget(mx.operator.CustomOp):
         pos_anchor_locs = []
         pos_target_cls = []
         pos_target_reg = []
-        pos_probs = []
         max_iou = np.zeros(n_anchors)
         is_sampled = np.zeros(n_anchors)
+
+        sample_per_label_pos = int(self.sample_per_label / 3)
+        sample_per_label_reg = self.sample_per_label - sample_per_label_pos
 
         # valid gt labels
         labels = _get_valid_labels(labels)
         np.random.shuffle(labels)
         for label in labels:
-            iou = _compute_iou(label[1:], self.anchors_t, self.area_anchors_t) 
+            lsq = _fit_box_ratio(label[1:], 1.0)
+            iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t) 
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
@@ -195,40 +206,55 @@ class MultiBoxTarget(mx.operator.CustomOp):
             pidx = np.where(iou > self.th_iou)[0]
             if pidx.size == 0:
                 pidx = np.array([np.argmax(iou)])
-            pos_iou = iou[pidx]
-            sidx = np.argsort(pos_iou)[::-1]
+            pos_probs = max_probs[pidx]
+            sidx = np.argsort(pos_probs)
             pidx = pidx[sidx]
+            ridx = np.where(iou > self.th_iou_neg)[0]
+            ridx = np.setdiff1d(ridx, pidx)
+            # np.random.shuffle(pidx)
+            np.random.shuffle(ridx)
+            pidx = pidx[:np.minimum(pidx.size, sample_per_label_pos)]
+            ridx = ridx[:np.minimum(ridx.size, sample_per_label_reg)]
+            pidx = np.hstack((pidx, ridx))
 
             k = 0
             for ii in pidx:
                 # pick positive
-                if iou[ii] <= self.th_iou:
-                    continue
+                # if iou[ii] <= self.th_iou_neg:
+                #     continue
+                # enough positives, regression target only
+                # if k >= self.sample_per_label/3 and iou[ii] > self.th_iou:
+                #     continue
                 # iou[ii] = 0
-                if is_sampled[ii] < iou[ii]:
-                    if is_sampled[ii] > 0:
-                        didx = pos_anchor_locs.index((batch_id, ii))
-                        del pos_anchor_locs[didx]
-                        del pos_target_cls[didx]
-                        del pos_target_reg[didx]
-                        del pos_probs[didx]
-                        k -= 1
-                    is_sampled[ii] = iou[ii]
-                    pos_anchor_locs.append((batch_id, ii))
+                if self.oob_mask[ii] or is_sampled[ii] >= iou[ii]:
+                    continue
+
+                if is_sampled[ii] > 0:
+                    didx = pos_anchor_locs.index((batch_id, ii))
+                    del pos_anchor_locs[didx]
+                    del pos_target_cls[didx]
+                    del pos_target_reg[didx]
+                    k -= 1
+                is_sampled[ii] = iou[ii]
+                pos_anchor_locs.append((batch_id, ii))
+                if iou[ii] > self.th_iou:
                     pos_target_cls.append(label[0])
-                    target_reg = _compute_loc_target(label[1:], self.anchors[ii].asnumpy(), self.variances)
-                    pos_target_reg.append(target_reg.tolist())
-                    pos_probs.append(max_probs[ii])
-                    # # apply nms
-                    # if len(self.nidx_pos[ii]) == 0:
-                    #     self.nidx_pos[ii] = _compute_nms_cands( \
-                    #             self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms)
-                    # # assert len(self.nidx_pos) > 0
-                    # nidx = self.nidx_pos[ii]
-                    # iou[nidx] = 0.0
-                    k += 1
-                    if k >= self.sample_per_label:
-                        break
+                else:
+                    pos_target_cls.append(-1)
+                asq = _fit_box_ratio(self.anchors[ii].asnumpy(), 0.8)
+                target_reg = _compute_loc_target(label[1:], asq, self.variances)
+                # target_reg = _compute_loc_target(label[1:], self.anchors[ii].asnumpy(), self.variances)
+                pos_target_reg.append(target_reg.tolist())
+                # # apply nms
+                # if len(self.nidx_pos[ii]) == 0:
+                #     self.nidx_pos[ii] = _compute_nms_cands( \
+                #             self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms)
+                # # assert len(self.nidx_pos) > 0
+                # nidx = self.nidx_pos[ii]
+                # iou[nidx] = 0.0
+                k += 1
+                if k >= self.sample_per_label:
+                    break
 
         n_max_sample = self.n_max_label * self.sample_per_label
 
@@ -236,7 +262,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             pos_anchor_locs = pos_anchor_locs[:n_max_sample]
             pos_target_cls = pos_target_cls[:n_max_sample]
             pos_target_reg = pos_target_reg[:n_max_sample]
-        return pos_anchor_locs, pos_target_cls, pos_target_reg, pos_probs, max_iou
+        return pos_anchor_locs, pos_target_cls, pos_target_reg, max_iou
 
     def _forward_batch_neg(self, n_neg_sample, max_probs, neg_iou, batch_id):
         # first remove positive samples from mining
@@ -255,7 +281,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         # pick hard samples one by one
         for ii in eidx:
-            if max_probs[ii] < 0.0:
+            if max_probs[ii] < 0.0 or self.oob_mask[ii]:
                 continue
 
             neg_probs.append(max_probs[ii])
@@ -264,8 +290,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
             if len(self.nidx_neg[ii]) == 0:
                 self.nidx_neg[ii] = _compute_nms_cands( \
                         self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_neg_nms)
-            # assert len(self.nidx_neg) > 0
             nidx = self.nidx_neg[ii]
+            # nidx = ii
             max_probs[nidx] = -1
             if len(neg_anchor_locs) >= n_neg_sample:
                 break
@@ -273,6 +299,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         return neg_anchor_locs, neg_probs
 
 def _get_valid_labels(labels):
+    #
     n_valid_label = 0
     for label in labels:
         if np.all(label == -1.0): 
@@ -281,6 +308,18 @@ def _get_valid_labels(labels):
         # if n_valid_label == max_sample:
         #     break
     return labels[:n_valid_label, :]
+
+def _fit_box_ratio(bb, ratio):
+    #
+    cx = (bb[0] + bb[2]) / 2.0
+    cy = (bb[1] + bb[3]) / 2.0
+    sz2 = np.maximum(bb[2] - bb[0], bb[3] - bb[1]) / 2.0
+    res = bb.copy() 
+    res[0] = cx - sz2 * ratio
+    res[1] = cy - sz2
+    res[2] = cx + sz2 * ratio
+    res[3] = cy + sz2
+    return res
 
 def _compute_nms_cands(anc, anchors_t, area_anchors_t, th_nms):
     #
@@ -297,6 +336,14 @@ def _compute_iou(label, anchors_t, area_anchors_t):
     
     iou = I / mx.nd.maximum((U - I), 0.000001)
     return iou.asnumpy() # (num_anchors, )
+
+def _compute_overlap(anchors_t, area_anchors_t, img_shape):
+    #
+    iw = mx.nd.minimum(img_shape[2], anchors_t[2]) - mx.nd.maximum(img_shape[0], anchors_t[0])
+    ih = mx.nd.minimum(img_shape[3], anchors_t[3]) - mx.nd.maximum(img_shape[1], anchors_t[1])
+    I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
+    overlap = I / area_anchors_t
+    return overlap.asnumpy()
 
 def _compute_loc_target(gt_bb, bb, variances):
     loc_target = np.zeros((4, ), dtype=np.float32)
@@ -320,8 +367,8 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class, 
-            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/5.0, 
-            n_max_label=768, sample_per_label=5, hard_neg_ratio=3., ignore_label=-1, 
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/3.0, 
+            n_max_label=768, sample_per_label=15, hard_neg_ratio=1., ignore_label=-1, 
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxTargetProp, self).__init__(need_top_grad=True)
@@ -344,7 +391,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         return ['sample_cls', 'sample_reg', 'target_cls', 'target_reg', 'mask_reg']
 
     def list_auxiliary_states(self):
-        return ['target_loc_weight', 'mean_pos_prob_bias']
+        return ['target_loc_weight']
 
     def infer_shape(self, in_shape):
         n_batch = in_shape[0][0]
@@ -362,9 +409,9 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
                 target_cls_shape, target_reg_shape, mask_reg_shape]
 
         target_loc_shape = (n_batch*sample_per_batch, 2)
-        mean_pos_prob_shape = (1,)
+        # mean_pos_prob_shape = (1,)
 
-        return in_shape, out_shape, [target_loc_shape, mean_pos_prob_shape]
+        return in_shape, out_shape, [target_loc_shape]
 
     def create_operator(self, ctx, shapes, dtypes):
         return MultiBoxTarget( \

@@ -38,7 +38,7 @@ class Detector(object):
             self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape, data_shape))])
         else:
             self.mod.bind(data_shapes=[('data', (batch_size, 3, data_shape[0], data_shape[1]))])
-        self.mod.set_params(args, auxs)
+        self.mod.set_params(args, auxs, allow_missing=True)
         self.data_shape = data_shape
         self.mean_pixels = mean_pixels
 
@@ -144,10 +144,14 @@ class Detector(object):
                     class_name = str(cls_id)
                     if classes and len(classes) > cls_id:
                         class_name = classes[cls_id]
+                    plt.gca().text(xmin, ymin - 2,
+                                    '{:.3f}'.format(score),
+                                    bbox=dict(facecolor=colors[cls_id], alpha=0.5),
+                                    fontsize=7, color='white')
                     # plt.gca().text(xmin, ymin - 2,
                     #                 '{:s} {:.3f}'.format(class_name, score),
                     #                 bbox=dict(facecolor=colors[cls_id], alpha=0.5),
-                    #                 fontsize=12, color='white')
+                    #                 fontsize=6, color='white')
         plt.show()
 
     def detect_and_visualize(self, im_list, root_dir=None, extension=None,

@@ -1,4 +1,4 @@
-from phgnet import get_phgnet
+from spotnet import get_spotnet
 from anchor_target_layer import *
 import numpy as np
 
@@ -13,7 +13,7 @@ def get_symbol_train(num_classes, **kwargs):
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
-    preds, anchors = get_phgnet(num_classes, patch_size, 
+    preds, anchors = get_spotnet(num_classes, patch_size, 
             use_global_stats=fix_bn, n_group=n_group)
     label = mx.sym.var(name='label')
 

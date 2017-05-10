@@ -23,18 +23,22 @@ class Wider(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170413_1' # for caching
+    IDX_VER = '170413_1'  # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=False, is_train=False):
-        super(Wider, self).__init__('wider_' + image_set) # e.g. wider_trainval
+        super(Wider,
+              self).__init__('wider_' + image_set)  # e.g. wider_trainval
         self.image_set = image_set
         # self.year = year
         self.devkit_path = devkit_path
-        self.data_path = devkit_path # os.path.join(devkit_path, 'wider')
+        self.data_path = devkit_path  # os.path.join(devkit_path, 'wider')
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ['__background__', 'face',]
+        self.classes = [
+            '__background__',
+            'face',
+        ]
         # self.classes = ['aeroplane', 'bicycle', 'bird', 'boat',
         #                 'bottle', 'bus', 'car', 'cat', 'chair',
         #                 'cow', 'diningtable', 'dog', 'horse',
@@ -42,18 +46,19 @@ class Wider(Imdb):
         #                 'sheep', 'sofa', 'train', 'tvmonitor']
 
         self.config = { \
-                'use_difficult': True, 
-                'th_small': 4.0, 
-                'comp_id': 'comp4', 
-                'padding': 256 } 
+                'use_difficult': True,
+                'th_small': 4.0,
+                'comp_id': 'comp4',
+                'padding': 256 }
 
         self.num_classes = len(self.classes)
         self.max_objects = 0
 
         # try to load cached data
         cached = self._load_from_cache()
-        if cached is None: # no cached data, load from DB (and save)
-            fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
+        if cached is None:  # no cached data, load from DB (and save)
+            fn_cache = os.path.join(self.cache_path,
+                                    self.name + '_' + self.IDX_VER + '.pkl')
             self.image_set_index = self._load_image_set_index(shuffle)
             self.num_images = len(self.image_set_index)
             if self.is_train:
@@ -73,7 +78,8 @@ class Wider(Imdb):
             image_set_index = [self.image_set_index[i] for i in ridx]
             labels = [self.labels[i] for i in ridx]
             self.image_set_index, self.labels = image_set_index, labels
-        self._pad_labels()
+        if self.is_train:
+            self._pad_labels()
 
     @property
     def cache_path(self):
@@ -90,32 +96,42 @@ class Wider(Imdb):
         return cache_path
 
     def _load_from_cache(self):
-        fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
+        fn_cache = os.path.join(self.cache_path,
+                                self.name + '_' + self.IDX_VER + '.pkl')
         cached = {}
         if os.path.exists(fn_cache):
             try:
                 with open(fn_cache, 'rb') as fh:
                     header = cPickle.load(fh)
-                    assert header['ver'] == self.IDX_VER, "Version mismatch, re-index DB."
+                    assert header[
+                        'ver'] == self.IDX_VER, "Version mismatch, re-index DB."
                     self.max_objects = header['max_objects']
                     iidx = cPickle.load(fh)
                     cached['image_set_index'] = iidx['image_set_index']
                     if self.is_train:
                         labels = cPickle.load(fh)
                         cached['labels'] = labels['labels']
-            except: 
+            except:
                 # print 'Exception in load_from_cache.'
                 return None
 
         return None if not cached else cached
 
     def _save_to_cache(self):
-        fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
+        fn_cache = os.path.join(self.cache_path,
+                                self.name + '_' + self.IDX_VER + '.pkl')
         with open(fn_cache, 'wb') as fh:
-            cPickle.dump({'ver': self.IDX_VER, 'max_objects': self.max_objects}, fh, cPickle.HIGHEST_PROTOCOL)
-            cPickle.dump({'image_set_index': self.image_set_index}, fh, cPickle.HIGHEST_PROTOCOL)
+            cPickle.dump({
+                'ver': self.IDX_VER,
+                'max_objects': self.max_objects
+            }, fh, cPickle.HIGHEST_PROTOCOL)
+            cPickle.dump({
+                'image_set_index': self.image_set_index
+            }, fh, cPickle.HIGHEST_PROTOCOL)
             if self.is_train:
-                cPickle.dump({'labels': self.labels}, fh, cPickle.HIGHEST_PROTOCOL)
+                cPickle.dump({
+                    'labels': self.labels
+                }, fh, cPickle.HIGHEST_PROTOCOL)
 
     def _load_image_set_index(self, shuffle):
         """
@@ -129,8 +145,11 @@ class Wider(Imdb):
         ----------
         entire list of images specified in the setting
         """
-        image_set_index_file = os.path.join(self.data_path, 'img', self.image_set + '.txt')
-        assert os.path.exists(image_set_index_file), 'Path does not exist: {}'.format(image_set_index_file)
+        image_set_index_file = os.path.join(self.data_path, 'img',
+                                            self.image_set + '.txt')
+        assert os.path.exists(
+            image_set_index_file), 'Path does not exist: {}'.format(
+                image_set_index_file)
         with open(image_set_index_file) as f:
             image_set_index = [x.strip() for x in f.readlines()]
         if shuffle:
@@ -152,7 +171,8 @@ class Wider(Imdb):
         assert self.image_set_index is not None, "Dataset not initialized"
         name = self.image_set_index[index]
         image_file = os.path.join(self.data_path, 'img', name + self.extension)
-        assert os.path.exists(image_file), 'Path does not exist: {}'.format(image_file)
+        assert os.path.exists(image_file), 'Path does not exist: {}'.format(
+            image_file)
         return image_file
 
     def label_from_index(self, index):
@@ -189,8 +209,10 @@ class Wider(Imdb):
         """
         name = self.image_set_index[index]
         bb_file = os.path.join(self.data_path, 'annotation', name + '.bb')
-        prop_file = os.path.join(self.data_path, 'annotation', name + '.prop_label')
-        assert os.path.exists(bb_file), 'Path does not exist: {}'.format(bb_file)
+        prop_file = os.path.join(self.data_path, 'annotation',
+                                 name + '.prop_label')
+        assert os.path.exists(bb_file), 'Path does not exist: {}'.format(
+            bb_file)
         return bb_file, prop_file
 
     def _load_image_labels(self):
@@ -211,12 +233,13 @@ class Wider(Imdb):
             bb_file, prop_file = self._label_path_from_index(idx)
             cls_id = self.classes.index('face')
             bbs = np.reshape(np.loadtxt(bb_file).astype(float), (-1, 4))
-            if bbs.size == 0: 
+            if bbs.size == 0:
                 temp.append(np.empty((0, 5)))
                 continue
             ww_img = 0
             hh_img = 0
-            small_mask = np.minimum(bbs[:, 2], bbs[:, 3]) < self.config['th_small']
+            small_mask = np.minimum(bbs[:, 2],
+                                    bbs[:, 3]) < self.config['th_small']
             # remove bbs that are 1) invalid or 2) too small and occluded.
             with open(prop_file, 'r') as fh:
                 prop_data = fh.read().splitlines()
@@ -236,7 +259,8 @@ class Wider(Imdb):
             if ww_img == 0:
                 fn_img = self.image_path_from_index(idx)
                 img = cv2.imread(fn_img)
-                prop_data.append('image_size %d %d' % (img.shape[1], img.shape[0]))
+                prop_data.append('image_size %d %d' % (img.shape[1],
+                                                       img.shape[0]))
                 with open(prop_file, 'w') as fh:
                     for pdata in prop_data:
                         fh.write(pdata + '\n')
@@ -245,13 +269,13 @@ class Wider(Imdb):
 
             valid_idx = np.where(invalid_mask == False)[0]
             bbs = bbs[valid_idx, :]
-            if bbs.size == 0: 
+            if bbs.size == 0:
                 temp.append(np.empty((0, 5)))
                 continue
 
             # we need [xmin, ymin, xmax, ymax], but wider DB has [xmin, ymin, width, height]
-            bbs[:, 2] += bbs[:, 0] 
-            bbs[:, 3] += bbs[:, 1] 
+            bbs[:, 2] += bbs[:, 0]
+            bbs[:, 3] += bbs[:, 1]
             # normalize to [0, 1]
             bbs[:, 0::2] /= ww_img
             bbs[:, 1::2] /= hh_img
@@ -267,9 +291,9 @@ class Wider(Imdb):
                 # max_label = label
                 # max_fn = bb_file
 
-        # add padding to labels so that the dimensions match in each batch
-        # TODO: design a better way to handle label padding
-        # [hyunjoon]: trying a better way to handle label padding for WIDER DB.
+            # add padding to labels so that the dimensions match in each batch
+            # TODO: design a better way to handle label padding
+            # [hyunjoon]: trying a better way to handle label padding for WIDER DB.
         assert max_objects > 0, "No objects found for any of the images"
 
         return temp, max_objects
@@ -298,7 +322,8 @@ class Wider(Imdb):
             # label[:, 2] = cy - max_roi_sz / 2.0
             # label[:, 3] = cx + max_roi_sz / 2.0
             # label[:, 4] = cy + max_roi_sz / 2.0
-            padded = np.tile(np.full((5,), -1, dtype=np.float32), (self.padding, 1))
+            padded = np.tile(
+                np.full((5, ), -1, dtype=np.float32), (self.padding, 1))
             padded[:label.shape[0], :] = label
             self.labels[i] = padded
             # if label.shape[0] < self.padding:
@@ -407,12 +432,17 @@ class Wider(Imdb):
     #     img = cv2.imread(im_name)
     #     return (img.shape[0], img.shape[1])
 
+    # for test
 
-# for test
+
 if __name__ == '__main__':
     devkit_path = '/home/hyunjoon/fd/joint_cascade/data/wider'
     image_set = 'val'
-    shuffle=True
+    shuffle = True
     is_train = True
 
-    Wider(devkit_path=devkit_path, image_set=image_set, shuffle=shuffle, is_train=is_train)
+    Wider(
+        devkit_path=devkit_path,
+        image_set=image_set,
+        shuffle=shuffle,
+        is_train=is_train)

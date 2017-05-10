@@ -1,4 +1,4 @@
-from pvtnet_preact import get_pvtnet_preact
+from spotnet_sep import get_spotnet_sep
 from anchor_target_layer import *
 import numpy as np
 
@@ -13,8 +13,8 @@ def get_symbol_train(num_classes, **kwargs):
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
-    preds, anchors = get_pvtnet_preact(num_classes, patch_size, 
-            use_global_stats=fix_bn, fix_gamma=False, n_group=n_group)
+    preds, anchors = get_spotnet_sep(num_classes, patch_size, 
+            use_global_stats=fix_bn, n_group=n_group)
     label = mx.sym.var(name='label')
 
     tmp = mx.symbol.Custom(*[preds, anchors, label], name='anchor_target', op_type='anchor_target')
@@ -56,3 +56,4 @@ if __name__ == '__main__':
         print k + ': ' + str(v.shape)
     for k, v in sorted(auxs.items()):
         print k + ': ' + str(v.shape)
+

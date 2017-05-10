@@ -4,17 +4,25 @@ import mxnet as mx
 import os
 import importlib
 import sys
-from detect.detector import Detector
+from detect.face_detector import FaceDetector
 
 CLASSES = ('__background__', 'face')
+
 # CLASSES = ('aeroplane', 'bicycle', 'bird', 'boat',
 #            'bottle', 'bus', 'car', 'cat', 'chair',
 #            'cow', 'diningtable', 'dog', 'horse',
 #            'motorbike', 'person', 'pottedplant',
 #            'sheep', 'sofa', 'train', 'tvmonitor')
 
-def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx,
-                 nms_thresh=0.5, force_nms=True):
+
+def get_detector(net,
+                 prefix,
+                 epoch,
+                 max_data_shapes,
+                 mean_pixels,
+                 ctx,
+                 nms_thresh=0.5,
+                 force_nms=True):
     """
     wrapper for initialize a detector
 
@@ -36,52 +44,117 @@ def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx,
         force suppress different categories
     """
     sys.path.append(os.path.join(os.getcwd(), 'symbol'))
-    net = importlib.import_module("symbol_" + net) \
-        .get_symbol(len(CLASSES))
-    if isinstance(data_shape, int):
-        detector = Detector(net, prefix + "_" + str(data_shape), epoch, \
-            data_shape, mean_pixels, ctx=ctx)
-    else:
-        detector = Detector(net, prefix, epoch, \
-            data_shape, mean_pixels, ctx=ctx)
+    net = importlib.import_module("symbol_" + net).get_symbol(len(CLASSES))
+    detector = FaceDetector(
+        net, prefix, epoch, max_data_shapes, mean_pixels, ctx=ctx)
     return detector
 
+
 def parse_args():
-    parser = argparse.ArgumentParser(description='Single-shot detection network demo')
-    parser.add_argument('--network', dest='network', type=str, default='hjnet_preact',
-                        help='which network to use')
-    parser.add_argument('--images', dest='images', type=str, default='./data/demo/dog.jpg',
-                        help='run demo with images, use comma(without space) to seperate multiple images')
-    parser.add_argument('--dir', dest='dir', nargs='?',
-                        help='demo image directory, optional', type=str)
-    parser.add_argument('--ext', dest='extension', help='image extension, optional',
-                        type=str, nargs='?')
-    parser.add_argument('--epoch', dest='epoch', help='epoch of trained model',
-                        default=0, type=int)
-    parser.add_argument('--prefix', dest='prefix', help='trained model prefix',
-                        default=os.path.join(os.getcwd(), 'model', 'ssd'), type=str)
-    parser.add_argument('--cpu', dest='cpu', help='(override GPU) use CPU to detect',
-                        action='store_true', default=False)
-    parser.add_argument('--gpu', dest='gpu_id', type=int, default=0,
-                        help='GPU device id to detect with')
-    parser.add_argument('--data-shape', dest='data_shape', nargs='+', type=int, default=300,
-                        help='set image shape')
-    parser.add_argument('--mean-r', dest='mean_r', type=float, default=123,
-                        help='red mean value')
-    parser.add_argument('--mean-g', dest='mean_g', type=float, default=117,
-                        help='green mean value')
-    parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
-                        help='blue mean value')
-    parser.add_argument('--thresh', dest='thresh', type=float, default=0.6,
-                        help='object visualize score threshold, default 0.6')
-    parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.5,
-                        help='non-maximum suppression threshold, default 0.5')
-    parser.add_argument('--force', dest='force_nms', type=bool, default=True,
-                        help='force non-maximum suppression on different class')
-    parser.add_argument('--timer', dest='show_timer', type=bool, default=True,
-                        help='show detection time')
+    parser = argparse.ArgumentParser(
+        description='Single-shot detection network demo')
+    parser.add_argument(
+        '--network',
+        dest='network',
+        type=str,
+        default='hjnet_preact',
+        help='which network to use')
+    parser.add_argument(
+        '--images',
+        dest='images',
+        type=str,
+        default='./data/demo/dog.jpg',
+        help=
+        'run demo with images, use comma(without space) to seperate multiple images'
+    )
+    parser.add_argument(
+        '--dir',
+        dest='dir',
+        nargs='?',
+        help='demo image directory, optional',
+        type=str)
+    parser.add_argument(
+        '--ext',
+        dest='extension',
+        help='image extension, optional',
+        type=str,
+        nargs='?')
+    parser.add_argument(
+        '--epoch',
+        dest='epoch',
+        help='epoch of trained model',
+        default=0,
+        type=int)
+    parser.add_argument(
+        '--prefix',
+        dest='prefix',
+        help='trained model prefix',
+        default=os.path.join(os.getcwd(), 'model', 'ssd'),
+        type=str)
+    parser.add_argument(
+        '--cpu',
+        dest='cpu',
+        help='(override GPU) use CPU to detect',
+        action='store_true',
+        default=False)
+    parser.add_argument(
+        '--gpu',
+        dest='gpu_id',
+        type=int,
+        default=0,
+        help='GPU device id to detect with')
+    parser.add_argument(
+        '--max-data-shapes',
+        dest='max_data_shapes',
+        nargs='+',
+        type=int,
+        default=1280,
+        help='set image shape')
+    parser.add_argument(
+        '--mean-r',
+        dest='mean_r',
+        type=float,
+        default=123,
+        help='red mean value')
+    parser.add_argument(
+        '--mean-g',
+        dest='mean_g',
+        type=float,
+        default=117,
+        help='green mean value')
+    parser.add_argument(
+        '--mean-b',
+        dest='mean_b',
+        type=float,
+        default=104,
+        help='blue mean value')
+    parser.add_argument(
+        '--thresh',
+        dest='thresh',
+        type=float,
+        default=0.5,
+        help='object visualize score threshold, default 0.6')
+    parser.add_argument(
+        '--nms',
+        dest='nms_thresh',
+        type=float,
+        default=0.3,
+        help='non-maximum suppression threshold, default 0.5')
+    parser.add_argument(
+        '--force',
+        dest='force_nms',
+        type=bool,
+        default=True,
+        help='force non-maximum suppression on different class')
+    parser.add_argument(
+        '--timer',
+        dest='show_timer',
+        type=bool,
+        default=True,
+        help='show detection time')
     args = parser.parse_args()
     return args
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -89,14 +162,15 @@ if __name__ == '__main__':
         ctx = mx.cpu()
     else:
         ctx = mx.gpu(args.gpu_id)
+    os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
 
     # parse image list
     image_list = [i.strip() for i in args.images.split(',')]
     assert len(image_list) > 0, "No valid image specified to detect"
 
     detector = get_detector(args.network, args.prefix, args.epoch,
-                            args.data_shape,
-                            (args.mean_r, args.mean_g, args.mean_b),
+                            args.max_data_shapes, 
+                            (args.mean_r, args.mean_g, args.mean_b), 
                             ctx, args.nms_thresh, args.force_nms)
     # run detection
     detector.detect_and_visualize(image_list, args.dir, args.extension,

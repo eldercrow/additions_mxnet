@@ -109,7 +109,7 @@ class FaceMetric(mx.metric.EvalMetric):
 class FacePatchMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
     def __init__(self):
-        super(FacePatchMetric, self).__init__(['Acc', 'SmoothL1', 'Recall'], 3)
+        super(FacePatchMetric, self).__init__(['Loss', 'SmoothL1', 'Recall'], 3)
 
     def update(self, labels, preds):
         """
@@ -124,8 +124,11 @@ class FacePatchMetric(mx.metric.EvalMetric):
         
         cls_acc = np.argmax(cls_pred, axis=1) == cls_label
         mask = np.where(cls_label >= 0)[0]
+        masked_cls_label = cls_label[mask].astype(int)
+        cls_loss = -np.log(np.maximum(cls_pred[mask, masked_cls_label], 1e-08))
         if mask.size > 0:
-            self.sum_metric[0] += sum(cls_acc[mask])
+            # self.sum_metric[0] += sum(cls_acc[mask])
+            self.sum_metric[0] += sum(cls_loss)
             self.num_inst[0] += mask.size
 
         mask = np.where(cls_label > 0)[0]

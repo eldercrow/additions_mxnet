@@ -1,9 +1,14 @@
 import os
 import sys
 import importlib
+# VOC
 from dataset.pascal_voc import PascalVoc
 from dataset.iterator import DetIter
 from detect.detector import Detector
+# Wider Face
+from dataset.wider import Wider
+from dataset.face_test_iter import FaceTestIter
+from detect.face_detector import FaceDetector
 from config.config import cfg
 import logging
 
@@ -22,7 +27,7 @@ def evaluate_net(net, dataset, devkit_path, mean_pixels, data_shape,
     mean_pixels : tuple of float
         (R, G, B) mean pixel values
     data_shape : int
-        resize input data shape
+        resize input data shape, or maximum avaliable size for face detection
     model_prefix : str
         load model prefix
     epoch : int
@@ -59,5 +64,20 @@ def evaluate_net(net, dataset, devkit_path, mean_pixels, data_shape,
         logger.info("Start evaluation with {} images, be patient...".format(imdb.num_images))
         detections = detector.detect(data_iter)
         imdb.evaluate_detections(detections)
+    elif dataset == 'wider':
+        os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
+        os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+        max_data_shapes = (data_shape, data_shape)
+        imdb = Wider(sets, devkit_path, shuffle=False, is_train=False)
+        data_iter = FaceTestIter(imdb, max_data_shapes, mean_pixels)
+        sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
+        net = importlib.import_module("symbol_" + net) \
+            .get_symbol(imdb.num_classes, nms=nms_thresh)
+        # model_prefix += "_" + str(data_shape)
+        detector = FaceDetector(net, model_prefix, epoch, max_data_shapes, mean_pixels, ctx=ctx)
+        logger.info("Start evaluation with {} images, be patient...".format(imdb.num_images))
+        detections = detector.detect(data_iter)
+        import ipdb
+        ipdb.set_trace()
     else:
         raise NotImplementedError("No support for dataset: " + dataset)

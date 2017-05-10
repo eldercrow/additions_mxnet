@@ -43,7 +43,7 @@ class WiderPatch(Imdb):
         if random crop is enabled, defines the maximum trial time
         if trial exceed this number, will give up cropping
     """
-    IDX_VER = '170320_1' # for caching
+    IDX_VER = '170422_2' # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=True, is_train=True, **kwargs):
         super(WiderPatch, self).__init__('widerpatch_' + image_set) # e.g. wider_trainval
@@ -57,12 +57,12 @@ class WiderPatch(Imdb):
 
         self.config = { \
                 'patch_shape': 256, 
-                'min_roi_size': 4, 
+                'min_roi_size': 8, 
                 'max_roi_size': 256,
                 'range_rand_scale': None,
                 'max_crop_trial': 50,
-                'max_patch_per_image': 24, 
-                'use_difficult': True
+                'max_patch_per_image': 16, 
+                'use_difficult': False
                 }
         for k, v in kwargs.iteritems():
             assert k in self.config, 'Unknown parameter %s.' % k
@@ -104,8 +104,8 @@ class WiderPatch(Imdb):
         # self._debug_save_patches()
         # prepare for the next epoch
         self.data_queue = Queue()
-        self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
-        self.p.start()
+        # self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
+        # self.p.start()
 
     @property
     def cache_path(self):
@@ -125,12 +125,12 @@ class WiderPatch(Imdb):
         # is data for the next epoch ready?
         if self.data_queue.empty(): 
             return
-        self.patch_im_path, self.patch_labels = self.data_queue.get()
-        self.num_images = len(self.patch_im_path)
-        if self.p.is_alive():
-            self.p.terminate()
-        self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
-        self.p.start()
+        # self.patch_im_path, self.patch_labels = self.data_queue.get()
+        # self.num_images = len(self.patch_im_path)
+        # if self.p.is_alive():
+        #     self.p.terminate()
+        # self.p = Process(target=self._build_next_patch_db, args=(self.data_queue,))
+        # self.p.start()
 
     def _load_from_cache(self):
         fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')

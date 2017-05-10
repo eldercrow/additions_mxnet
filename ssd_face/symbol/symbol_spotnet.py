@@ -1,4 +1,4 @@
-from phgnet import get_phgnet
+from spotnet import get_spotnet
 from multibox_target import *
 from anchor_target_layer import *
 from multibox_detection import *
@@ -15,7 +15,7 @@ def get_symbol_train(num_classes, **kwargs):
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
-    preds, anchors = get_phgnet(num_classes, patch_size, 
+    preds, anchors = get_spotnet(num_classes, patch_size, 
             use_global_stats=fix_bn, n_group=n_group)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
@@ -32,15 +32,15 @@ def get_symbol_train(num_classes, **kwargs):
 
     cls_loss = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, \
         ignore_label=-1, use_ignore=True, grad_scale=1.0, 
-        normalization='valid', name="cls_prob")
+        normalization='null', name="cls_prob")
     loc_diff = sample_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
-        normalization='valid', name="loc_loss")
+        normalization='null', name="loc_loss")
 
-    label_cls = mx.sym.MakeLoss(target_cls, grad_scale=0, name='label_cls')
-    label_reg = mx.sym.MakeLoss(target_reg, grad_scale=0, name='label_reg')
+    label_cls = mx.sym.BlockGrad(target_cls, name='label_cls')
+    label_reg = mx.sym.BlockGrad(target_reg, name='label_reg')
 
     # group output
     out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
@@ -60,7 +60,7 @@ def get_symbol(num_classes, **kwargs):
     if 'th_pos' in kwargs:
         th_pos = kwargs['th_pos']
 
-    preds, anchors = get_phgnet(num_classes, patch_size, 
+    preds, anchors = get_spotnet(num_classes, patch_size, 
             use_global_stats=fix_bn, n_group=n_group)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
