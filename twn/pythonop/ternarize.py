@@ -11,7 +11,7 @@ class Ternarize(mx.operator.CustomOp):
         #
         super(Ternarize, self).__init__()
         self.soft_ternarize = soft_ternarize
-        self.th_ratio = 0.7
+        self.th_ratio = 1.0 #0.7
 
     def forward(self, is_train, req, in_data, out_data, aux):
         #
