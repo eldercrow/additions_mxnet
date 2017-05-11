@@ -21,7 +21,8 @@ def get_detector(net,
                  max_data_shapes,
                  mean_pixels,
                  ctx,
-                 nms_thresh=0.5,
+                 th_pos=0.5,
+                 nms_thresh=1.0/3.0,
                  force_nms=True):
     """
     wrapper for initialize a detector
@@ -44,7 +45,8 @@ def get_detector(net,
         force suppress different categories
     """
     sys.path.append(os.path.join(os.getcwd(), 'symbol'))
-    net = importlib.import_module("symbol_" + net).get_symbol(len(CLASSES))
+    net = importlib.import_module("symbol_" + net).get_symbol(
+            len(CLASSES), th_pos=th_pos, nms=nms_thresh)
     detector = FaceDetector(
         net, prefix, epoch, max_data_shapes, mean_pixels, ctx=ctx)
     return detector
@@ -133,7 +135,7 @@ def parse_args():
         dest='thresh',
         type=float,
         default=0.5,
-        help='object visualize score threshold, default 0.6')
+        help='object visualize score threshold, default 0.5')
     parser.add_argument(
         '--nms',
         dest='nms_thresh',
@@ -161,7 +163,7 @@ if __name__ == '__main__':
     if args.cpu:
         ctx = mx.cpu()
     else:
-        ctx = mx.gpu(args.gpu_id)
+        ctx = mx.gpu_naive(args.gpu_id)
     os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
 
     # parse image list
@@ -171,7 +173,7 @@ if __name__ == '__main__':
     detector = get_detector(args.network, args.prefix, args.epoch,
                             args.max_data_shapes, 
                             (args.mean_r, args.mean_g, args.mean_b), 
-                            ctx, args.nms_thresh, args.force_nms)
+                            ctx, args.thresh, args.nms_thresh, args.force_nms)
     # run detection
     detector.detect_and_visualize(image_list, args.dir, args.extension,
                                   CLASSES, args.thresh, args.show_timer)

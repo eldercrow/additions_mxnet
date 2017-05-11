@@ -35,7 +35,9 @@ def parse_args():
                         help='green mean value')
     parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
                         help='blue mean value')
-    parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.45,
+    parser.add_argument('--th-pos', dest='th_pos', type=float, default=0.5,
+                        help='softmax threshold of positive sample')
+    parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.3333,
                         help='non-maximum suppression threshold')
     parser.add_argument('--force', dest='force_nms', type=bool, default=False,
                         help='force non-maximum suppression on different class')
@@ -52,4 +54,5 @@ if __name__ == '__main__':
                  (args.mean_r, args.mean_g, args.mean_b), args.data_shape,
                  args.prefix, args.epoch, ctx, year=args.year,
                  sets=args.eval_set, batch_size=args.batch_size,
+                 th_pos=args.th_pos,
                  nms_thresh=args.nms_thresh, force_nms=args.force_nms)
