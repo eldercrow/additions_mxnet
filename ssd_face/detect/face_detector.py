@@ -45,8 +45,7 @@ class FaceDetector(object):
         assert max_data_shapes[0] % img_stride == 0 and max_data_shapes[1] % img_stride == 0
         self.max_data_shapes = max_data_shapes
         max_data_shapes = {
-            'data': (1, 3, max_data_shapes[0], max_data_shapes[1]), 
-            'im_scale': (1, 2)
+            'data': (1, 3, max_data_shapes[0], max_data_shapes[1])
         }
         # self.mod = mx.mod.Module(
         #     symbol,
@@ -55,7 +54,7 @@ class FaceDetector(object):
         #     context=ctx)
         self.mod = MutableModule(
             symbol,
-            data_names = ('data', 'im_scale'),
+            data_names = ('data', ),
             label_names=None,
             context=ctx,
             max_data_shapes=max_data_shapes)
@@ -86,34 +85,52 @@ class FaceDetector(object):
         #     det_iter = mx.io.PrefetchingIter(det_iter)
         if not self.mod.binded:
             self.mod.bind(
-                data_shapes=det_iter.provide_data,
+                data_shapes=[det_iter.provide_data[0]],
                 label_shapes=None,
                 for_training=False,
                 force_rebind=True)
             self.mod.set_params(self.args, self.auxs)
         start = timer()
         result = []
-        detections = self.mod.predict(det_iter).asnumpy()
-        # import ipdb
-        # ipdb.set_trace()
-        for i in range(detections.shape[0]):
-            dets = detections[i]
-            n_detections = 0
-            for i in range(dets.shape[0]):
-                if dets[i][0] == -1:
-                    break
-                n_detections += 1
-            vdets = mx.nd.array(dets[:n_detections], ctx=self.mod._context)
-            vdets = self._transform_roi(vdets)
-            vidx = self._do_nms(vdets)
-            vdets = vdets.asnumpy()
-            vdets = vdets[vidx, :]
+        im_paths = []
+        detections = []
+        for i, (datum, im_info) in enumerate(det_iter):
+            self.mod.forward(datum)
+            out = self.mod.get_outputs()
+            # time_elapsed = timer() - start
+            im_scale = im_info['im_scale'][0].asnumpy()
+            n_dets = int(out[1].asnumpy()[0])
+            im_paths.append(im_info['im_path'])
+            if n_dets == 0:
+                result.append(np.zeros((0, 6)))
+                continue
+            dets = out[0][0][:n_dets]
+            # dets = self._transform_roi(dets)
+            # vidx = self._do_nms(dets)
+            vdets = dets.asnumpy()
+            # vidx = vdets[:, 1] > 0
+            # vdets = vdets[vidx, :]
+            vdets[:, 2] *= im_scale[1]
+            vdets[:, 3] *= im_scale[0]
+            vdets[:, 4] *= im_scale[1]
+            vdets[:, 5] *= im_scale[0]
             result.append(vdets)
+
+            if i % 10 == 0:
+                print('Processing image {}/{}, {} faces detected.'.format(i+1, num_images, n_dets))
+        #     detections.append(out[0][0][:n_dets].asnumpy())
+        # for i in range(len(detections)):
+        #     dets = mx.nd.array(detections[i])
+        #     dets = self._transform_roi(dets)
+        #     vidx = self._do_nms(dets)
+        #     vdets = dets.asnumpy()
+        #     vdets = vdets[vidx, :]
+        #     result.append(vdets)
         time_elapsed = timer() - start
         if show_timer:
             print("Detection time for {} images: {:.4f} sec".format(
                 num_images, time_elapsed))
-        return result
+        return result, im_paths
 
     def im_detect(self,
                   im_list,
@@ -194,13 +211,13 @@ class FaceDetector(object):
                     class_name = str(cls_id)
                     if classes and len(classes) > cls_id:
                         class_name = classes[cls_id]
-                    plt.gca().text(
-                        xmin,
-                        ymin - 2,
-                        '{:.3f}'.format(score),
-                        bbox=dict(facecolor=colors[cls_id], alpha=0.5),
-                        fontsize=7,
-                        color='white')
+                    # plt.gca().text(
+                    #     xmin,
+                    #     ymin - 2,
+                    #     '{:.3f}'.format(score),
+                    #     bbox=dict(facecolor=colors[cls_id], alpha=0.5),
+                    #     fontsize=7,
+                    #     color='white')
                     # plt.gca().text(
                     #     xmin,
                     #     ymin - 2,
@@ -235,7 +252,7 @@ class FaceDetector(object):
 
         """
         import cv2
-        dets = self.im_detect(
+        dets, _ = self.im_detect(
             im_list, root_dir, extension, show_timer=show_timer)
         root_dir = '' if not root_dir else root_dir
         extension = '' if not extension else extension
@@ -277,11 +294,11 @@ class FaceDetector(object):
         for i in range(dets.shape[0]):
             if vmask[i] == 0:
                 continue
-            iw = mx.nd.minimum(dets[i][4], dets_t[4][i:]) - mx.nd.maximum(dets[i][2], dets_t[2][i:])
-            ih = mx.nd.minimum(dets[i][5], dets_t[5][i:]) - mx.nd.maximum(dets[i][3], dets_t[3][i:])
+            iw = mx.nd.minimum(dets[i][4], dets_t[4]) - mx.nd.maximum(dets[i][2], dets_t[2])
+            ih = mx.nd.minimum(dets[i][5], dets_t[5]) - mx.nd.maximum(dets[i][3], dets_t[3])
             I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
-            iou = (I / mx.nd.maximum(areas_t[i:] + areas_t[i] - I, 1e-06)).asnumpy()
-            nidx = np.where(iou > self.th_nms)[0] + i
+            iou = (I / mx.nd.maximum(areas_t + areas_t[i] - I, 1e-06)).asnumpy()
+            nidx = np.where(iou > self.th_nms)[0] 
             vmask[nidx] = 0
             vidx.append(i)
         return vidx

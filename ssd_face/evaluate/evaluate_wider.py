@@ -69,4 +69,6 @@ def evaluate_wider(net,
     logger.info("Start evaluation with {} images, be patient...".format(
         imdb.num_images))
     detections = detector.detect(data_iter)
+    import ipdb
+    ipdb.set_trace()
     # imdb.evaluate_detections(detections)

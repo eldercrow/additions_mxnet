@@ -55,7 +55,7 @@ class FaceTestIter(mx.io.DataIter):
                                    provide_data=self.provide_data, provide_label=self.provide_label,
                                    pad=self.getpad(), index=self.getindex())
             self._current += self.batch_size
-            return data_batch
+            return data_batch, self._im_info
         else:
             raise StopIteration
 
@@ -91,8 +91,9 @@ class FaceTestIter(mx.io.DataIter):
             data, scale = self._data_augmentation(img)
         batch_data = mx.nd.expand_dims(data, axis=0)
         scale = mx.nd.expand_dims(scale, axis=0)
-        self._data = {'data': batch_data, 'im_scale': scale}
+        self._data = {'data': batch_data}
         self._label = {'label': None}
+        self._im_info = {'im_scale': scale, 'im_path': im_path}
 
     def _data_augmentation(self, data):
         """
