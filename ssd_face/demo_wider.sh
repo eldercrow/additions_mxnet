@@ -7,5 +7,5 @@ python demo.py \
   --prefix /home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lite3_768 \
   --epoch 52 \
   --max-data-shapes 2560 2560 \
-  --thresh 0.25 \
+  --thresh 0.75 \
   --gpu 0
