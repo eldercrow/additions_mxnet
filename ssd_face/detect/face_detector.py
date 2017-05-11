@@ -114,6 +114,12 @@ class FaceDetector(object):
             vdets[:, 3] *= im_scale[0]
             vdets[:, 4] *= im_scale[1]
             vdets[:, 5] *= im_scale[0]
+            overlap = self._comp_overlap(vdets[:, 2:], im_info['im_shape'])
+            iidx = overlap > 0.6
+            n_oob = np.where(iidx == False)[0].size
+            if n_oob > 0: 
+                print('n_oob = {}'.format(n_oob))
+            vdets = vdets[iidx, :]
             result.append(vdets)
 
             if i % 10 == 0:
@@ -265,40 +271,48 @@ class FaceDetector(object):
             img[:, :, (0, 1, 2)] = img[:, :, (2, 1, 0)]
             self.visualize_detection(img, det, classes, thresh)
 
-    def _transform_roi(self, dets, ratio=0.8):
+    # def _transform_roi(self, dets, ratio=0.8):
+    #     #
+    #     dets_t = mx.nd.transpose(dets, axes=(1,0))
+    #     cx = (dets_t[6] + dets_t[8]) * 0.5
+    #     cy = (dets_t[7] + dets_t[9]) * 0.5
+    #     aw = (dets_t[8] - dets_t[6])
+    #     aw *= ratio
+    #     ah = (dets_t[9] - dets_t[7])
+    #     cx += dets_t[2] * aw
+    #     cy += dets_t[3] * ah
+    #     w = (2.0**dets_t[4]) * aw
+    #     h = (2.0**dets_t[5]) * ah
+    #     dets_t[2] = cx - w / 2.0
+    #     dets_t[3] = cy - h / 2.0
+    #     dets_t[4] = cx + w / 2.0
+    #     dets_t[5] = cy + h / 2.0
+    #     return mx.nd.transpose(dets_t[:6], axes=(1, 0))
+    #
+    # def _do_nms(self, dets):
+    #     #
+    #     dets_t = mx.nd.transpose(dets, axes=(1,0))
+    #     areas_t = (dets_t[4] - dets_t[2]) * (dets_t[5] - dets_t[3])
+    #
+    #     vmask = np.ones((dets.shape[0],), dtype=int)
+    #     vidx = []
+    #     
+    #     for i in range(dets.shape[0]):
+    #         if vmask[i] == 0:
+    #             continue
+    #         iw = mx.nd.minimum(dets[i][4], dets_t[4]) - mx.nd.maximum(dets[i][2], dets_t[2])
+    #         ih = mx.nd.minimum(dets[i][5], dets_t[5]) - mx.nd.maximum(dets[i][3], dets_t[3])
+    #         I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
+    #         iou = (I / mx.nd.maximum(areas_t + areas_t[i] - I, 1e-06)).asnumpy()
+    #         nidx = np.where(iou > self.th_nms)[0] 
+    #         vmask[nidx] = 0
+    #         vidx.append(i)
+    #     return vidx
+    def _comp_overlap(self, dets, im_shape):
         #
-        dets_t = mx.nd.transpose(dets, axes=(1,0))
-        cx = (dets_t[6] + dets_t[8]) * 0.5
-        cy = (dets_t[7] + dets_t[9]) * 0.5
-        aw = (dets_t[8] - dets_t[6])
-        aw *= ratio
-        ah = (dets_t[9] - dets_t[7])
-        cx += dets_t[2] * aw
-        cy += dets_t[3] * ah
-        w = (2.0**dets_t[4]) * aw
-        h = (2.0**dets_t[5]) * ah
-        dets_t[2] = cx - w / 2.0
-        dets_t[3] = cy - h / 2.0
-        dets_t[4] = cx + w / 2.0
-        dets_t[5] = cy + h / 2.0
-        return mx.nd.transpose(dets_t[:6], axes=(1, 0))
+        area_dets = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
+        iw = np.minimum(dets[:, 2], im_shape[1]) - np.maximum(dets[:, 0], 0)
+        ih = np.minimum(dets[:, 3], im_shape[0]) - np.maximum(dets[:, 1], 0)
 
-    def _do_nms(self, dets):
-        #
-        dets_t = mx.nd.transpose(dets, axes=(1,0))
-        areas_t = (dets_t[4] - dets_t[2]) * (dets_t[5] - dets_t[3])
-
-        vmask = np.ones((dets.shape[0],), dtype=int)
-        vidx = []
-        
-        for i in range(dets.shape[0]):
-            if vmask[i] == 0:
-                continue
-            iw = mx.nd.minimum(dets[i][4], dets_t[4]) - mx.nd.maximum(dets[i][2], dets_t[2])
-            ih = mx.nd.minimum(dets[i][5], dets_t[5]) - mx.nd.maximum(dets[i][3], dets_t[3])
-            I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
-            iou = (I / mx.nd.maximum(areas_t + areas_t[i] - I, 1e-06)).asnumpy()
-            nidx = np.where(iou > self.th_nms)[0] 
-            vmask[nidx] = 0
-            vidx.append(i)
-        return vidx
+        overlap = (iw * ih) / (area_dets + 1e-04)
+        return overlap

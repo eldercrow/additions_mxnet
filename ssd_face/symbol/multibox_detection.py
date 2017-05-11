@@ -44,12 +44,10 @@ class MultiBoxDetection(mx.operator.CustomOp):
 
             n_detection = int(mx.nd.sum(max_probs > self.th_pos).asscalar())
             if n_detection == 0:
-                out_data[1][nn] = 0
                 continue
 
             sidx = mx.nd.argsort(max_probs, is_ascend=False)
             sidx = sidx[:n_detection]
-            # sidx = sidx[:self.max_detection]
 
             oreg_t = mx.nd.transpose(mx.nd.take(preg, sidx))
             oanc_t = mx.nd.transpose(mx.nd.take(anchors, sidx))
@@ -67,51 +65,7 @@ class MultiBoxDetection(mx.operator.CustomOp):
                 out_i[i][0] = ocid[vid]
                 out_i[i][1] = ocls[vid]
                 out_i[i][2:] = oreg[vid]
-            # out_i = mx.nd.transpose(out_i)
-            # import ipdb
-            # ipdb.set_trace()
-            # out_i[0][:n_valid] = mx.nd.take(ocid, vidx)
-            # out_i[1][:n_valid] = mx.nd.take(ocls, vidx)
-            # for i in range(4):
-            #     bbi = oreg_t[i]
-            #     out_i[i+2][:n_valid] = mx.nd.take(bbi, vidx)
-            # out_data[0][nn] = mx.nd.transpose(out_i)
-
-            # out_i = mx.nd.transpose(out_i)
-            # out_i[0] = mx.nd.take(max_cid, sidx)
-            # out_i[1] = mx.nd.take(max_probs, sidx)
-            # out_i[2:] = _transform_roi(oreg_t, oanc_t, self.variances, 0.8) #mx.nd.transpose(mx.nd.take(preg, sidx))
-            # # out_i[6:]= mx.nd.transpose(mx.nd.take(anchors, sidx))
-            #
-            # out_data[0][nn] = mx.nd.transpose(_nms(out_i, n_detection, self.th_nms))
-
-
-            # out_i = _transform_roi(out_i, 0.8)
-            # for i in range(4):
-                # out_i[i+2] *= self.variances[i]
-
-            # # gather positive anchors
-            # pos_idx = np.where(max_probs > self.th_pos)[0]
-            # pos_idx = pos_idx[:np.minimum(len(pos_idx), self.n_detection)]
-            # sidx = np.argsort(max_probs[pos_idx])[::-1]
-            # pos_idx = pos_idx[sidx]
-            # for i, p in enumerate(pos_idx):
-            #     if i == out_i.shape[0]:
-            #         break
-            #     out_i[i][0] = max_cid[p]
-            #     out_i[i][1] = max_probs[p]
-            #     out_i[i][2:6] = preg[p]
-            #     out_i[i][6:] = anchors[p]
-            # out_i = mx.nd.transpose(out_i)
-            # for i in range(4):
-                # out_i[i+2] *= self.variances[i]
-            # out_i[6] *= im_scale[nn][1]
-            # out_i[7] *= im_scale[nn][0]
-            # out_i[8] *= im_scale[nn][1]
-            # out_i[9] *= im_scale[nn][0]
-            # out_data[0][nn] = mx.nd.transpose(out_i)
             out_data[1][nn] = n_detection
-            # out_data[1][nn] = np.minimum(self.max_detection, len(pos_idx))
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         pass

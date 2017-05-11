@@ -89,11 +89,12 @@ class FaceTestIter(mx.io.DataIter):
                 img_content = fp.read()
             img = mx.img.imdecode(img_content)
             data, scale = self._data_augmentation(img)
+            im_shape = img.shape
         batch_data = mx.nd.expand_dims(data, axis=0)
         scale = mx.nd.expand_dims(scale, axis=0)
         self._data = {'data': batch_data}
         self._label = {'label': None}
-        self._im_info = {'im_scale': scale, 'im_path': im_path}
+        self._im_info = {'im_scale': scale, 'im_path': im_path, 'im_shape': im_shape}
 
     def _data_augmentation(self, data):
         """
@@ -105,7 +106,12 @@ class FaceTestIter(mx.io.DataIter):
         sf = np.minimum(1.0, np.minimum(sf_x, sf_y))
         sy = int(np.round(data.shape[0] * sf))
         sx = int(np.round(data.shape[1] * sf))
-        data = mx.img.imresize(data, sx, sy).asnumpy()
+        sf_y = data.shape[0] / float(sy)
+        sf_x = data.shape[1] / float(sx)
+        if sy != data.shape[0] or sx != data.shape[1]:
+            data = mx.img.imresize(data, sx, sy).asnumpy()
+        else:
+            data = data.asnumpy()
         # pad image w.r.t. image stride
         sy = np.ceil(sy / float(self._img_stride)) * self._img_stride
         sx = np.ceil(sx / float(self._img_stride)) * self._img_stride
@@ -117,4 +123,4 @@ class FaceTestIter(mx.io.DataIter):
         # data = mx.img.imresize(data, int(sx), int(sy)).asnumpy() # ignore slight aspect ratio break
         data = np.transpose(padded, (2, 0, 1)).astype(float)
         data = data - self._mean_pixels.asnumpy()
-        return mx.nd.array(data), mx.nd.array((sf, sf))
+        return mx.nd.array(data), mx.nd.array((sf_y, sf_x))
