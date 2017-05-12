@@ -39,8 +39,12 @@ class MultiBoxDetection(mx.operator.CustomOp):
             pcls = probs_cls[nn]  # (n_anchors, n_classes)
             preg = preds_reg[nn]  # (n_anchor, 4)
             pcls_t = mx.nd.transpose(pcls, axes=(1, 0))
-            max_probs = mx.nd.max(pcls_t[1:], axis=0) #.asnumpy()
-            max_cid = mx.nd.argmax(pcls_t[1:], axis=0) #.asnumpy()
+            if n_class == 1:
+                max_probs = mx.nd.reshape(pcls_t, (-1,))
+                # max_cid = pcls_t
+            else:
+                max_probs = mx.nd.max(pcls_t, axis=0) #.asnumpy()
+                max_cid = mx.nd.argmax(pcls_t, axis=0) #.asnumpy()
 
             n_detection = int(mx.nd.sum(max_probs > self.th_pos).asscalar())
             if n_detection == 0:
@@ -52,7 +56,8 @@ class MultiBoxDetection(mx.operator.CustomOp):
             oreg_t = mx.nd.transpose(mx.nd.take(preg, sidx))
             oanc_t = mx.nd.transpose(mx.nd.take(anchors, sidx))
             ocls = mx.nd.take(max_probs, sidx)
-            ocid = mx.nd.take(max_cid, sidx)
+            if n_class > 1:
+                ocid = mx.nd.take(max_cid, sidx)
             oreg_t = _transform_roi(oreg_t, oanc_t, self.variances, 0.8)
             oreg = mx.nd.transpose(oreg_t)
 
@@ -62,7 +67,8 @@ class MultiBoxDetection(mx.operator.CustomOp):
             vidx = vidx[:n_detection]
 
             for i, vid in enumerate(vidx):
-                out_i[i][0] = ocid[vid]
+                if n_class > 1:
+                    out_i[i][0] = ocid[vid]
                 out_i[i][1] = ocls[vid]
                 out_i[i][2:] = oreg[vid]
             out_data[1][nn] = n_detection
@@ -79,14 +85,23 @@ def _nms(out_t, th_nms):
     for i in range(n_detection-1):
         if nms_mask[i]: 
             continue
-        iw = mx.nd.minimum(out_t[2][i], out_t[2][(i+1):]) - \
-                mx.nd.maximum(out_t[0][i], out_t[0][(i+1):])
-        ih = mx.nd.minimum(out_t[3][i], out_t[3][(i+1):]) - \
-                mx.nd.maximum(out_t[1][i], out_t[1][(i+1):])
+        iw = mx.nd.minimum(out_t[2][i], out_t[2]) - \
+                mx.nd.maximum(out_t[0][i], out_t[0])
+        ih = mx.nd.minimum(out_t[3][i], out_t[3]) - \
+                mx.nd.maximum(out_t[1][i], out_t[1])
         I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
-        iou_mask = (I / mx.nd.maximum(area_out_t[(i+1):] + area_out_t[i] - I, 1e-06)) > th_nms
-        nidx = np.where(iou_mask.asnumpy())[0] + i + 1
+        iou_mask = (I / mx.nd.maximum(area_out_t + area_out_t[i] - I, 1e-06)) > th_nms
+        nidx = np.where(iou_mask.asnumpy())[0]
         nms_mask[nidx] = True
+        nms_mask[i] = False
+        # iw = mx.nd.minimum(out_t[2][i], out_t[2][(i+1):]) - \
+        #         mx.nd.maximum(out_t[0][i], out_t[0][(i+1):])
+        # ih = mx.nd.minimum(out_t[3][i], out_t[3][(i+1):]) - \
+        #         mx.nd.maximum(out_t[1][i], out_t[1][(i+1):])
+        # I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
+        # iou_mask = (I / mx.nd.maximum(area_out_t[(i+1):] + area_out_t[i] - I, 1e-06)) > th_nms
+        # nidx = np.where(iou_mask.asnumpy())[0] + i + 1
+        # nms_mask[nidx] = True
     return np.where(nms_mask == False)[0]
 
 
@@ -105,12 +120,12 @@ def _transform_roi(reg_t, anc_t, variances, ratio=1.0):
     ah = anc_t[3] - anc_t[1]
     cx += reg_t[0] * aw
     cy += reg_t[1] * ah
-    w = (2.0**reg_t[2]) * aw
-    h = (2.0**reg_t[3]) * ah
-    reg_t[0] = cx - w / 2.0
-    reg_t[1] = cy - h / 2.0
-    reg_t[2] = cx + w / 2.0
-    reg_t[3] = cy + h / 2.0
+    w = (2.0**reg_t[2]) * aw * 0.5
+    h = (2.0**reg_t[3]) * ah * 0.5
+    reg_t[0] = cx - w 
+    reg_t[1] = cy - h 
+    reg_t[2] = cx + w 
+    reg_t[3] = cy + h 
     return reg_t 
 
 
