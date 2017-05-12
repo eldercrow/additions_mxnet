@@ -26,14 +26,14 @@ python train.py \
     --network spotnet_lite_bnfixed \
     --batch-size 4 \
     --gpu 1 \
-    --prefix model/spotnet_lite2_bnfixed \
+    --prefix model/spotnet_lite2_bnfixed_768 \
     --data-shape 768 \
     --frequent 100 \
-    --lr 1e-04 \
+    --lr 1e-05 \
     --lr-steps 10,20,30,40,45,50 \
     --lr-factor 0.316228 \
     --wd 1e-05 \
-    --resume 35
-    # --pretrained model/spotnet_lite3_768_bnfixed \
-    # --epoch 10
+    --pretrained model/spotnet_lite2_bnfixed_768 \
+    --epoch 0
+    # --resume 0
     # --monitor 2000 \

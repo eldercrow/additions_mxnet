@@ -9,4 +9,4 @@ python evaluate.py \
     --gpus 0 \
     --data-shape 1280 \
     --th-pos 0.25 \
-    --nms 0.3 
+    --nms 0.33333 
