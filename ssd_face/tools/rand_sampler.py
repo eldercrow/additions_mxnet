@@ -333,7 +333,7 @@ class RandScaler(RandSampler):
     max_sample : int
         maximum random crop samples to be generated
     """
-    def __init__(self, min_scale=1.0, max_scale=1.0, min_gt_scale=.01, max_trials=50, max_sample=1):
+    def __init__(self, min_scale=1.0, max_scale=1.0, min_gt_scale=.01, max_trials=50, max_sample=1, patch_size=768):
         super(RandScaler, self).__init__(max_trials, max_sample)
         assert min_scale <= max_scale, "min_scale must <= max_scale"
         assert min_scale <= 1 and min_scale > 0, "min_scale must in (0, 1]"
@@ -345,6 +345,7 @@ class RandScaler(RandSampler):
         self.min_box_overlap = 0.7
         self.min_gt_overlap = 0.7
         self.min_gt_ignore = 0.15
+        self.patch_size = patch_size
 
     def sample(self, label, img_shape):
         """
@@ -362,59 +363,98 @@ class RandScaler(RandSampler):
         """
         valid_mask = np.where(label[:, 0] > -1)[0]
         gt = label[valid_mask, :]
-
+        gt[:, 1::2] *= img_shape[1]
+        gt[:, 2::2] *= img_shape[0]
         samples = []
-        count = 0
-        if img_shape[0] < img_shape[1]: # width > height
-            asp_x = float(img_shape[0]) / float(img_shape[1])
-            asp_y = 1
-        else:
-            asp_x = 1
-            asp_y = float(img_shape[1]) / float(img_shape[0])
-        img_size = np.mean(img_shape)
         for trial in range(self.max_trials):
-            if count >= self.max_sample:
-                return samples
             scale = np.random.uniform(self.min_scale, self.max_scale)
-            width = scale * asp_x
-            height = scale * asp_y
-            cx = np.random.normal(0.5, 0.5 / 3.0)
-            cy = np.random.normal(0.5, 0.5 / 3.0)
-            left = cx - width / 2.0
-            top = cy - height / 2.0
-            right = cx + width / 2.0
-            bot = cy + height / 2.0
-            rand_box = (left, top, right, bot)
-            # sanity check for rand_box
-            overlap = _compute_overlap(rand_box, (0., 0., 1., 1.))
-            if overlap < self.min_box_overlap:
-                continue
+            patch_sz = np.round(self.patch_size * scale)
+            dx = img_shape[1] - patch_sz
+            dy = img_shape[0] - patch_sz
+            if dx != 0:
+                dx = np.random.randint(low=np.minimum(dx, 0), high=np.maximum(dx, 0))
+            if dy != 0:
+                dy = np.random.randint(low=np.minimum(dy, 0), high=np.maximum(dy, 0))
+            bbox = [dx, dy, dx+patch_sz, dy+patch_sz]
+
             new_gt_boxes = []
-            for i in range(gt.shape[0]):
-                xmin = (gt[i, 1] - left) / width
-                ymin = (gt[i, 2] - top) / height
-                xmax = (gt[i, 3] - left) / width
-                ymax = (gt[i, 4] - top) / height
-                new_size = max(xmax - xmin, ymax - ymin)
-                overlap = _compute_overlap(gt[i, 1:], rand_box)
+            for bb in gt:
+                new_size = max(bb[4] - bb[2], bb[3] - bb[1]) * scale / float(self.patch_size)
+                overlap = _compute_overlap(bb[1:], bbox)
                 if overlap < self.min_gt_ignore or new_size < self.min_gt_scale:
                     continue
-                l = gt[i, 0] if overlap > self.min_gt_overlap else -1
-                new_gt_boxes.append([l, xmin, ymin, xmax, ymax])
-            if not new_gt_boxes:
-                continue
+                l = bb[0] if overlap > self.min_gt_overlap else -1
+                new_gt_boxes.append([l, bb[1]-dx, bb[2]-dy, bb[3]-dx, bb[4]-dy])
             new_gt_boxes = np.array(new_gt_boxes)
+            if len(new_gt_boxes) == 0:
+                continue
+            new_gt_boxes[:, 1::2] /= float(patch_sz)
+            new_gt_boxes[:, 2::2] /= float(patch_sz)
             label = np.lib.pad(new_gt_boxes,
                 ((0, label.shape[0]-new_gt_boxes.shape[0]), (0,0)), \
                 'constant', constant_values=(-1, -1))
-            samples.append((rand_box, label))
-            count += 1
+            bbox[0] /= float(img_shape[1])
+            bbox[1] /= float(img_shape[0])
+            bbox[2] /= float(img_shape[1])
+            bbox[3] /= float(img_shape[0])
+            samples.append((bbox, label))
+            break
         return samples
 
-def _compute_overlap(roi, img_roi):
+        # samples = []
+        # count = 0
+        # if img_shape[0] < img_shape[1]: # width > height
+        #     asp_x = float(img_shape[0]) / float(img_shape[1])
+        #     asp_y = 1
+        # else:
+        #     asp_x = 1
+        #     asp_y = float(img_shape[1]) / float(img_shape[0])
+        # img_size = np.mean(img_shape)
+        # for trial in range(self.max_trials):
+        #     if count >= self.max_sample:
+        #         return samples
+        #     scale = np.random.uniform(self.min_scale, self.max_scale)
+        #     width = scale * asp_x
+        #     height = scale * asp_y
+        #     cx = np.random.normal(0.5, 0.5 / 3.0)
+        #     cy = np.random.normal(0.5, 0.5 / 3.0)
+        #     left = cx - width / 2.0
+        #     top = cy - height / 2.0
+        #     right = cx + width / 2.0
+        #     bot = cy + height / 2.0
+        #     rand_box = (left, top, right, bot)
+        #     # sanity check for rand_box
+        #     overlap = _compute_overlap(rand_box, (0., 0., 1., 1.), asp_x, asp_y)
+        #     if overlap < self.min_box_overlap:
+        #         continue
+        #     new_gt_boxes = []
+        #     for i in range(gt.shape[0]):
+        #         xmin = (gt[i, 1] - left) / width
+        #         ymin = (gt[i, 2] - top) / height
+        #         xmax = (gt[i, 3] - left) / width
+        #         ymax = (gt[i, 4] - top) / height
+        #         new_size = max(xmax - xmin, ymax - ymin)
+        #         overlap = _compute_overlap(gt[i, 1:], rand_box)
+        #         if overlap < self.min_gt_ignore or new_size < self.min_gt_scale:
+        #             continue
+        #         l = gt[i, 0] if overlap > self.min_gt_overlap else -1
+        #         new_gt_boxes.append([l, xmin, ymin, xmax, ymax])
+        #     if not new_gt_boxes:
+        #         continue
+        #     new_gt_boxes = np.array(new_gt_boxes)
+        #     label = np.lib.pad(new_gt_boxes,
+        #         ((0, label.shape[0]-new_gt_boxes.shape[0]), (0,0)), \
+        #         'constant', constant_values=(-1, -1))
+        #     samples.append((rand_box, label))
+        #     count += 1
+        # return samples
+
+def _compute_overlap(roi, img_roi, asp_x=1.0, asp_y=1.0):
     #
     ox = _compute_overlap_1d(roi[0], roi[2], img_roi[0], img_roi[2])
     oy = _compute_overlap_1d(roi[1], roi[3], img_roi[1], img_roi[3])
+    ox = ox ** asp_y
+    oy = oy ** asp_x
     return ox * oy
     
 def _compute_overlap_1d(p0, p1, q0, q1):

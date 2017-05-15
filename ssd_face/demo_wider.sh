@@ -11,12 +11,12 @@ else
 fi
 
 python demo.py \
-  --network spotnet_lite_bnfixed \
+  --network spotnet_lighter \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix /home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lite2_bnfixed_768_768 \
-  --epoch 31 \
+  --prefix model/spotnet_lighter_bnfixed_768 \
+  --epoch 4 \
   --max-data-shapes 2560 2560 \
   --thresh $TH_POS \
   --gpu 0

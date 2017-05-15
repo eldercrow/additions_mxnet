@@ -162,6 +162,7 @@ if __name__ == '__main__':
     args = parse_args()
     if args.cpu:
         ctx = mx.cpu()
+        print('Running on CPU...')
     else:
         ctx = mx.gpu_naive(args.gpu_id)
     os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'

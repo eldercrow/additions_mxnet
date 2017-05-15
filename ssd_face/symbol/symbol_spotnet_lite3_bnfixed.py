@@ -70,9 +70,10 @@ def get_symbol(num_classes, **kwargs):
 
     probs_cls = mx.sym.reshape(preds_cls, shape=(-1, num_classes))
     probs_cls = mx.sym.SoftmaxActivation(probs_cls)
+    probs_cls = mx.sym.slice_axis(probs_cls, axis=1, begin=1, end=None)
 
     tmp = mx.symbol.Custom(*[probs_cls, preds_reg, anchors], op_type='multibox_detection', 
-            name='multibox_detection', th_pos=th_pos, n_class=2, th_nms=th_nms, max_detection=1000)
+            name='multibox_detection', th_pos=th_pos, n_class=num_classes-1, th_nms=th_nms, max_detection=1000)
     return tmp
 
 if __name__ == '__main__':

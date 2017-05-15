@@ -90,16 +90,17 @@ class FaceDetector(object):
                 for_training=False,
                 force_rebind=True)
             self.mod.set_params(self.args, self.auxs)
-        start = timer()
+        # start = timer()
         result = []
         im_paths = []
         detections = []
         for i, (datum, im_info) in enumerate(det_iter):
+            start = timer()
             self.mod.forward(datum)
             out = self.mod.get_outputs()
-            # time_elapsed = timer() - start
             im_scale = im_info['im_scale'][0].asnumpy()
             n_dets = int(out[1].asnumpy()[0])
+            time_elapsed = timer() - start
             im_paths.append(im_info['im_path'])
             if n_dets == 0:
                 result.append(np.zeros((0, 6)))
@@ -124,15 +125,7 @@ class FaceDetector(object):
 
             if i % 10 == 0:
                 print('Processing image {}/{}, {} faces detected.'.format(i+1, num_images, n_dets))
-        #     detections.append(out[0][0][:n_dets].asnumpy())
-        # for i in range(len(detections)):
-        #     dets = mx.nd.array(detections[i])
-        #     dets = self._transform_roi(dets)
-        #     vidx = self._do_nms(dets)
-        #     vdets = dets.asnumpy()
-        #     vdets = vdets[vidx, :]
-        #     result.append(vdets)
-        time_elapsed = timer() - start
+        # time_elapsed = timer() - start
         if show_timer:
             print("Detection time for {} images: {:.4f} sec".format(
                 num_images, time_elapsed))

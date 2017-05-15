@@ -1,4 +1,4 @@
-from spotnet_lite2 import get_spotnet
+from spotnet_lighter import get_spotnet
 from multibox_target import *
 from anchor_target_layer import *
 from multibox_detection import *
@@ -7,7 +7,7 @@ import numpy as np
 def get_symbol_train(num_classes, **kwargs):
     '''
     '''
-    fix_bn = True
+    fix_bn = False
     n_group = 7
     patch_size = 768
     if 'n_group' in kwargs:
@@ -49,10 +49,12 @@ def get_symbol_train(num_classes, **kwargs):
 def get_symbol(num_classes, **kwargs):
     '''
     '''
+    # im_scale = mx.sym.Variable(name='im_scale')
+
     fix_bn = True
     n_group = 7
     patch_size = 768
-    th_pos = 0.5
+    th_pos = 0.25
     th_nms = 1.0 / 3.0
     if 'n_group' in kwargs:
         n_group = kwargs['n_group']
