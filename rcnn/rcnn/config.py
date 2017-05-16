@@ -28,7 +28,7 @@ config.TRAIN.BATCH_IMAGES = 2
 # e2e changes behavior of anchor loader and metric
 config.TRAIN.END2END = False
 # group images with similar aspect ratio
-config.TRAIN.ASPECT_GROUPING = True
+config.TRAIN.ASPECT_GROUPING = False
 
 # R-CNN
 # rcnn rois batch size
@@ -56,13 +56,13 @@ config.TRAIN.RPN_POSITIVE_WEIGHT = -1.0
 
 # used for end2end training
 # RPN proposal
-config.TRAIN.CXX_PROPOSAL = True
+config.TRAIN.CXX_PROPOSAL = False
 config.TRAIN.RPN_NMS_THRESH = 0.7
 config.TRAIN.RPN_PRE_NMS_TOP_N = 12000
 config.TRAIN.RPN_POST_NMS_TOP_N = 2000
 config.TRAIN.RPN_MIN_SIZE = config.RPN_FEAT_STRIDE
 # approximate bounding box regression
-config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = False
+config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = True
 config.TRAIN.BBOX_MEANS = (0.0, 0.0, 0.0, 0.0)
 config.TRAIN.BBOX_STDS = (0.1, 0.1, 0.2, 0.2)
 
@@ -148,8 +148,8 @@ network.pvanet.RCNN_FEAT_STRIDE = 16
 network.pvanet.ANCHOR_SCALES = (3, 6, 9, 16, 32)
 network.pvanet.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 network.pvanet.NUM_ANCHORS = len(network.pvanet.ANCHOR_SCALES) * len(network.pvanet.ANCHOR_RATIOS)
-network.pvanet.FIXED_PARAMS = ['conv1_1', 'conv2_1', 'gamma', 'beta']
-network.pvanet.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'stage2', 'stage3', 'gamma', 'beta']
+network.pvanet.FIXED_PARAMS = ['conv1_1', 'conv2_1']
+network.pvanet.FIXED_PARAMS_SHARED = ['conv1', 'conv2']
 
 network.pvanet_twn = edict()
 network.pvanet_twn.pretrained = 'model/pvanet_bn_freezed'

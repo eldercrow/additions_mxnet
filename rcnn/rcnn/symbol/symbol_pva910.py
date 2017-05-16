@@ -215,7 +215,7 @@ def pvanet_preact(data, is_test):
     reluf_2 = mx.sym.Activation(name='reluf_2', data=convf_2, act_type='relu')
     concat_convf = mx.sym.Concat(name='concat_convf', *[reluf_rpn, reluf_2] )
 
-    return reluf_rpn, concat_convf, data, syms['proj']
+    return reluf_rpn, concat_convf
 
 def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS):
     data = mx.sym.Variable(name="data")
@@ -226,7 +226,7 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
     rpn_bbox_weight = mx.sym.Variable(name='bbox_weight')
 
     # shared conv layers
-    reluf_rpn, concat_convf, conv1_1_conv, conv1_1_bn = pvanet_preact(data, is_test=True)
+    reluf_rpn, concat_convf = pvanet_preact(data, is_test=True)
     
     # RPN layers
     rpn_conv1 = mx.sym.Convolution(name='rpn_conv1', data=reluf_rpn, 
@@ -324,7 +324,7 @@ def get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHO
     im_info = mx.sym.Variable(name="im_info", init=mx.init.Zero())
 
     # shared conv layers
-    reluf_rpn, concat_convf, data, conv3_4 = pvanet_preact(data, is_test=True)
+    reluf_rpn, concat_convf, data = pvanet_preact(data, is_test=True)
 
     # RPN layers
     rpn_conv1 = mx.sym.Convolution(name='rpn_conv1', data=reluf_rpn, 
@@ -390,5 +390,5 @@ def get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHO
             shape=(config.TEST.BATCH_IMAGES, -1, 4 * num_classes))
 
     # group output
-    group = mx.sym.Group([rois, cls_prob, bbox_pred, conv3_4, fc6_relu])
+    group = mx.sym.Group([rois, cls_prob, bbox_pred])
     return group

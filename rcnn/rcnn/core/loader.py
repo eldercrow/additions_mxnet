@@ -356,6 +356,8 @@ class AnchorLoader(mx.io.DataIter):
             data, label = get_rpn_batch(iroidb)
             data_list.append(data)
             label_list.append(label)
+        import ipdb
+        ipdb.set_trace()
 
         # pad data first and then assign anchor (read label)
         data_tensor = tensor_vstack([batch['data'] for batch in data_list])
@@ -390,3 +392,4 @@ class AnchorLoader(mx.io.DataIter):
 
         self.data = [mx.nd.array(all_data[key]) for key in self.data_name]
         self.label = [mx.nd.array(all_label[key]) for key in self.label_name]
+        # print(self.data[2].asnumpy())

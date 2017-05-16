@@ -221,6 +221,7 @@ def assign_anchor(feat_shape, gt_boxes, im_info, feat_stride=16,
         print('rpn: num_negative avg', _bg_sum / _count)
 
     labels = labels.reshape((1, feat_height, feat_width, A)).transpose(0, 3, 1, 2)
+    # labels = labels.reshape((1, 2, -1, feat_width))
     labels = labels.reshape((1, A * feat_height * feat_width))
     bbox_targets = bbox_targets.reshape((1, feat_height, feat_width, A * 4)).transpose(0, 3, 1, 2)
     bbox_weights = bbox_weights.reshape((1, feat_height, feat_width, A * 4)).transpose((0, 3, 1, 2))
