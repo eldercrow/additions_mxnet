@@ -188,6 +188,13 @@ class MutableModule(BaseModule):
             self._curr_module = module
 
         self._curr_module.forward(data_batch, is_train=is_train)
+        # outputs = self._curr_module.get_outputs()
+        # labels = outputs[4].asnumpy()
+        # probs = outputs[2].asnumpy()
+        # import numpy as np
+        # midx = np.argmax(probs[0], axis=1)
+        # import ipdb
+        # ipdb.set_trace()
 
     def backward(self, out_grads=None):
         assert self.binded and self.params_initialized

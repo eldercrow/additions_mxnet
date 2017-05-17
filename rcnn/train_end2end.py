@@ -72,6 +72,12 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
         arg_params, aux_params = load_param(prefix, begin_epoch, convert=True)
     else:
         arg_params, aux_params = load_param(pretrained, epoch, convert=True)
+        if 'bbox_pred_weight' in arg_params:
+            stds = np.tile(config.TRAIN.BBOX_STDS, config.NUM_CLASSES)
+            stds = np.reshape(stds, (-1, 1))
+            arg_params['bbox_pred_weight'] /= mx.nd.array(stds)
+            if 'bbox_pred_bias' in arg_params:
+                arg_params['bbox_pred_bias'] /= mx.nd.array(stds.ravel())
         # arg_params['rpn_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_conv_3x3_weight'])
         # arg_params['rpn_conv_3x3_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_conv_3x3_bias'])
         # arg_params['rpn_cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_cls_score_weight'])
@@ -135,7 +141,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
                         'learning_rate': lr,
                         'lr_scheduler': lr_scheduler,
                         'rescale_grad': (1.0 / batch_size),
-                        'clip_gradient': -1}
+                        'clip_gradient': 5}
     # optimizer_params = {'momentum': 0.9,
     #                     'wd': 0.0005,
     #                     'learning_rate': lr,
@@ -149,7 +155,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
             batch_end_callback=batch_end_callback, kvstore=args.kvstore,
             optimizer='adam', optimizer_params=optimizer_params,
             initializer=initializer,
-            arg_params=arg_params, aux_params=aux_params, allow_missing=True, 
+            arg_params=arg_params, aux_params=aux_params, allow_missing=False, 
             begin_epoch=begin_epoch, num_epoch=end_epoch)
 
 
@@ -188,7 +194,7 @@ def main():
     # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     print('Called with argument:', args)
-    ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]
+    ctx = [mx.gpu(int(i)) for i in args.gpus.split(',')]
     train_net(args, ctx, args.pretrained, args.pretrained_epoch, args.prefix, args.begin_epoch, args.end_epoch,
               lr=args.lr, lr_step=args.lr_step)
 

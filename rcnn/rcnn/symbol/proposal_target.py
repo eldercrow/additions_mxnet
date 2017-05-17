@@ -40,8 +40,12 @@ class ProposalTargetOperator(mx.operator.CustomOp):
         # Sanity check: single batch only
         assert np.all(all_rois[:, 0] == 0), 'Only single item batches are supported'
 
+        # import ipdb
+        # ipdb.set_trace()
+
         rois, labels, bbox_targets, bbox_weights = \
             sample_rois(all_rois, fg_rois_per_image, rois_per_image, self._num_classes, gt_boxes=gt_boxes)
+
 
         if DEBUG:
             print("labels=", labels)
@@ -59,8 +63,6 @@ class ProposalTargetOperator(mx.operator.CustomOp):
             self.assign(out_data[ind], req[ind], val)
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
-        import ipdb
-        ipdb.set_trace()
         self.assign(in_grad[0], req[0], 0)
         self.assign(in_grad[1], req[1], 0)
 

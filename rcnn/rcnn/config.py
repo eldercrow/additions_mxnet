@@ -24,7 +24,7 @@ config.TRAIN = edict()
 
 # R-CNN and RPN
 # size of images for each device, 2 for rcnn, 1 for rpn and e2e
-config.TRAIN.BATCH_IMAGES = 2
+config.TRAIN.BATCH_IMAGES = 1
 # e2e changes behavior of anchor loader and metric
 config.TRAIN.END2END = False
 # group images with similar aspect ratio
@@ -56,7 +56,7 @@ config.TRAIN.RPN_POSITIVE_WEIGHT = -1.0
 
 # used for end2end training
 # RPN proposal
-config.TRAIN.CXX_PROPOSAL = False
+config.TRAIN.CXX_PROPOSAL = True
 config.TRAIN.RPN_NMS_THRESH = 0.7
 config.TRAIN.RPN_PRE_NMS_TOP_N = 12000
 config.TRAIN.RPN_POST_NMS_TOP_N = 2000
@@ -141,15 +141,15 @@ network.resnet.FIXED_PARAMS_SHARED = ['conv0', 'stage1', 'stage2', 'stage3', 'ga
 network.pvanet = edict()
 # network.pvanet.pretrained = 'model/pvanet_bn_freezed'
 # network.pvanet.pretrained_epoch = 0
-network.pvanet.SCALES = [(608, 1024)]  # first is scale (the shorter side); second is max size
+network.pvanet.SCALES = [(416, 1440)]  # first is scale (the shorter side); second is max size
 network.pvanet.IMAGE_STRIDE = 32
 network.pvanet.RPN_FEAT_STRIDE = 16
 network.pvanet.RCNN_FEAT_STRIDE = 16
 network.pvanet.ANCHOR_SCALES = (3, 6, 9, 16, 32)
 network.pvanet.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 network.pvanet.NUM_ANCHORS = len(network.pvanet.ANCHOR_SCALES) * len(network.pvanet.ANCHOR_RATIOS)
-network.pvanet.FIXED_PARAMS = ['conv1_1', 'conv2_1']
-network.pvanet.FIXED_PARAMS_SHARED = ['conv1', 'conv2']
+network.pvanet.FIXED_PARAMS = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
+network.pvanet.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
 
 network.pvanet_twn = edict()
 network.pvanet_twn.pretrained = 'model/pvanet_bn_freezed'
@@ -161,8 +161,8 @@ network.pvanet_twn.RCNN_FEAT_STRIDE = 16
 network.pvanet_twn.ANCHOR_SCALES = (3, 6, 9, 16, 32)
 network.pvanet_twn.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 network.pvanet_twn.NUM_ANCHORS = len(network.pvanet_twn.ANCHOR_SCALES) * len(network.pvanet_twn.ANCHOR_RATIOS)
-network.pvanet_twn.FIXED_PARAMS = ['conv1', 'gamma', 'beta']
-network.pvanet_twn.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'gamma', 'beta']
+network.pvanet_twn.FIXED_PARAMS = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
+network.pvanet_twn.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
 
 # dataset settings
 dataset = edict()

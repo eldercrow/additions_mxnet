@@ -648,6 +648,7 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES,
         pooled_size=(6, 6),
         spatial_scale=1.0 / config.RCNN_FEAT_STRIDE)
     flat5 = mx.sym.Flatten(name='flat5', data=roi_pool)
+
     fc6 = mx.sym.FullyConnected(
         name='fc6', data=flat5, num_hidden=4096, no_bias=False)
     fc6_bn = mx.sym.BatchNorm(
@@ -656,9 +657,8 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES,
         use_global_stats=True,
         fix_gamma=False,
         eps=1e-05)
-    # fc6_dropout = mx.sym.Dropout(name='fc6/dropout', data=fc6_bn, p=0.25)
-    fc6_relu = mx.sym.Activation(
-        name='fc6/relu', data=fc6_bn, act_type='relu')
+    fc6_relu = mx.sym.Activation(name='fc6/relu', data=fc6_bn, act_type='relu')
+
     fc7 = mx.sym.FullyConnected(
         name='fc7', data=fc6_relu, num_hidden=4096, no_bias=False)
     fc7_bn = mx.sym.BatchNorm(
@@ -667,9 +667,7 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES,
         use_global_stats=True,
         fix_gamma=False,
         eps=1e-05)
-    # fc7_dropout = mx.sym.Dropout(name='fc7/dropout', data=fc7_bn, p=0.25)
-    fc7_relu = mx.sym.Activation(
-        name='fc7/relu', data=fc7_bn, act_type='relu')
+    fc7_relu = mx.sym.Activation(name='fc7/relu', data=fc7_bn, act_type='relu')
 
     # classification
     cls_score = mx.sym.FullyConnected(
