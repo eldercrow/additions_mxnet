@@ -115,8 +115,8 @@ class FaceTestIter(mx.io.DataIter):
         # pad image w.r.t. image stride
         sy = np.ceil(sy / float(self._img_stride)) * self._img_stride
         sx = np.ceil(sx / float(self._img_stride)) * self._img_stride
-        sy = int(np.maximum(sy, 768))
-        sx = int(np.maximum(sx, 768))
+        sy = int(np.maximum(sy, 384))
+        sx = int(np.maximum(sx, 384))
         padded = np.reshape(self._mean_pixels.asnumpy(), (1, 1, 3))
         padded = np.tile(padded, (sy, sx, 1))
         padded[:(data.shape[0]), :(data.shape[1]), :] = data

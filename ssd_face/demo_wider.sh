@@ -7,7 +7,7 @@ if [[ "$#" -gt 1 ]]
 then
   TH_POS=$2
 else
-  TH_POS=0.5
+  TH_POS=0.55
 fi
 
 python demo.py \
@@ -15,8 +15,9 @@ python demo.py \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix model/spotnet_lighter_bnfixed_768 \
-  --epoch 50 \
-  --max-data-shapes 1920 1920 \
+  --prefix model/best/spotnet_lighter_bnfixed_768 \
+  --epoch 22 \
+  --max-data-shapes 2560 2560 \
   --thresh $TH_POS \
   --gpu 0
+  # --cpu 

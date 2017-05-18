@@ -32,46 +32,63 @@ class MultiBoxDetection(mx.operator.CustomOp):
         preds_reg = in_data[1]  # (n_batch, n_anchors, 4)
         anchors = in_data[2]  # (n_anchors, 4)
         # im_scale = in_data[3]
-
+        
         for nn in range(n_batch):
             out_i = out_data[0][nn]
-            out_i[:] = 0
+            # out_i[:] = 0
             pcls = probs_cls[nn]  # (n_anchors, n_classes)
             preg = preds_reg[nn]  # (n_anchor, 4)
-            pcls_t = mx.nd.transpose(pcls, axes=(1, 0))
+
+            iidx = mx.nd.reshape(pcls > self.th_pos, (-1,))
+
             if n_class == 1:
-                max_probs = mx.nd.reshape(pcls_t, (-1,))
-                # max_cid = pcls_t
+                out_i[0] = iidx
+                out_i[1][:] = mx.nd.reshape(pcls, (-1,))
             else:
-                max_probs = mx.nd.max(pcls_t, axis=0) #.asnumpy()
-                max_cid = mx.nd.argmax(pcls_t, axis=0) #.asnumpy()
+                out_i[0] = iidx * (mx.nd.argmax(pcls, axis=1) + 1)
+                out_i[1] = mx.nd.max(pcls, axis=1)
+            out_i[2:] = _transform_roi( \
+                    mx.nd.transpose(preg), mx.nd.transpose(anchors), self.variances, 0.8)
 
-            n_detection = int(mx.nd.sum(max_probs > self.th_pos).asscalar())
-            if n_detection == 0:
-                continue
-
-            sidx = mx.nd.argsort(max_probs, is_ascend=False)
-            sidx = sidx[:n_detection]
-
-            oreg_t = mx.nd.transpose(mx.nd.take(preg, sidx))
-            oanc_t = mx.nd.transpose(mx.nd.take(anchors, sidx))
-            ocls = mx.nd.take(max_probs, sidx)
-            if n_class > 1:
-                ocid = mx.nd.take(max_cid, sidx)
-            oreg_t = _transform_roi(oreg_t, oanc_t, self.variances, 0.8)
-            oreg = mx.nd.transpose(oreg_t)
-
-            vidx = _nms(oreg_t, self.th_nms)
-            n_valid = len(vidx)
-            n_detection = np.minimum(n_valid, self.max_detection)
-            vidx = vidx[:n_detection]
-
-            for i, vid in enumerate(vidx):
-                if n_class > 1:
-                    out_i[i][0] = ocid[vid]
-                out_i[i][1] = ocls[vid]
-                out_i[i][2:] = oreg[vid]
-            out_data[1][nn] = n_detection
+        # for nn in range(n_batch):
+        #     out_i = out_data[0][nn]
+        #     out_i[:] = 0
+        #     pcls = probs_cls[nn]  # (n_anchors, n_classes)
+        #     preg = preds_reg[nn]  # (n_anchor, 4)
+        #     pcls_t = mx.nd.transpose(pcls, axes=(1, 0))
+        #     if n_class == 1:
+        #         max_probs = mx.nd.reshape(pcls_t, (-1,))
+        #         # max_cid = pcls_t
+        #     else:
+        #         max_probs = mx.nd.max(pcls_t, axis=0) #.asnumpy()
+        #         max_cid = mx.nd.argmax(pcls_t, axis=0) #.asnumpy()
+        #
+        #     n_detection = int(mx.nd.sum(max_probs > self.th_pos).asscalar())
+        #     if n_detection == 0:
+        #         continue
+        #
+        #     sidx = mx.nd.argsort(max_probs, is_ascend=False)
+        #     sidx = sidx[:n_detection]
+        #
+        #     oreg_t = mx.nd.transpose(mx.nd.take(preg, sidx))
+        #     oanc_t = mx.nd.transpose(mx.nd.take(anchors, sidx))
+        #     ocls = mx.nd.take(max_probs, sidx)
+        #     if n_class > 1:
+        #         ocid = mx.nd.take(max_cid, sidx)
+        #     oreg_t = _transform_roi(oreg_t, oanc_t, self.variances, 0.8)
+        #     oreg = mx.nd.transpose(oreg_t)
+        #
+        #     vidx = _nms(oreg_t, self.th_nms)
+        #     n_valid = len(vidx)
+        #     n_detection = np.minimum(n_valid, self.max_detection)
+        #     vidx = vidx[:n_detection]
+        #
+        #     for i, vid in enumerate(vidx):
+        #         if n_class > 1:
+        #             out_i[i][0] = ocid[vid]
+        #         out_i[i][1] = ocls[vid]
+        #         out_i[i][2:] = oreg[vid]
+            # out_data[1][nn] = n_detection
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         pass
@@ -151,11 +168,16 @@ class MultiBoxDetectionProp(mx.operator.CustomOpProp):
         return ['probs_cls', 'preds_reg', 'anchors']
 
     def list_outputs(self):
-        return ['output', 'n_detection']
+        return ['output']
 
     def infer_shape(self, in_shape):
         n_batch = in_shape[1][0]
-        out_shape = [(n_batch, self.max_detection, 6), (n_batch, )]
+        # if self.n_class == 1:
+        #     out_shape = [(n_batch, in_shape[2][0], 5), in_shape[2]]
+        # else:
+        #     out_shape = [(n_batch, in_shape[2][0], 6), in_shape[2]]
+        out_shape = [(n_batch, 6, in_shape[2][0])]
+        # out_shape = [(n_batch, self.max_detection, 6), (n_batch, )]
         aux_shape = []
         return in_shape, out_shape, aux_shape
 

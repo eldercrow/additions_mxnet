@@ -107,22 +107,22 @@ class FaceDetector(object):
         im_paths = []
         detections = []
         for i, (datum, im_info) in enumerate(det_iter):
+            im_scale = im_info['im_scale'][0].asnumpy()
+            im_paths.append(im_info['im_path'])
+
             start = timer()
             self.mod.forward(datum)
             out = self.mod.get_outputs()
-            im_scale = im_info['im_scale'][0].asnumpy()
-            n_dets = int(out[1].asnumpy()[0])
-            time_elapsed = timer() - start
-            im_paths.append(im_info['im_path'])
-            if n_dets == 0:
+
+            dets = out[0][0].asnumpy()
+            iidx = dets[0] > 0
+            if len(iidx) == 0:
                 result.append(np.zeros((0, 6)))
                 continue
-            dets = out[0][0][:n_dets]
-            # dets = self._transform_roi(dets)
-            # vidx = self._do_nms(dets)
-            vdets = dets.asnumpy()
-            # vidx = vdets[:, 1] > 0
-            # vdets = vdets[vidx, :]
+            time_elapsed = timer() - start
+            dets = np.transpose(dets[:, iidx])
+            vidx = self._do_nms(dets)
+            vdets = dets[vidx, :]
             vdets[:, 2] *= im_scale[1]
             vdets[:, 3] *= im_scale[0]
             vdets[:, 4] *= im_scale[1]
@@ -134,9 +134,11 @@ class FaceDetector(object):
                 print('n_oob = {}'.format(n_oob))
             vdets = vdets[iidx, :]
             result.append(vdets)
+            # time_elapsed = timer() - start
             # print(vdets)
 
             if i % 10 == 0:
+                n_dets = vdets.shape[0]
                 print('Processing image {}/{}, {} faces detected.'.format(i+1, num_images, n_dets))
         # time_elapsed = timer() - start
         if show_timer:
@@ -277,43 +279,41 @@ class FaceDetector(object):
             img[:, :, (0, 1, 2)] = img[:, :, (2, 1, 0)]
             self.visualize_detection(img, det, classes, thresh)
 
-    # def _transform_roi(self, dets, ratio=0.8):
+    # def _transform_roi(self, dets, anchors, variances=(0.1, 0.1, 0.2, 0.2), ratio=0.8):
     #     #
-    #     dets_t = mx.nd.transpose(dets, axes=(1,0))
-    #     cx = (dets_t[6] + dets_t[8]) * 0.5
-    #     cy = (dets_t[7] + dets_t[9]) * 0.5
-    #     aw = (dets_t[8] - dets_t[6])
+    #     cx = (anchors[:, 0] + anchors[:, 2]) * 0.5
+    #     cy = (anchors[:, 1] + anchors[:, 3]) * 0.5
+    #     aw = (anchors[:, 2] - anchors[:, 0])
     #     aw *= ratio
-    #     ah = (dets_t[9] - dets_t[7])
-    #     cx += dets_t[2] * aw
-    #     cy += dets_t[3] * ah
-    #     w = (2.0**dets_t[4]) * aw
-    #     h = (2.0**dets_t[5]) * ah
-    #     dets_t[2] = cx - w / 2.0
-    #     dets_t[3] = cy - h / 2.0
-    #     dets_t[4] = cx + w / 2.0
-    #     dets_t[5] = cy + h / 2.0
-    #     return mx.nd.transpose(dets_t[:6], axes=(1, 0))
-    #
-    # def _do_nms(self, dets):
-    #     #
-    #     dets_t = mx.nd.transpose(dets, axes=(1,0))
-    #     areas_t = (dets_t[4] - dets_t[2]) * (dets_t[5] - dets_t[3])
-    #
-    #     vmask = np.ones((dets.shape[0],), dtype=int)
-    #     vidx = []
-    #     
-    #     for i in range(dets.shape[0]):
-    #         if vmask[i] == 0:
-    #             continue
-    #         iw = mx.nd.minimum(dets[i][4], dets_t[4]) - mx.nd.maximum(dets[i][2], dets_t[2])
-    #         ih = mx.nd.minimum(dets[i][5], dets_t[5]) - mx.nd.maximum(dets[i][3], dets_t[3])
-    #         I = mx.nd.maximum(iw, 0) * mx.nd.maximum(ih, 0)
-    #         iou = (I / mx.nd.maximum(areas_t + areas_t[i] - I, 1e-06)).asnumpy()
-    #         nidx = np.where(iou > self.th_nms)[0] 
-    #         vmask[nidx] = 0
-    #         vidx.append(i)
-    #     return vidx
+    #     ah = (anchors[:, 3] - anchors[:, 1])
+    #     cx += dets[:, 2] * aw * variances[0]
+    #     cy += dets[:, 3] * ah * variances[1]
+    #     w = (2.0**(dets[:, 4] * variances[2])) * aw * 0.5
+    #     h = (2.0**(dets[:, 5] * variances[3])) * ah * 0.5
+    #     dets[:, 2] = cx - w 
+    #     dets[:, 3] = cy - h 
+    #     dets[:, 4] = cx + w 
+    #     dets[:, 5] = cy + h 
+    #     return dets
+
+    def _do_nms(self, dets):
+        #
+        areas = (dets[:, 4] - dets[:, 2]) * (dets[:, 5] - dets[:, 3])
+        vmask = np.ones((dets.shape[0],), dtype=int)
+        vidx = []
+        for i, d in enumerate(dets):
+            if vmask[i] == 0:
+                continue
+            iw = np.minimum(d[4], dets[i:, 4]) - np.maximum(d[2], dets[i:, 2])
+            ih = np.minimum(d[5], dets[i:, 5]) - np.maximum(d[3], dets[i:, 3])
+            I = np.maximum(iw, 0) * np.maximum(ih, 0)
+            iou = I / np.maximum(areas[i:] + areas[i] - I, 1e-08)
+            nidx = np.where(iou > self.th_nms)[0] + i
+            vmask[nidx] = 0
+            vidx.append(i)
+        return vidx
+
+
     def _comp_overlap(self, dets, im_shape):
         #
         area_dets = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
