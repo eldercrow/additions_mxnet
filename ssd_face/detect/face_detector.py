@@ -89,7 +89,19 @@ class FaceDetector(object):
                 label_shapes=None,
                 for_training=False,
                 force_rebind=True)
+            # init = mx.init.Mixed( \
+            #         ['moving_mean', 'moving_var', '.*'], \
+            #         [mx.init.Zero(), mx.init.Constant(0.99998), mx.init.Uniform(0.1)])
+            # self.mod.init_params(init)
+            self.mod.set_params(self.args, self.auxs, allow_missing=True)
+            _, self.auxs = self.mod.get_params()
+            for k, v in self.auxs.items():
+                if k.endswith('_moving_mean'):
+                    v[:] = 0.0
+                if k.endswith('_moving_var'):
+                    v[:] = 0.99999
             self.mod.set_params(self.args, self.auxs)
+
         # start = timer()
         result = []
         im_paths = []
@@ -122,6 +134,7 @@ class FaceDetector(object):
                 print('n_oob = {}'.format(n_oob))
             vdets = vdets[iidx, :]
             result.append(vdets)
+            # print(vdets)
 
             if i % 10 == 0:
                 print('Processing image {}/{}, {} faces detected.'.format(i+1, num_images, n_dets))
@@ -189,8 +202,7 @@ class FaceDetector(object):
                 score = dets[i, 1]
                 if score > thresh:
                     if cls_id not in colors:
-                        colors[cls_id] = (random.random(), random.random(),
-                                          random.random())
+                        colors[cls_id] = (1, 1, 0) #(random.random(), random.random(), random.random())
                     # xmin = int(dets[i, 2] * width)
                     # ymin = int(dets[i, 3] * height)
                     # xmax = int(dets[i, 4] * width)
@@ -205,7 +217,7 @@ class FaceDetector(object):
                         ymax - ymin,
                         fill=False,
                         edgecolor=colors[cls_id],
-                        linewidth=2.5)
+                        linewidth=1.5)
                     plt.gca().add_patch(rect)
                     class_name = str(cls_id)
                     if classes and len(classes) > cls_id:
@@ -224,6 +236,7 @@ class FaceDetector(object):
                     #     bbox=dict(facecolor=colors[cls_id], alpha=0.5),
                     #     fontsize=7,
                     #     color='white')
+        # plt.gcf().savefig('res.png')
         plt.show()
 
     def detect_and_visualize(self,

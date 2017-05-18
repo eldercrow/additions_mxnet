@@ -46,7 +46,7 @@ def get_detector(net,
     """
     sys.path.append(os.path.join(os.getcwd(), 'symbol'))
     net = importlib.import_module("symbol_" + net).get_symbol(
-            len(CLASSES), th_pos=th_pos, nms=nms_thresh)
+            len(CLASSES), th_pos=th_pos, nms=nms_thresh, n_group=7)
     detector = FaceDetector(
         net, prefix, epoch, max_data_shapes, mean_pixels, ctx=ctx)
     return detector

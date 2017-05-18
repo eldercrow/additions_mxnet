@@ -39,7 +39,7 @@ def parse_wider_pkl(fn_pkl, root_path):
 
 if __name__ == '__main__':
     #
-    fn_pkl = '../wider_eval_res_lighter_epoch22.pkl'
-    root_path = './spotnet_lighter_epoch22'
+    fn_pkl = '../wider_eval_res.pkl'
+    root_path = './spotnet_lighter_epoch50'
 
     parse_wider_pkl(fn_pkl, root_path)

@@ -116,8 +116,8 @@ def _transform_roi(reg_t, anc_t, variances, ratio=1.0):
     cy = (anc_t[1] + anc_t[3]) * 0.5
 
     aw = anc_t[2] - anc_t[0]
-    aw *= ratio
     ah = anc_t[3] - anc_t[1]
+    aw *= ratio
     cx += reg_t[0] * aw
     cy += reg_t[1] * ah
     w = (2.0**reg_t[2]) * aw * 0.5

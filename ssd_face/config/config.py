@@ -17,7 +17,7 @@ cfg.TRAIN = edict()
 #     RandPadder(max_scale=4., min_aspect_ratio=.5, max_aspect_ratio=2., min_gt_scale=.05),]
 # cfg.TRAIN.RAND_SAMPLERS = []
 # cfg.TRAIN.RAND_SAMPLERS = [RandCropper(min_scale=1., max_sample=3, min_overlap=.7)]
-cfg.TRAIN.RAND_SAMPLERS = [RandScaler(min_scale=0.7, max_scale=1.3, min_gt_scale=8.0 / 768.0)]
+cfg.TRAIN.RAND_SAMPLERS = [RandScaler(min_scale=0.5, max_scale=2.0, min_gt_scale=8.0 / 768.0)]
 
 cfg.TRAIN.RAND_MIRROR = True
 cfg.TRAIN.INIT_SHUFFLE = True

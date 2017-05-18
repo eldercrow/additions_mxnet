@@ -108,8 +108,13 @@ class FaceMetric(mx.metric.EvalMetric):
 
 class FacePatchMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self):
-        super(FacePatchMetric, self).__init__(['Loss', 'SmoothL1', 'Recall'], 3)
+    def __init__(self, num=3, postfix_names=['Loss', 'Smoothl1', 'Recall']):
+        # super(FacePatchMetric, self).__init__(['Loss', 'SmoothL1', 'Recall'], 3)
+        self.sum_metric = np.zeros((num,))
+        self.num_inst = np.zeros((num,), dtype=int)
+        super(FacePatchMetric, self).__init__(name='')
+        self.postfix_names = postfix_names
+        self.num = num
 
     def update(self, labels, preds):
         """
@@ -141,6 +146,20 @@ class FacePatchMetric(mx.metric.EvalMetric):
             self.sum_metric[1] += sum(reg_dist[mask])
             self.num_inst[1] += mask.size
 
+    def update_dict(self, labels, preds):
+        label = []
+        pred = []
+        for l, v in labels.items():
+            label.append(v)
+        for p, v in preds.items():
+            pred.append(v)
+
+        self.update(label, pred)
+
+    def reset(self):
+        self.sum_metric[:] = 0.0
+        self.num_inst[:] = 0
+
     def get(self):
         """Get the current evaluation result.
         Override the default behavior
@@ -152,14 +171,14 @@ class FacePatchMetric(mx.metric.EvalMetric):
         value : float
            Value of the evaluation.
         """
-        if self.num is None:
-            if self.num_inst == 0:
-                return (self.name, float('nan'))
-            else:
-                return (self.name, self.sum_metric / self.num_inst)
-        else:
-            names = ['%s'%(self.name[i]) for i in range(self.num)]
-            values = [x / y if y != 0 else float('nan') \
-                for x, y in zip(self.sum_metric, self.num_inst)]
-            return (names, values)
+        # if self.num is None:
+        #     if self.num_inst == 0:
+        #         return (self.name, float('nan'))
+        #     else:
+        #         return (self.name, self.sum_metric / self.num_inst)
+        # else:
+        names = ['%s'%(self.name+self.postfix_names[i]) for i in range(self.num)]
+        values = [x / y if y != 0 else float('nan') \
+            for x, y in zip(self.sum_metric, self.num_inst)]
+        return (names, values)
 
