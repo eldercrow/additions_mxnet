@@ -2,14 +2,14 @@ import mxnet as mx
 import proposal
 import proposal_target
 from rcnn.config import config
-from ternarize import *
+from ternarize_ch import *
 
 
 def conv_twn(data, num_filter, nch, name=None, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=False):
     ''' ternary weight convolution '''
     shape = (num_filter, nch, kernel[0], kernel[1])
     conv_weight = mx.sym.var(name=name+'_weight', shape=shape, attr={'__wd_mult__': '0.0'}, dtype='float32')
-    weight = mx.sym.Custom(conv_weight, op_type='ternarize', soft_ternarize=False)
+    weight = mx.sym.Custom(conv_weight, op_type='ternarize_ch', filterwise='channel')
     conv = mx.sym.Convolution(data=data, weight=weight, name=name, num_filter=num_filter, 
             kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
     return conv
@@ -21,7 +21,7 @@ def fc_twn(data, num_hidden, nch, name=None, no_bias=False):
             attr={'__wd_mult__': '0.0'}, dtype='float32')
     # weight, alpha = mx.sym.Ternarize(fc_weight)
     # weight = mx.sym.broadcast_mul(weight, alpha)
-    weight = mx.sym.Custom(fc_weight, op_type='ternarize', soft_ternarize=False)
+    weight = mx.sym.Custom(fc_weight, op_type='ternarize_ch', filterwise='channel', th_ratio=0.7)
     fc = mx.sym.FullyConnected(data=data, weight=weight, name=name, num_hidden=num_hidden, no_bias=no_bias)
     return fc
 
@@ -401,16 +401,9 @@ def pvanet_preact(data, is_test):
 
     # stack up inception layers
     conv4_1, n_curr_ch, conv4_1_proj = inception(
-        data=conv3_4_ror,
-        group_name='conv4_1',
-        filter_0=64,
-        filters_1=(48, 128),
-        filters_2=(24, 48, 48),
-        filter_p=128,
-        filter_out=256,
-        stride=(2, 2),
-        use_global=is_test,
-        n_curr_ch=n_curr_ch)
+        data=conv3_4_ror, group_name='conv4_1',
+        filter_0=64, filters_1=(48, 128), filters_2=(24, 48, 48), filter_p=128, filter_out=256,
+        stride=(2, 2), use_global=is_test, n_curr_ch=n_curr_ch)
     conv4_2, n_curr_ch = inception(
         data=conv4_1,
         group_name='conv4_2',
