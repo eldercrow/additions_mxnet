@@ -11,9 +11,10 @@ export PYTHONUNBUFFERED=1
 
 python train_end2end.py \
   --network pvanet_twn \
-  --gpu 2 \
+  --gpu 1 \
   --prefix model/pva911_twn_voc0712 \
   --image_set 2007_trainval+2012_trainval \
+  --frequent 500 \
   --begin_epoch 0 \
   --end_epoch 100 \
   --lr 1e-05 \
