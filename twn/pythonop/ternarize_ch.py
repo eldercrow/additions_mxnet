@@ -7,11 +7,11 @@ import ast
 
 class TernarizeCh(mx.operator.CustomOp):
     ''' ternarize a given weight '''
-    def __init__(self, filterwise):
+    def __init__(self, filterwise, th_ratio):
         #
         super(TernarizeCh, self).__init__()
         self.filterwise = filterwise
-        self.th_ratio = 1.0
+        self.th_ratio = th_ratio
 
     def forward(self, is_train, req, in_data, out_data, aux):
         #
@@ -43,32 +43,29 @@ def _comp_sum(w, filterwise):
     # import ipdb
     # ipdb.set_trace()
     if filterwise == 'filter':
-        shape_w = w.shape
-        if len(shape_w) == 4: # convolution
-            sum_w = mx.nd.sum(mx.nd.sum(mx.nd.reshape(w, shape=(0, 0, -1)), axis=2), axis=1)
-            sum_w = mx.nd.reshape(sum_w, shape=(-1, 1, 1, 1))
+        if w.ndim == 4: # convolution
+            sum_w = mx.nd.sum(w, axis=(2,3), keepdims=True)
+            sum_w = mx.nd.sum(w, axis=(1,), keepdims=True)
         else:
-            sum_w = mx.nd.sum(w, axis=1)
-            sum_w = mx.nd.reshape(sum_w, shape=(-1, 1))
+            sum_w = mx.nd.sum(w, axis=(1,), keepdims=True)
     elif filterwise == 'channel':
-        shape_w = w.shape
-        if len(shape_w) == 4: # convolution
-            sum_w = mx.nd.sum(mx.nd.sum(mx.nd.reshape(w, shape=(0, 0, -1)), axis=2), axis=0)
-            sum_w = mx.nd.reshape(sum_w, shape=(1, -1, 1, 1))
+        if w.ndim == 4: # convolution
+            sum_w = mx.nd.sum(w, axis=(2,3), keepdims=True)
+            sum_w = mx.nd.sum(w, axis=(0,), keepdims=True)
         else:
-            sum_w = mx.nd.sum(w, axis=0)
-            sum_w = mx.nd.reshape(sum_w, shape=(1, -1))
+            sum_w = mx.nd.sum(w, axis=(0,), keepdims=True)
     else:
         sum_w = mx.nd.sum(mx.nd.sum(w, axis=1))
     return sum_w
 
 @mx.operator.register("ternarize_ch")
 class TernarizeChOp(mx.operator.CustomOpProp):
-    def __init__(self, filterwise='all'):
+    def __init__(self, filterwise='all', th_ratio=1.0):
         #
         assert filterwise in ['all', 'filter', 'channel']
         super(TernarizeChOp, self).__init__(need_top_grad=True)
         self.filterwise = str(filterwise)
+        self.th_ratio = float(th_ratio)
 
     def list_arguments(self):
         return ['weight']
@@ -85,5 +82,5 @@ class TernarizeChOp(mx.operator.CustomOpProp):
         return [dtype], [dtype], []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return TernarizeCh(self.filterwise)
+        return TernarizeCh(self.filterwise, self.th_ratio)
 

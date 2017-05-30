@@ -14,12 +14,13 @@ python train_end2end.py \
   --gpu 1 \
   --prefix model/pva911_twn_voc0712 \
   --image_set 2007_trainval+2012_trainval \
-  --begin_epoch 2 \
+  --frequent 500 \
+  --begin_epoch 0 \
   --end_epoch 100 \
   --lr 1e-05 \
   --lr_step 30,60,90 \
   --pretrained /home/hyunjoon/github/model_mxnet/pva911/pva911_21cls \
   --pretrained_epoch 0
-  --resume \
+  # --resume \
 # python test.py --network resnet --gpu 1
 

@@ -2,14 +2,14 @@ import mxnet as mx
 import proposal
 import proposal_target
 from rcnn.config import config
-from ternarize import *
+from ternarize_ch import *
 
 
 def conv_twn(data, num_filter, nch, name=None, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=False):
     ''' ternary weight convolution '''
     shape = (num_filter, nch, kernel[0], kernel[1])
     conv_weight = mx.sym.var(name=name+'_weight', shape=shape, attr={'__wd_mult__': '0.0'}, dtype='float32')
-    weight = mx.sym.Custom(conv_weight, op_type='ternarize', soft_ternarize=False)
+    weight = mx.sym.Custom(conv_weight, op_type='ternarize_ch', th_ratio=0.85)
     conv = mx.sym.Convolution(data=data, weight=weight, name=name, num_filter=num_filter, 
             kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
     return conv
@@ -19,9 +19,7 @@ def fc_twn(data, num_hidden, nch, name=None, no_bias=False):
     ''' ternary weight fc '''
     fc_weight = mx.sym.var(name=name+'_weight', shape=(num_hidden, nch), 
             attr={'__wd_mult__': '0.0'}, dtype='float32')
-    # weight, alpha = mx.sym.Ternarize(fc_weight)
-    # weight = mx.sym.broadcast_mul(weight, alpha)
-    weight = mx.sym.Custom(fc_weight, op_type='ternarize', soft_ternarize=False)
+    weight = mx.sym.Custom(fc_weight, op_type='ternarize_ch', th_ratio=0.85)
     fc = mx.sym.FullyConnected(data=data, weight=weight, name=name, num_hidden=num_hidden, no_bias=no_bias)
     return fc
 
@@ -29,6 +27,7 @@ def fc_twn(data, num_hidden, nch, name=None, no_bias=False):
 def conv_bn_relu(data,
                  group_name,
                  num_filter,
+                 nch,
                  kernel,
                  pad,
                  stride,
@@ -38,14 +37,16 @@ def conv_bn_relu(data,
     relu_name = group_name + '/relu'
     conv_name = group_name + '/conv'
 
-    conv = mx.sym.Convolution(
-        name=conv_name,
-        data=data,
-        num_filter=num_filter,
-        pad=pad,
-        kernel=kernel,
-        stride=stride,
-        no_bias=True)
+    conv = conv_twn(data, num_filter, nch, name=conv_name, 
+            kernel=kernel, pad=pad, stride=stride, no_bias=True)
+    # conv = mx.sym.Convolution(
+    #     name=conv_name,
+    #     data=data,
+    #     num_filter=num_filter,
+    #     pad=pad,
+    #     kernel=kernel,
+    #     stride=stride,
+    #     no_bias=True)
     bn = mx.sym.BatchNorm(
         name=bn_name,
         data=conv,
@@ -59,6 +60,7 @@ def conv_bn_relu(data,
 def bn_relu_conv(data,
                  group_name,
                  num_filter,
+                 nch,
                  kernel,
                  pad,
                  stride,
@@ -73,6 +75,7 @@ def bn_relu_conv(data,
 
     if use_crelu:
         data = mx.sym.Concat(name=concat_name, *[data, -data])
+        nch *= 2
     bn = mx.sym.BatchNorm(
         name=bn_name,
         data=data,
@@ -80,15 +83,17 @@ def bn_relu_conv(data,
         fix_gamma=False,
         eps=1e-05)
     relu = mx.sym.Activation(name=relu_name, data=bn, act_type='relu')
-    conv = mx.sym.Convolution(
-        name=conv_name,
-        data=relu,
-        num_filter=num_filter,
-        pad=pad,
-        kernel=kernel,
-        stride=stride,
-        no_bias=False,
-        cudnn_off=False)
+    conv = conv_twn(relu, num_filter, nch, name=conv_name,
+            kernel=kernel, pad=pad, stride=stride, no_bias=False)
+    # conv = mx.sym.Convolution(
+    #     name=conv_name,
+    #     data=relu,
+    #     num_filter=num_filter,
+    #     pad=pad,
+    #     kernel=kernel,
+    #     stride=stride,
+    #     no_bias=False,
+    #     cudnn_off=False)
     if get_syms:
         syms = {'bn': bn, 'relu': relu, 'conv': conv}
         return conv, syms
@@ -107,11 +112,13 @@ def mCReLU(data, group_name, filters, strides, use_global, n_curr_ch):
     ssyms = []
 
     conv = data
+    nch = n_curr_ch
     for i in range(3):
         conv, s = bn_relu_conv(
             data=conv,
             group_name=group_name + '/{}'.format(i + 1),
             num_filter=filters[i],
+            nch=nch,
             pad=pads[i],
             kernel=kernels[i],
             stride=strides[i],
@@ -120,20 +127,23 @@ def mCReLU(data, group_name, filters, strides, use_global, n_curr_ch):
             get_syms=True)
         # syms['conv{}'.format(i+1)] = conv
         ssyms.append(s)
+        nch = filters[i]
 
     ss = 1
     for s in strides:
         ss *= s[0]
     need_proj = (n_curr_ch != filters[2]) or (ss != 1)
     if need_proj:
-        proj = mx.sym.Convolution(
-            data=ssyms[0]['relu'],
-            name=group_name + '/proj',
-            num_filter=filters[2],
-            pad=(0, 0),
-            kernel=(1, 1),
-            stride=(ss, ss),
-            cudnn_off=False)
+        proj = conv_twn(ssyms[0]['relu'], filters[2], n_curr_ch, name=group_name+'/proj',
+                kernel=(1,1), pad=(0,0), stride=(ss,ss))
+        # proj = mx.sym.Convolution(
+        #     data=ssyms[0]['relu'],
+        #     name=group_name + '/proj',
+        #     num_filter=filters[2],
+        #     pad=(0, 0),
+        #     kernel=(1, 1),
+        #     stride=(ss, ss),
+        #     cudnn_off=False)
         res = conv + proj
         return res, filters[2], proj
         # syms['proj'] = proj
@@ -176,6 +186,7 @@ def inception(data,
         data=incep_relu,
         group_name=group_name_0,
         num_filter=filter_0,
+        nch=n_curr_ch,
         kernel=(1, 1),
         pad=(0, 0),
         stride=stride,
@@ -185,6 +196,7 @@ def inception(data,
         data=incep_relu,
         group_name=group_name_1 + '_reduce',
         num_filter=filters_1[0],
+        nch=n_curr_ch,
         kernel=(1, 1),
         pad=(0, 0),
         stride=stride,
@@ -193,6 +205,7 @@ def inception(data,
         data=incep_1_reduce,
         group_name=group_name_1 + '_0',
         num_filter=filters_1[1],
+        nch=filters_1[0],
         kernel=(3, 3),
         pad=(1, 1),
         stride=(1, 1),
@@ -202,6 +215,7 @@ def inception(data,
         data=incep_relu,
         group_name=group_name_2 + '_reduce',
         num_filter=filters_2[0],
+        nch=n_curr_ch,
         kernel=(1, 1),
         pad=(0, 0),
         stride=stride,
@@ -210,6 +224,7 @@ def inception(data,
         data=incep_2_reduce,
         group_name=group_name_2 + '_0',
         num_filter=filters_2[1],
+        nch=filters_2[0],
         kernel=(3, 3),
         pad=(1, 1),
         stride=(1, 1),
@@ -218,6 +233,7 @@ def inception(data,
         data=incep_2_0,
         group_name=group_name_2 + '_1',
         num_filter=filters_2[2],
+        nch=filters_2[1],
         kernel=(3, 3),
         pad=(1, 1),
         stride=(1, 1),
@@ -225,6 +241,7 @@ def inception(data,
 
     incep_layers = [incep_0, incep_1_0, incep_2_1]
     # incep_layers = [incep_0, incep_2_1]
+    nch_incep = filter_0 + filters_1[1] + filters_2[2]
 
     if filter_p is not None:
         incep_p_pool = mx.sym.Pooling(
@@ -239,11 +256,13 @@ def inception(data,
             data=incep_p_pool,
             group_name=incep_name + '/poolproj',
             num_filter=filter_p,
+            nch=n_curr_ch,
             kernel=(1, 1),
             pad=(0, 0),
             stride=(1, 1),
             use_global=use_global)
         incep_layers.append(incep_p_proj)
+        nch_incep += filter_p
 
     incep = mx.sym.concat(*incep_layers, name=incep_name)
     # out_conv = mx.sym.Convolution(name=group_name.replace('_incep', '_out_conv'), data=incep,
@@ -251,14 +270,17 @@ def inception(data,
 
     # final_bn is to handle stupid redundancy in the original model
     if final_bn:
-        out_conv = mx.sym.Convolution(
-            name=group_name + '/out/conv',
-            data=incep,
-            num_filter=filter_out,
-            kernel=(1, 1),
-            stride=(1, 1),
-            pad=(0, 0),
-            no_bias=True)
+        out_conv = conv_twn(incep, filter_out, nch_incep, name=group_name+'/out/conv',
+                kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True)
+        # out_conv = mx.sym.Convolution(
+        #     name=group_name + '/out/conv',
+        #     data=incep,
+        #     num_filter=filter_out,
+        #     nch=nch_incep,
+        #     kernel=(1, 1),
+        #     stride=(1, 1),
+        #     pad=(0, 0),
+        #     no_bias=True)
         out_conv = mx.sym.BatchNorm(
             name=group_name + '/out/bn',
             data=out_conv,
@@ -266,22 +288,26 @@ def inception(data,
             fix_gamma=False,
             eps=1e-05)
     else:
-        out_conv = mx.sym.Convolution(
-            name=group_name + '/out/conv',
-            data=incep,
-            num_filter=filter_out,
-            kernel=(1, 1),
-            stride=(1, 1),
-            pad=(0, 0))
+        out_conv = conv_twn(incep, filter_out, nch_incep, name=group_name+'/out/conv',
+                kernel=(1,1), pad=(0,0), stride=(1,1))
+        # out_conv = mx.sym.Convolution(
+        #     name=group_name + '/out/conv',
+        #     data=incep,
+        #     num_filter=filter_out,
+        #     kernel=(1, 1),
+        #     stride=(1, 1),
+        #     pad=(0, 0))
 
     if n_curr_ch != filter_out or stride[0] > 1:
-        out_proj = mx.sym.Convolution(
-            name=group_name + '/proj',
-            data=data,
-            num_filter=filter_out,
-            kernel=(1, 1),
-            stride=stride,
-            pad=(0, 0))
+        out_proj = conv_twn(data, filter_out, n_curr_ch, name=group_name+'/proj',
+                kernel=(1,1), pad=(0,0), stride=stride)
+        # out_proj = mx.sym.Convolution(
+        #     name=group_name + '/proj',
+        #     data=data,
+        #     num_filter=filter_out,
+        #     kernel=(1, 1),
+        #     stride=stride,
+        #     pad=(0, 0))
         return out_conv + out_proj, filter_out, out_proj
     else:
         return out_conv + data, filter_out
@@ -317,18 +343,21 @@ def pvanet_preact(data, is_test):
         pool_type='max')
 
     # no pre bn-scale-relu for 2_1_1
-    conv2_1_1_conv = mx.sym.Convolution(
-        name='conv2_1/1/conv',
-        data=pool1,
-        num_filter=24,
-        pad=(0, 0),
-        kernel=(1, 1),
-        stride=(1, 1),
-        no_bias=False)
+    conv2_1_1_conv = conv_twn(pool1, 24, 32, name='conv2_1/1/conv',
+            kernel=(1,1), pad=(0,0))
+    # conv2_1_1_conv = mx.sym.Convolution(
+    #     name='conv2_1/1/conv',
+    #     data=pool1,
+    #     num_filter=24,
+    #     pad=(0, 0),
+    #     kernel=(1, 1),
+    #     stride=(1, 1),
+    #     no_bias=False)
     conv2_1_2_conv = bn_relu_conv(
         data=conv2_1_1_conv,
         group_name='conv2_1/2',
         num_filter=24,
+        nch=24,
         kernel=(3, 3),
         pad=(1, 1),
         stride=(1, 1),
@@ -337,19 +366,22 @@ def pvanet_preact(data, is_test):
         data=conv2_1_2_conv,
         group_name='conv2_1/3',
         num_filter=64,
+        nch=24,
         kernel=(1, 1),
         pad=(0, 0),
         stride=(1, 1),
         use_global=is_test,
         use_crelu=True)
-    conv2_1_proj = mx.sym.Convolution(
-        name='conv2_1/proj',
-        data=pool1,
-        num_filter=64,
-        pad=(0, 0),
-        kernel=(1, 1),
-        stride=(1, 1),
-        no_bias=False)
+    conv2_1_proj = conv_twn(pool1, 64, 32, name='conv2_1/proj',
+            kernel=(1,1), pad=(0,0))
+    # conv2_1_proj = mx.sym.Convolution(
+    #     name='conv2_1/proj',
+    #     data=pool1,
+    #     num_filter=64,
+    #     pad=(0, 0),
+    #     kernel=(1, 1),
+    #     stride=(1, 1),
+    #     no_bias=False)
     conv2_1 = conv2_1_3_conv + conv2_1_proj
 
     # stack up mCReLU layers
@@ -401,16 +433,9 @@ def pvanet_preact(data, is_test):
 
     # stack up inception layers
     conv4_1, n_curr_ch, conv4_1_proj = inception(
-        data=conv3_4_ror,
-        group_name='conv4_1',
-        filter_0=64,
-        filters_1=(48, 128),
-        filters_2=(24, 48, 48),
-        filter_p=128,
-        filter_out=256,
-        stride=(2, 2),
-        use_global=is_test,
-        n_curr_ch=n_curr_ch)
+        data=conv3_4_ror, group_name='conv4_1',
+        filter_0=64, filters_1=(48, 128), filters_2=(24, 48, 48), filter_p=128, filter_out=256,
+        stride=(2, 2), use_global=is_test, n_curr_ch=n_curr_ch)
     conv4_2, n_curr_ch = inception(
         data=conv4_1,
         group_name='conv4_2',
@@ -492,12 +517,14 @@ def pvanet_preact(data, is_test):
         final_bn=True)
     conv5_4_ror = conv5_4 + conv5_1_proj
 
-    conv2_1_long_proj = mx.sym.Convolution(
-        pool1,
-        name='conv2_1/long/proj',
-        num_filter=384,
-        kernel=(1, 1),
-        stride=(8, 8))
+    conv2_1_long_proj = conv_twn(pool1, 384, 32, name='conv2_1/long/proj',
+            kernel=(1,1), pad=(0,0), stride=(8,8))
+    # conv2_1_long_proj = mx.sym.Convolution(
+    #     pool1,
+    #     name='conv2_1/long/proj',
+    #     num_filter=384,
+    #     kernel=(1, 1),
+    #     stride=(8, 8))
     conv5_4_long_ror = conv5_4_ror + conv2_1_long_proj
 
     # final layers
@@ -528,23 +555,27 @@ def pvanet_preact(data, is_test):
     # upsample = mx.sym.Deconvolution(name='upsample', data=conv5_4_last_relu,
     #         num_filter=384, pad=(1,1), kernel=(4,4), stride=(2,2), num_group=384, no_bias=True)
     concat = mx.sym.Concat(name='concat', *[downsample, conv4_4_ror, upsample])
-    convf_rpn = mx.sym.Convolution(
-        name='convf_rpn',
-        data=concat,
-        num_filter=128,
-        pad=(0, 0),
-        kernel=(1, 1),
-        stride=(1, 1))
+    convf_rpn = conv_twn(concat, 128, 128+256+384, name='convf_rpn', 
+            kernel=(1,1), pad=(0,0))
+    # convf_rpn = mx.sym.Convolution(
+    #     name='convf_rpn',
+    #     data=concat,
+    #     num_filter=128,
+    #     pad=(0, 0),
+    #     kernel=(1, 1),
+    #     stride=(1, 1))
     reluf_rpn = mx.sym.Activation(
         name='reluf_rpn', data=convf_rpn, act_type='relu')
 
-    convf_2 = mx.sym.Convolution(
-        name='convf_2',
-        data=concat,
-        num_filter=384,
-        pad=(0, 0),
-        kernel=(1, 1),
-        stride=(1, 1))
+    convf_2 = conv_twn(concat, 384, 128+256+384, name='convf_2', 
+            kernel=(1,1), pad=(0,0))
+    # convf_2 = mx.sym.Convolution(
+    #     name='convf_2',
+    #     data=concat,
+    #     num_filter=384,
+    #     pad=(0, 0),
+    #     kernel=(1, 1),
+    #     stride=(1, 1))
     reluf_2 = mx.sym.Activation(name='reluf_2', data=convf_2, act_type='relu')
     concat_convf = mx.sym.Concat(name='concat_convf', *[reluf_rpn, reluf_2])
 
@@ -564,13 +595,15 @@ def get_pvanet_twn_train(num_classes=config.NUM_CLASSES,
     reluf_rpn, concat_convf = pvanet_preact(data, is_test=True)
 
     # RPN layers
-    rpn_conv1 = mx.sym.Convolution(
-        name='rpn_conv1',
-        data=reluf_rpn,
-        num_filter=384,
-        pad=(1, 1),
-        kernel=(3, 3),
-        stride=(1, 1))
+    rpn_conv1 = conv_twn(reluf_rpn, 384, 128, name='rpn_conv1',
+            kernel=(3,3), pad=(1,1))
+    # rpn_conv1 = mx.sym.Convolution(
+    #     name='rpn_conv1',
+    #     data=reluf_rpn,
+    #     num_filter=384,
+    #     pad=(1, 1),
+    #     kernel=(3, 3),
+    #     stride=(1, 1))
     rpn_relu1 = mx.sym.Activation(
         name='rpn_relu1', data=rpn_conv1, act_type='relu')
     rpn_cls_score = mx.sym.Convolution(
