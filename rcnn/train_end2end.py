@@ -67,6 +67,9 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     print('output shape')
     pprint.pprint(out_shape_dict)
 
+    import ipdb
+    ipdb.set_trace()
+
     # load and initialize params
     if args.resume:
         arg_params, aux_params = load_param(prefix, begin_epoch, convert=True)
@@ -190,8 +193,8 @@ def parse_args():
 
 
 def main():
-    # import os
-    # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+    import os
+    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     print('Called with argument:', args)
     ctx = [mx.gpu(int(i)) for i in args.gpus.split(',')]

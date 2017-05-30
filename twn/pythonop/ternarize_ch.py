@@ -27,7 +27,8 @@ class TernarizeCh(mx.operator.CustomOp):
 
         amask = abs_weight >= self.th_w
         self.alpha = _comp_sum(abs_weight * amask, self.filterwise) / _comp_sum(amask, self.filterwise)
-        self.assign(out_data[0], req[0], mx.nd.sign(weight * amask) * self.alpha)
+        self.assign(out_data[0], req[0], mx.nd.sign(weight * amask))
+        self.assign(out_data[1], req[1], self.alpha)
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         #
@@ -71,15 +72,24 @@ class TernarizeChOp(mx.operator.CustomOpProp):
         return ['weight']
 
     def list_outputs(self):
-        return ['output']
+        return ['output', 'alpha']
 
     def infer_shape(self, in_shape):
         assert len(in_shape[0]) == 4 or len(in_shape[0]) == 2
-        return in_shape, in_shape, []
+        wshape = in_shape[0]
+        ashape = [1] * len(wshape)
+        if self.filterwise == 'filter':
+            ashape[0] = wshape[0]
+        elif self.filterwise == 'channel':
+            ashape[1] = wshape[1]
+        else:
+            ashape = [1,]
+        out_shape = [wshape, ashape]
+        return in_shape, out_shape, []
 
     def infer_type(self, in_type):
         dtype = in_type[0]
-        return [dtype], [dtype], []
+        return [dtype], [dtype, dtype], []
 
     def create_operator(self, ctx, shapes, dtypes):
         return TernarizeCh(self.filterwise, self.th_ratio)

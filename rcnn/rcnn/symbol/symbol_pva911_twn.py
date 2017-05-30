@@ -8,8 +8,10 @@ from ternarize_ch import *
 def conv_twn(data, num_filter, nch, name=None, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=False):
     ''' ternary weight convolution '''
     shape = (num_filter, nch, kernel[0], kernel[1])
-    conv_weight = mx.sym.var(name=name+'_weight', shape=shape, attr={'__wd_mult__': '0.0'}, dtype='float32')
-    weight = mx.sym.Custom(conv_weight, op_type='ternarize_ch', th_ratio=0.85)
+    conv_weight = mx.sym.var(name=name+'_weight', 
+            shape=shape, attr={'__wd_mult__': '0.0', '__lr_mult__': '0.0'}, dtype='float32')
+    weight, alpha = mx.sym.Custom(conv_weight, op_type='ternarize_ch', th_ratio=1.0)
+    weight = mx.sym.broadcast_mul(weight, alpha)
     conv = mx.sym.Convolution(data=data, weight=weight, name=name, num_filter=num_filter, 
             kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
     return conv
@@ -18,8 +20,9 @@ def conv_twn(data, num_filter, nch, name=None, kernel=(1,1), pad=(0,0), stride=(
 def fc_twn(data, num_hidden, nch, name=None, no_bias=False):
     ''' ternary weight fc '''
     fc_weight = mx.sym.var(name=name+'_weight', shape=(num_hidden, nch), 
-            attr={'__wd_mult__': '0.0'}, dtype='float32')
-    weight = mx.sym.Custom(fc_weight, op_type='ternarize_ch', th_ratio=0.85)
+            attr={'__wd_mult__': '0.0', '__lr_mult__': '0.0'}, dtype='float32')
+    weight, alpha = mx.sym.Custom(fc_weight, op_type='ternarize_ch', th_ratio=1.0)
+    weight = mx.sym.broadcast_mul(weight, alpha)
     fc = mx.sym.FullyConnected(data=data, weight=weight, name=name, num_hidden=num_hidden, no_bias=no_bias)
     return fc
 
