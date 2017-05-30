@@ -1,8 +1,9 @@
-from spotnet_lighter import get_spotnet
-from multibox_target import *
-from anchor_target_layer import *
-from multibox_detection import *
+import mxnet as mx
 import numpy as np
+from spotnet_lighter import get_spotnet
+from layer.multibox_target import MultiBoxTarget, MultiBoxTargetProp
+from layer.multibox_detection import MultiBoxDetection, MultiBoxDetectionProp
+from layer.softmax_loss import SoftmaxLoss, SoftmaxLossProp
 
 def get_symbol_train(num_classes, **kwargs):
     '''
@@ -32,11 +33,19 @@ def get_symbol_train(num_classes, **kwargs):
 
     cls_loss = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, \
         ignore_label=-1, use_ignore=True, grad_scale=1.0, 
-        normalization='null', name="cls_prob")
+        normalization='null', name="cls_prob", out_grad=True)
+    cls_loss = mx.symbol.Custom(cls_loss, target_cls, op_type='softmax_loss', 
+            ignore_label=-1, use_ignore=True)
+    alpha_cls = mx.sym.var(name='cls_beta', shape=(1,))
+    cls_loss = cls_loss * mx.sym.exp(-alpha_cls) + alpha_cls
+    cls_loss = mx.sym.MakeLoss(cls_loss, name='cls_loss')
     loc_diff = sample_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
-    loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=0.1, \
+    loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
+    loc_loss = mx.sym.sum(loc_loss) 
+    alpha_loc = mx.sym.var(name='loc_beta', shape=(1,))
+    loc_loss = loc_loss * mx.sym.exp(-alpha_loc) + alpha_loc
+    loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=1.0, \
         normalization='null', name="loc_loss")
 
     label_cls = mx.sym.BlockGrad(target_cls, name='label_cls')

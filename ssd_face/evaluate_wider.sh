@@ -3,10 +3,10 @@ python evaluate.py \
     --dataset wider \
     --eval-set val \
     --devkit-path /home/hyunjoon/dataset/wider \
-    --network spotnet_lighter_bnfixed \
-    --prefix /home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lighter_bnfixed_768 \
-    --epoch 50 \
+    --network spotnet_lighter \
+    --prefix model/spotnet_lighter_bnfixed_768 \
+    --epoch 25 \
     --gpus 0 \
-    --data-shape 1440 \
+    --data-shape 2560 \
     --th-pos 0.25 \
-    --nms 0.33333 
+    --nms 0.333333

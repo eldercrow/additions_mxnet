@@ -23,7 +23,7 @@ class Wider(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170413_1'  # for caching
+    IDX_VER = '170526_1'  # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=False, is_train=False):
         super(Wider,
@@ -46,8 +46,8 @@ class Wider(Imdb):
         #                 'sheep', 'sofa', 'train', 'tvmonitor']
 
         self.config = { \
-                'use_difficult': True,
-                'th_small': 4.0,
+                'use_difficult': False,
+                'th_small': 8.0,
                 'comp_id': 'comp4',
                 'padding': 256 }
 
@@ -238,8 +238,7 @@ class Wider(Imdb):
                 continue
             ww_img = 0
             hh_img = 0
-            small_mask = np.minimum(bbs[:, 2],
-                                    bbs[:, 3]) < self.config['th_small']
+            small_mask = np.maximum(bbs[:, 2], bbs[:, 3]) < self.config['th_small']
             # remove bbs that are 1) invalid or 2) too small and occluded.
             with open(prop_file, 'r') as fh:
                 prop_data = fh.read().splitlines()
@@ -247,14 +246,20 @@ class Wider(Imdb):
                 prop_bb = pdata.split(' ')
                 if prop_bb[0] == 'invalid_label_list':
                     invalid_mask = np.array(prop_bb[1:]).astype(int) == 1
-                # if prop_bb[0] == 'occlusion_label_list':
-                #     small_mask = np.logical_and(small_mask, np.array(prop_bb[1:]).astype(int) == 2)
+                if prop_bb[0] == 'occlusion_label_list':
+                    occ_mask = np.array(prop_bb[1:]).astype(int) == 2
+                if prop_bb[0] == 'blur_label_list':
+                    blur_mask = np.array(prop_bb[1:]).astype(int) == 2
                 # also get image size
                 if prop_bb[0] == 'image_size':
                     ww_img = int(prop_bb[1])
                     hh_img = int(prop_bb[2])
             if self.config['use_difficult'] is not True:
-                invalid_mask = np.logical_or(invalid_mask, small_mask)
+                # import ipdb
+                # ipdb.set_trace()
+                hard_mask = np.logical_or(blur_mask, occ_mask)
+                hard_mask = np.logical_and(hard_mask, small_mask)
+                invalid_mask = np.logical_or(invalid_mask, hard_mask)
             # FOR DEBUG, save image size to .prop_label
             if ww_img == 0:
                 fn_img = self.image_path_from_index(idx)
@@ -267,8 +272,8 @@ class Wider(Imdb):
                 ww_img = img.shape[1]
                 hh_img = img.shape[0]
 
-            valid_idx = np.where(invalid_mask == False)[0]
-            bbs = bbs[valid_idx, :]
+            invalid_idx = np.where(invalid_mask == True)[0]
+            # bbs = bbs[valid_idx, :]
             if bbs.size == 0:
                 temp.append(np.empty((0, 5)))
                 continue
@@ -284,6 +289,7 @@ class Wider(Imdb):
 
             label = np.zeros((bbs.shape[0], 5))
             label[:, 0] = cls_id
+            label[invalid_idx, 0] = -1
             label[:, 1:] = bbs
             temp.append(label)
             if label.shape[0] > max_objects:

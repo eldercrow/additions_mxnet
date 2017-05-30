@@ -361,7 +361,9 @@ class RandScaler(RandSampler):
         ----------
         list of (crop_box, label) tuples, if failed, return empty list []
         """
-        valid_mask = np.where(label[:, 0] > -1)[0]
+        # import ipdb
+        # ipdb.set_trace()
+        valid_mask = np.where(np.all(label == -1, axis=1) == False)[0]
         gt = label[valid_mask, :]
         gt[:, 1::2] *= img_shape[1]
         gt[:, 2::2] *= img_shape[0]

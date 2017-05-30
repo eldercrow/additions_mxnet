@@ -15,9 +15,9 @@ python demo.py \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix model/best/spotnet_lighter_bnfixed_768 \
-  --epoch 22 \
-  --max-data-shapes 2560 2560 \
+  --prefix model/spotnet_lighter_bnfixed_768 \
+  --epoch 25 \
+  --max-data-shapes 3072 3072 \
   --thresh $TH_POS \
   --gpu 0
   # --cpu 

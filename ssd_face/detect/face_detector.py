@@ -89,18 +89,14 @@ class FaceDetector(object):
                 label_shapes=None,
                 for_training=False,
                 force_rebind=True)
-            # init = mx.init.Mixed( \
-            #         ['moving_mean', 'moving_var', '.*'], \
-            #         [mx.init.Zero(), mx.init.Constant(0.99998), mx.init.Uniform(0.1)])
-            # self.mod.init_params(init)
             self.mod.set_params(self.args, self.auxs, allow_missing=True)
-            _, self.auxs = self.mod.get_params()
-            for k, v in self.auxs.items():
-                if k.endswith('_moving_mean'):
-                    v[:] = 0.0
-                if k.endswith('_moving_var'):
-                    v[:] = 0.99999
-            self.mod.set_params(self.args, self.auxs)
+            # _, self.auxs = self.mod.get_params()
+            # for k, v in self.auxs.items():
+            #     if k.endswith('_moving_mean'):
+            #         v[:] = 0.0
+            #     if k.endswith('_moving_var'):
+            #         v[:] = 0.99999
+            # self.mod.set_params(self.args, self.auxs)
 
         # start = timer()
         result = []
@@ -115,12 +111,15 @@ class FaceDetector(object):
             out = self.mod.get_outputs()
 
             dets = out[0][0].asnumpy()
-            iidx = dets[0] > 0
+            iidx = np.where(dets[0] > 0)[0]
+            # time_elapsed = timer() - start
             if len(iidx) == 0:
                 result.append(np.zeros((0, 6)))
+                time_elapsed = timer() - start
                 continue
-            time_elapsed = timer() - start
             dets = np.transpose(dets[:, iidx])
+            sidx = np.argsort(dets[:, 1])[::-1]
+            dets = dets[sidx, :]
             vidx = self._do_nms(dets)
             vdets = dets[vidx, :]
             vdets[:, 2] *= im_scale[1]
@@ -130,11 +129,11 @@ class FaceDetector(object):
             overlap = self._comp_overlap(vdets[:, 2:], im_info['im_shape'])
             iidx = overlap > 0.6
             n_oob = np.where(iidx == False)[0].size
-            if n_oob > 0: 
-                print('n_oob = {}'.format(n_oob))
+            # if n_oob > 0: 
+            #     print('n_oob = {}'.format(n_oob))
             vdets = vdets[iidx, :]
             result.append(vdets)
-            # time_elapsed = timer() - start
+            time_elapsed = timer() - start
             # print(vdets)
 
             if i % 10 == 0:
@@ -317,6 +316,9 @@ class FaceDetector(object):
     def _comp_overlap(self, dets, im_shape):
         #
         area_dets = (dets[:, 2] - dets[:, 0]) * (dets[:, 3] - dets[:, 1])
+        # if np.min(area_dets) < 16 or np.max(area_dets) > im_shape[0]*im_shape[1]*2.0:
+        #     import ipdb
+        #     ipdb.set_trace()
         iw = np.minimum(dets[:, 2], im_shape[1]) - np.maximum(dets[:, 0], 0)
         ih = np.minimum(dets[:, 3], im_shape[0]) - np.maximum(dets[:, 1], 0)
 

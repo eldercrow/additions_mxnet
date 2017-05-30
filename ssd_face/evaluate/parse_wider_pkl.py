@@ -15,9 +15,6 @@ def parse_wider_pkl(fn_pkl, root_path):
     if not os.path.exists(root_res):
         os.makedirs(os.path.join(root_path, 'wider_res'))
     
-    import ipdb
-    ipdb.set_trace()
-
     for i, (dets, im_path) in enumerate(zip(detections, im_paths)):
         tok = im_path.split('/')
         path_event = os.path.join(root_res, tok[-3], tok[-2])
@@ -40,6 +37,6 @@ def parse_wider_pkl(fn_pkl, root_path):
 if __name__ == '__main__':
     #
     fn_pkl = '../wider_eval_res.pkl'
-    root_path = './spotnet_lighter_epoch50'
+    root_path = './spotnet_lighter_val'
 
     parse_wider_pkl(fn_pkl, root_path)

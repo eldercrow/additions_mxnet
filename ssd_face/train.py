@@ -186,7 +186,7 @@ def parse_args():
 
 
 if __name__ == '__main__':
-    # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]
     ctx = [mx.cpu()] if (not ctx or args.use_cpu > 0) else ctx

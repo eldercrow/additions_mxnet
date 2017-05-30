@@ -1,7 +1,7 @@
 import mxnet as mx
 import numpy as np
 import os, sys
-sys.path.append(os.path.abspath('../symbol'))
+sys.path.append(os.path.abspath('../layer'))
 from multibox_prior_layer import *
 from multibox_target import *
 
@@ -25,7 +25,7 @@ def freeze_bn(model_prefix, num_epoch, res_prefix):
 
 if __name__ == '__main__':
     model_prefix = '/home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lighter_768'
-    num_epoch = 60
+    num_epoch = 23
     res_prefix = model_prefix.replace('_768', '') + '_bnfixed_768'
 
     freeze_bn(model_prefix, num_epoch, res_prefix)

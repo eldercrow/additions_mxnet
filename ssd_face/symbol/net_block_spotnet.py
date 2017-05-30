@@ -18,23 +18,9 @@ def data_norm(data, name, nch, bias=None, eps=1e-05, get_syms=False):
     mean_ = mx.sym.mean(data, axis=1, keepdims=True)
     mean_ = mx.sym.Pooling(
         mean_, kernel=(3, 3), pad=(1, 1), stride=(1, 1), pool_type='avg')
-    # mean_ = mx.sym.Convolution(
-    #     data=mean_,
-    #     num_filter=1,
-    #     weight=ones_,
-    #     kernel=kernel,
-    #     pad=pad,
-    #     no_bias=True)
     var_ = mx.sym.mean(mx.sym.square(data), axis=1, keepdims=True)
     var_ = mx.sym.Pooling(
         var_, kernel=(3, 3), pad=(1, 1), stride=(1, 1), pool_type='avg')
-    # var_ = mx.sym.Convolution(
-    #     data=var_,
-    #     num_filter=1,
-    #     weight=ones_,
-    #     kernel=kernel,
-    #     pad=pad,
-    #     no_bias=True)
     var_ = mx.sym.maximum(var_ - mx.sym.square(mean_), 0.0)
     # var_ = mx.sym.broadcast_maximum(var_ - mx.sym.square(mean_), mx.sym.zeros(shape=(1,)))
     norm_ = mx.sym.sqrt(var_ + eps)
@@ -73,6 +59,7 @@ def bn_relu_conv(data,
         name=bn_name)
     syms['bn'] = bn_
     relu_ = mx.sym.Activation(bn_, act_type='relu')
+    syms['relu'] = relu_
     conv_ = mx.sym.Convolution(
         relu_,
         name=conv_name,

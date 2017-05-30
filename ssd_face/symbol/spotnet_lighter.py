@@ -1,6 +1,7 @@
 import mxnet as mx
+import numpy as np
 from net_block_spotnet import *
-from multibox_prior_layer import *
+from layer.multibox_prior_layer import MultiBoxPriorPython, MultiBoxPriorPythonProp
 
 
 def inception_group(data,
@@ -322,7 +323,7 @@ def get_spotnet(n_classes, patch_size, use_global_stats, n_group=5):
         pad=(0, 0),
         use_global_stats=use_global_stats,
         get_syms=True)
-    clone_buffer, sym_dn = data_norm(clone_buffer, name='dn/3', nch=64, get_syms=True)
+    group_i, sym_dn = data_norm(group_i, name='dn/3', nch=64, get_syms=True)
     n_curr_ch = 64
     nf_3x3_ref = (32, 16, 16)
     syms_unit = []
