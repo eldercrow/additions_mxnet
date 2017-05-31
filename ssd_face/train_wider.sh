@@ -28,13 +28,13 @@ python train.py \
     --gpu 1 \
     --prefix model/spotnet_lighter_bnfixed \
     --data-shape 768 \
-    --frequent 200 \
+    --frequent 800 \
     --lr 1e-04 \
     --lr-factor 0.316228 \
     --lr-steps 2,2,3,3 \
     --wd 1e-05 \
     --pretrained model/spotnet_lighter_bnfixed_768 \
-    --epoch 0
+    --epoch 23
+    # --resume 23
     # --lr-steps 10,15,18,21 \
-    # --resume 1
     # --monitor 2000 \
