@@ -4,8 +4,8 @@ python evaluate.py \
     --eval-set val \
     --devkit-path /home/hyunjoon/dataset/wider \
     --network spotnet_lighter \
-    --prefix model/spotnet_lighter_bnfixed_768 \
-    --epoch 100 \
+    --prefix model/spotnet_lighter_trainval_bnfixed_768 \
+    --epoch 1000 \
     --gpus 0 \
     --data-shape 2560 \
     --th-pos 0.25 \

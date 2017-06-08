@@ -31,7 +31,7 @@ class SoftmaxLoss(mx.operator.CustomOp):
         else:
             vidx = np.arange(label.size)
 
-        loss = 0.0 if vidx.size == 0 else -np.log(data[vidx, label[vidx]])
+        loss = 0.0 if vidx.size == 0 else -np.log(np.maximum(1e-08, data[vidx, label[vidx]]))
         if self.normalization == 'null':
             loss = np.sum(loss)
         elif self.normalization == 'valid':

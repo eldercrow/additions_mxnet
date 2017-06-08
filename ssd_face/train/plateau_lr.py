@@ -7,10 +7,13 @@ class PlateauScheduler(object):
     A learning rate scheduler that implements 'plateau' scheduling algorithm.
     '''
 
-    def __init__(self, patient_epochs=(2, 2, 2, 2, 3, 3), factor=0.316228):
+    def __init__(self, patient_epochs=(2, 2, 2, 2, 3, 3), factor=0.316228, eval_weights=None):
         #
         self.patient_epochs = make_tuple(patient_epochs) if type(patient_epochs) == str else patient_epochs
         self.factor = factor
+        self.eval_weights = {}
+        if eval_weights:
+            self.eval_weights = eval_weights
 
     def reset(self, base_lr):
         self.curr_lr = base_lr
@@ -26,17 +29,17 @@ class PlateauScheduler(object):
         if self.curr_min_loss < 0.0:
             logging.info("Setting the initial loss.")
             # print 'initializing min evaluation metric losses...'
-            # if len(self.eval_weights) == 0:
-            #     for name in eval_metric:
-            #         self.eval_weights[name] = 1.0
+            if len(self.eval_weights) == 0:
+                for name in eval_metric:
+                    self.eval_weights[name] = 1.0
             self.curr_min_loss = 0.0
             for name, val in eval_metric.get_name_value():
-                self.curr_min_loss += val # * self.eval_weights[name]
+                self.curr_min_loss += val * self.eval_weights[name]
             logging.info('Current min loss = {:.5f}'.format(self.curr_min_loss))
         else:
             sum_loss = 0.0
             for name, val in eval_metric.get_name_value():
-                sum_loss += val # * self.eval_weights[name]
+                sum_loss += val * self.eval_weights[name]
             logging.info('sum_loss = {:.5f}'.format(sum_loss))
 
             if sum_loss < self.curr_min_loss:

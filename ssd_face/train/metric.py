@@ -4,7 +4,7 @@ import numpy as np
 
 class FacePatchMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, num=2, postfix_names=['Loss', 'Smoothl1']): #, 'Recall']):
+    def __init__(self, num=3, postfix_names=['Loss', 'Smoothl1', 'LossOrig']): #, 'Recall']):
         # super(FacePatchMetric, self).__init__(['Loss', 'SmoothL1', 'Recall'], 3)
         self.sum_metric = np.zeros((num,))
         self.num_inst = np.zeros((num,), dtype=int)
@@ -22,11 +22,14 @@ class FacePatchMetric(mx.metric.EvalMetric):
         reg_pred = preds[1].asnumpy()
         cls_label = preds[2].asnumpy()
         reg_label = preds[3].asnumpy()
+        cls_pred_orig = preds[4].asnumpy()
         
         mask = np.where(cls_label >= 0)[0]
         if mask.size > 0:
             self.sum_metric[0] += sum(cls_pred)
             self.num_inst[0] += mask.size
+            self.sum_metric[2] += sum(cls_pred_orig)
+            self.num_inst[2] += mask.size
 
         mask = np.where(np.any(reg_label != -1, axis=1))[0]
         if mask.size > 0:
