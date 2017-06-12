@@ -1,3 +1,8 @@
+TODO:
+* Test datanorm and weight normalization in softmax and regressor. 
+* Test removing BatchNorm. 
+* Implement and test automatic label curation.
+
 # SSD: Single Shot MultiBox Object Detector
 
 SSD is an unified framework for object detection with a single network.
