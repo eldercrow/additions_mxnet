@@ -3,56 +3,27 @@ import os
 import cv2
 import mxnet as mx
 import numpy as np
+from rcnn.logger import logger
 from rcnn.config import config
-from rcnn.symbol import get_vgg_test, get_vgg_rpn_test, get_pvanet_test, get_pvanet_twn_test
+from rcnn.symbol import get_vgg_test, get_vgg_rpn_test
 from rcnn.io.image import resize, transform
 from rcnn.core.tester import Predictor, im_detect, im_proposal, vis_all_detection, draw_all_detection
 from rcnn.utils.load_model import load_param
 from rcnn.processing.nms import py_nms_wrapper, cpu_nms_wrapper, gpu_nms_wrapper
 
 
-CLASSES = ('__background__', # always index 0
-           'bicycle', 'bird', 'bus', 'car', 'cat', 
-           'dog', 'horse', 'motorbike', 'person', 'train',
-           'aeroplane', 'boat', 'bottle', 'chair', 'cow', 
-           'diningtable', 'pottedplant', 'sheep', 'sofa', 'tvmonitor',
-           'cake', 'vase', 'truck', 'traffic light', 'fire hydrant', 
-           'stop sign', 'parking meter', 'bench', 'elephant', 'bear', 
-           'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 
-           'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 
-           'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard', 
-           'surfboard', 'tennis racket', 'wine glass', 'cup', 'fork', 
-           'knife', 'spoon', 'bowl', 'banana', 'apple', 'sandwich', 
-           'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 
-           'donut', 'bed', 'toilet', 'laptop', 'mouse', 
-           'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 
-           'toaster', 'sink', 'refrigerator', 'book', 'clock', 
-           'scissors', 'teddy bear', 'hair drier', 'toothbrush')
-# CLASSES = ['__background__',  # always index 0
-#             'aeroplane', 'bicycle', 'bird', 'boat',
-#             'bottle', 'bus', 'car', 'cat', 'chair',
-#             'cow', 'diningtable', 'dog', 'horse',
-#             'motorbike', 'person', 'pottedplant',
-#             'sheep', 'sofa', 'train', 'tvmonitor']
-config.NUM_CLASSES = len(CLASSES)
+CLASSES = ('__background__',
+           'aeroplane', 'bicycle', 'bird', 'boat',
+           'bottle', 'bus', 'car', 'cat', 'chair',
+           'cow', 'diningtable', 'dog', 'horse',
+           'motorbike', 'person', 'pottedplant',
+           'sheep', 'sofa', 'train', 'tvmonitor')
 config.TEST.HAS_RPN = True
-
-config.IMAGE_STRIDE = 32
-config.SCALES = [(608, 1024)]
-# config.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
-# config.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
-config.ANCHOR_SCALES = (3, 6, 9, 16, 32)
-config.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
-config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
-# config.TEST.RPN_NMS_THRESH = 0.4
-# config.TEST.BBOX_STDS = (0.1, 0.1, 0.2, 0.2)
-# config.PVTDB_LABEL = True
-
 SHORT_SIDE = config.SCALES[0][0]
 LONG_SIDE = config.SCALES[0][1]
 PIXEL_MEANS = config.PIXEL_MEANS
 DATA_NAMES = ['data', 'im_info']
-LABEL_NAMES = ['cls_prob_label']
+LABEL_NAMES = None
 DATA_SHAPES = [('data', (1, 3, LONG_SIDE, SHORT_SIDE)), ('im_info', (1, 3))]
 LABEL_SHAPES = None
 # visualization
@@ -98,7 +69,7 @@ def generate_batch(im):
     data_names: names in data_batch
     im_scale: float number
     """
-    im_array, im_scale = resize(im, SHORT_SIDE, LONG_SIDE, stride=32)
+    im_array, im_scale = resize(im, SHORT_SIDE, LONG_SIDE)
     im_array = transform(im_array, PIXEL_MEANS)
     im_info = np.array([[im_array.shape[2], im_array.shape[3], im_scale]], dtype=np.float32)
     data = [mx.nd.array(im_array), mx.nd.array(im_info)]
@@ -133,17 +104,18 @@ def demo_net(predictor, image_name, vis=False):
     boxes_this_image = [[]] + [all_boxes[j] for j in range(1, len(CLASSES))]
 
     # print results
-    print 'class ---- [[x1, x2, y1, y2, confidence]]'
+    logger.info('---class---')
+    logger.info('[[x1, x2, y1, y2, confidence]]')
     for ind, boxes in enumerate(boxes_this_image):
         if len(boxes) > 0:
-            print '---------', CLASSES[ind], '---------'
-            print boxes
+            logger.info('---%s---' % CLASSES[ind])
+            logger.info('%s' % boxes)
 
     if vis:
         vis_all_detection(data_dict['data'].asnumpy(), boxes_this_image, CLASSES, im_scale)
     else:
         result_file = image_name.replace('.', '_result.')
-        print 'results saved to %s' % result_file
+        logger.info('results saved to %s' % result_file)
         im = draw_all_detection(data_dict['data'].asnumpy(), boxes_this_image, CLASSES, im_scale)
         cv2.imwrite(result_file, im)
 
@@ -154,20 +126,15 @@ def parse_args():
     parser.add_argument('--prefix', help='saved model prefix', type=str)
     parser.add_argument('--epoch', help='epoch of pretrained model', type=int)
     parser.add_argument('--gpu', help='GPU device to use', default=0, type=int)
-    parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--vis', help='display result', action='store_true')
     args = parser.parse_args()
     return args
 
 
 def main():
-    os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
     args = parse_args()
-    if args.cpu:
-        ctx = mx.cpu()
-    else:
-        ctx = mx.gpu(args.gpu)
-    symbol = get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
+    ctx = mx.gpu(args.gpu)
+    symbol = get_vgg_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     predictor = get_net(symbol, args.prefix, args.epoch, ctx)
     demo_net(predictor, args.image, args.vis)
 
