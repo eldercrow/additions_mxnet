@@ -213,44 +213,46 @@ class MultiBoxTarget(mx.operator.CustomOp):
             ridx = np.setdiff1d(ridx, pidx)
             # np.random.shuffle(pidx)
             np.random.shuffle(ridx)
-            pidx = pidx[:np.minimum(pidx.size, sample_per_label_pos)]
+            ridx = np.hstack((ridx, pidx[::-1]))
+            n_pidx = np.minimum(pidx.size, sample_per_label_pos)
+            pidx = pidx[:n_pidx]
             ridx = ridx[:np.minimum(ridx.size, sample_per_label_reg)]
             pidx = np.hstack((pidx, ridx))
 
             k = 0
-            for ii in pidx:
+            for i, pid in enumerate(pidx):
                 # pick positive
-                # if iou[ii] <= self.th_iou_neg:
+                # if iou[pid] <= self.th_iou_neg:
                 #     continue
                 # enough positives, regression target only
-                # if k >= self.sample_per_label/3 and iou[ii] > self.th_iou:
+                # if k >= self.sample_per_label/3 and iou[pid] > self.th_iou:
                 #     continue
-                # iou[ii] = 0
-                if self.oob_mask[ii] or is_sampled[ii] >= iou[ii]:
+                # iou[pid] = 0
+                if self.oob_mask[pid] or is_sampled[pid] >= iou[pid]:
                     continue
 
-                if is_sampled[ii] > 0:
-                    didx = pos_anchor_locs.index((batch_id, ii))
+                if is_sampled[pid] > 0:
+                    didx = pos_anchor_locs.index((batch_id, pid))
                     del pos_anchor_locs[didx]
                     del pos_target_cls[didx]
                     del pos_target_reg[didx]
                     k -= 1
-                is_sampled[ii] = iou[ii]
-                pos_anchor_locs.append((batch_id, ii))
-                if iou[ii] > self.th_iou:
+                is_sampled[pid] = iou[pid]
+                pos_anchor_locs.append((batch_id, pid))
+                if i < n_pidx and iou[pid] > self.th_iou:
                     pos_target_cls.append(label[0])
                 else:
                     pos_target_cls.append(-1)
-                asq = _fit_box_ratio(self.anchors[ii].asnumpy(), 0.8)
+                asq = _fit_box_ratio(self.anchors[pid].asnumpy(), 0.8)
                 target_reg = _compute_loc_target(label[1:], asq, self.variances)
-                # target_reg = _compute_loc_target(label[1:], self.anchors[ii].asnumpy(), self.variances)
+                # target_reg = _compute_loc_target(label[1:], self.anchors[pid].asnumpy(), self.variances)
                 pos_target_reg.append(target_reg.tolist())
                 # # apply nms
-                # if len(self.nidx_pos[ii]) == 0:
-                #     self.nidx_pos[ii] = _compute_nms_cands( \
-                #             self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms)
+                # if len(self.nidx_pos[pid]) == 0:
+                #     self.nidx_pos[pid] = _compute_nms_cands( \
+                #             self.anchors[pid], self.anchors_t, self.area_anchors_t, self.th_nms)
                 # # assert len(self.nidx_pos) > 0
-                # nidx = self.nidx_pos[ii]
+                # nidx = self.nidx_pos[pid]
                 # iou[nidx] = 0.0
                 k += 1
                 if k >= self.sample_per_label:

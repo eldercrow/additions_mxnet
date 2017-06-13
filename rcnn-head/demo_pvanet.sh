@@ -1,7 +1,7 @@
 #!/bin/bash
 python demo_pvanet.py \
-    --prefix /home/hyunjoon/github/model_mxnet/pva100/pva100 \
-    --epoch 0 \
+    --prefix model/pva100_voc0712 \
+    --epoch 1 \
     --gpu 0 \
     --image /home/hyunjoon/faster-rcnn/data/demo/004545.jpg \
     --vis
