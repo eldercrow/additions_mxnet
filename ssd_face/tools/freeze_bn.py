@@ -25,8 +25,8 @@ def freeze_bn(model_prefix, num_epoch, res_prefix):
     mx.model.save_checkpoint(res_prefix, num_epoch, net, arg_params, aux_params)
 
 if __name__ == '__main__':
-    model_prefix = '/home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lighter_trainval_768'
-    num_epoch = 35
+    model_prefix = '/home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lighter2_768'
+    num_epoch = 1000
     res_prefix = model_prefix.replace('_768', '') + '_bnfixed_768'
 
     freeze_bn(model_prefix, num_epoch, res_prefix)

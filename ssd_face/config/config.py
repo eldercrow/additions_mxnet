@@ -1,6 +1,7 @@
 import os
 from easydict import EasyDict as edict
-from tools.rand_sampler import RandCropper, RandPadder, RandScaler
+from tools.rand_sampler import RandScaler
+# from tools.rand_sampler import RandCropper, RandPadder, RandScaler
 
 cfg = edict()
 cfg.ROOT_DIR = os.path.join(os.path.dirname(__file__), '..')

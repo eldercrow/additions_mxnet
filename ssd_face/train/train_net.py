@@ -338,6 +338,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             .format(ctx_str, resume))
         mod = PlateauModule.load(prefix, resume, load_optimizer_states=True,
                 label_names=[('label')], logger=logger, context=ctx)
+        # mod = PlateauModule.load(prefix, resume, load_optimizer_states=True,
+        #         label_names=[('label', 'index', 'lidx')], logger=logger, context=ctx)
         # mod = mx.mod.Module.load(prefix, resume, load_optimizer_states=True,
         #         label_names=[('label')], logger=logger, context=ctx)
         args = None

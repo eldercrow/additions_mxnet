@@ -33,8 +33,8 @@ def get_symbol_train(num_classes, **kwargs):
     cls_loss = mx.symbol.Custom(cls_loss, target_cls, op_type='softmax_loss', 
             ignore_label=-1, use_ignore=True)
     alpha_cls = mx.sym.var(name='cls_beta', shape=(1,))
-    cls_loss = cls_loss * mx.sym.exp(-alpha_cls) + alpha_cls
-    cls_loss = mx.sym.MakeLoss(cls_loss, name='cls_loss')
+    cls_loss_w = cls_loss * mx.sym.exp(-alpha_cls) + alpha_cls
+    cls_loss_w = mx.sym.MakeLoss(cls_loss_w, name='cls_loss')
     loc_diff = pred_reg - target_reg
     masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
@@ -53,7 +53,7 @@ def get_symbol_train(num_classes, **kwargs):
     label_reg = mx.sym.BlockGrad(target_reg, name='label_reg')
 
     # group output
-    out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
+    out = mx.symbol.Group([cls_loss_w, loc_loss, label_cls, label_reg, mx.sym.BlockGrad(cls_loss)])
     return out
 
 if __name__ == '__main__':
