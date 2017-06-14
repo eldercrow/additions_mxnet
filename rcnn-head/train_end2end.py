@@ -19,7 +19,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
               lr=0.001, lr_step='5'):
     # setup config
     config.TRAIN.BATCH_IMAGES = 1
-    config.TRAIN.BATCH_ROIS = 128
+    config.TRAIN.BATCH_ROIS = 512
     config.TRAIN.END2END = True
     config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = True
 
@@ -207,7 +207,7 @@ def parse_args():
 
 
 def main():
-    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+    # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     logger.info('Called with argument: %s' % args)
     ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]

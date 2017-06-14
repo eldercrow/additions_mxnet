@@ -51,7 +51,7 @@ LABEL_NAMES = ['cls_prob_label']
 DATA_SHAPES = [('data', (1, 3, LONG_SIDE, SHORT_SIDE)), ('im_info', (1, 3))]
 LABEL_SHAPES = None
 # visualization
-CONF_THRESH = 0.7
+CONF_THRESH = 0.5
 NMS_THRESH = 0.3
 nms = py_nms_wrapper(NMS_THRESH)
 

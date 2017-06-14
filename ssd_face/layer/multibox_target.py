@@ -109,7 +109,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             # self.mean_pos_prob = mean_pos_prob * a + (1.0-a) * self.mean_pos_prob
 
         # negative samples
-        n_neg_sample = np.maximum(1, self.hard_neg_ratio * n_pos_sample)
+        n_neg_sample = np.maximum(1, np.round(self.hard_neg_ratio * n_pos_sample))
         anchor_locs_neg = []
         probs_neg = []
         for i in range(n_batch):

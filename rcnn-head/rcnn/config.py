@@ -26,18 +26,18 @@ config.TRAIN.BATCH_IMAGES = 2
 # e2e changes behavior of anchor loader and metric
 config.TRAIN.END2END = False
 # group images with similar aspect ratio
-config.TRAIN.ASPECT_GROUPING = True
+config.TRAIN.ASPECT_GROUPING = False
 
 # R-CNN
 # rcnn rois batch size
 config.TRAIN.BATCH_ROIS = 128
 # rcnn rois sampling params
-config.TRAIN.FG_FRACTION = 0.25
+config.TRAIN.FG_FRACTION = 0.5
 config.TRAIN.FG_THRESH = 0.5
-config.TRAIN.BG_THRESH_HI = 0.5
+config.TRAIN.BG_THRESH_HI = 0.33333
 config.TRAIN.BG_THRESH_LO = 0.0
 # rcnn bounding box regression params
-config.TRAIN.BBOX_REGRESSION_THRESH = 0.5
+config.TRAIN.BBOX_REGRESSION_THRESH = 0.33333
 config.TRAIN.BBOX_WEIGHTS = np.array([1.0, 1.0, 1.0, 1.0])
 
 # RPN anchor loader
