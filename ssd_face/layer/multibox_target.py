@@ -213,9 +213,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
             ridx = np.setdiff1d(ridx, pidx)
             # np.random.shuffle(pidx)
             np.random.shuffle(ridx)
-            ridx = np.hstack((ridx, pidx[::-1]))
-            n_pidx = np.minimum(pidx.size, sample_per_label_pos)
-            pidx = pidx[:n_pidx]
+            # ridx = np.hstack((ridx, pidx[::-1]))
+            pidx = pidx[:np.minimum(pidx.size, sample_per_label_pos)]
             ridx = ridx[:np.minimum(ridx.size, sample_per_label_reg)]
             pidx = np.hstack((pidx, ridx))
 
@@ -239,7 +238,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
                     k -= 1
                 is_sampled[pid] = iou[pid]
                 pos_anchor_locs.append((batch_id, pid))
-                if i < n_pidx and iou[pid] > self.th_iou:
+                if iou[pid] > self.th_iou:
                     pos_target_cls.append(label[0])
                 else:
                     pos_target_cls.append(-1)

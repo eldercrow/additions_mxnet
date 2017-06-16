@@ -134,3 +134,42 @@ class PlateauModule(Module):
 
             # end of 1 epoch, reset the data-iter for another epoch
             train_data.reset()
+            
+    @staticmethod
+    def load(prefix, epoch, load_optimizer_states=False, **kwargs):
+        """Creates a model from previously saved checkpoint.
+
+        Parameters
+        ----------
+        prefix : str
+            path prefix of saved model files. You should have
+            "prefix-symbol.json", "prefix-xxxx.params", and
+            optionally "prefix-xxxx.states", where xxxx is the
+            epoch number.
+        epoch : int
+            epoch to load.
+        load_optimizer_states : bool
+            whether to load optimizer states. Checkpoint needs
+            to have been made with save_optimizer_states=True.
+        data_names : list of str
+            Default is `('data')` for a typical model used in image classification.
+        label_names : list of str
+            Default is `('softmax_label')` for a typical model used in image
+            classification.
+        logger : Logger
+            Default is `logging`.
+        context : Context or list of Context
+            Default is ``cpu()``.
+        work_load_list : list of number
+            Default ``None``, indicating uniform workload.
+        fixed_param_names: list of str
+            Default ``None``, indicating no network parameters are fixed.
+        """
+        sym, args, auxs = mx.model.load_checkpoint(prefix, epoch)
+        mod = PlateauModule(symbol=sym, **kwargs)
+        mod._arg_params = args
+        mod._aux_params = auxs
+        mod.params_initialized = True
+        if load_optimizer_states:
+            mod._preload_opt_states = '%s-%04d.states'%(prefix, epoch)
+        return mod

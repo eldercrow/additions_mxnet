@@ -4,7 +4,7 @@ import numpy as np
 
 class FacePatchMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, num=3, postfix_names=['Loss', 'Smoothl1', 'LossOrig']): #, 'Recall']):
+    def __init__(self, num=3, postfix_names=['Loss', 'SmoothL1', 'Acc']): #'LossOrig']):
         # super(FacePatchMetric, self).__init__(['Loss', 'SmoothL1', 'Recall'], 3)
         self.sum_metric = np.zeros((num,))
         self.num_inst = np.zeros((num,), dtype=int)
@@ -18,23 +18,25 @@ class FacePatchMetric(mx.metric.EvalMetric):
         labels are not used here.
         """
         # get generated multi label from network
-        cls_pred = preds[0].asnumpy()
-        reg_pred = preds[1].asnumpy()
+        cls_loss = preds[0].asnumpy()
+        reg_loss = preds[1].asnumpy()
         cls_label = preds[2].asnumpy()
         reg_label = preds[3].asnumpy()
-        cls_pred_orig = preds[4].asnumpy()
-        
+        cls_prob = preds[4].asnumpy()
+
+        cls_acc = np.argmax(cls_prob, axis=1) == cls_label
         mask = np.where(cls_label >= 0)[0]
+        n_sample = cls_prob.shape[0]
         if mask.size > 0:
-            self.sum_metric[0] += sum(cls_pred)
-            self.num_inst[0] += mask.size
-            self.sum_metric[2] += sum(cls_pred_orig)
+            self.sum_metric[0] += sum(cls_loss)
+            self.num_inst[0] += n_sample #mask.size
+            self.sum_metric[2] += sum(cls_acc)
             self.num_inst[2] += mask.size
 
         mask = np.where(np.any(reg_label != -1, axis=1))[0]
         if mask.size > 0:
-            self.sum_metric[1] += sum(reg_pred)
-            self.num_inst[1] += mask.size
+            self.sum_metric[1] += sum(reg_loss)
+            self.num_inst[1] += n_sample #mask.size
 
         # mask = np.where(cls_label > 0)[0]
         # cls_acc = np.argmax(cls_pred, axis=1) == cls_label
@@ -51,8 +53,8 @@ class FacePatchMetric(mx.metric.EvalMetric):
         #     self.num_inst[2] += mask.size
         #
         # reg_dist = np.sum(np.abs(reg_pred - reg_label), axis=1)
-        # import ipdb
-        # ipdb.set_trace()
+        # # import ipdb
+        # # ipdb.set_trace()
         # if mask.size > 0:
         #     self.sum_metric[1] += sum(reg_dist[mask])
         #     self.num_inst[1] += mask.size

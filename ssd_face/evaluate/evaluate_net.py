@@ -104,7 +104,7 @@ def evaluate_net(net,
         # import ipdb
         # ipdb.set_trace()
         import cPickle as pickle
-        with open('wider_eval_res.pkl', 'wb') as fh:
+        with open('wider_eval_res_{}.pkl'.format(sets), 'wb') as fh:
             pickle.dump(detections, fh)
             pickle.dump(im_paths, fh)
     else:
