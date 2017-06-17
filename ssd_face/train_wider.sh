@@ -26,15 +26,15 @@ python train.py \
     --network spotnet_lighter_bnfixed \
     --batch-size 4 \
     --gpu 1 \
-    --prefix model/spotnet_lighter2_clonefixed \
+    --prefix model/spotnet_lighter2_clonefixed2 \
     --data-shape 768 \
-    --frequent 200 \
+    --frequent 800 \
     --lr 1e-04 \
     --lr-factor 0.1 \
-    --lr-steps 3,3 \
+    --lr-steps 3,4 \
     --wd 1e-04 \
-    --resume 11 
-    # --pretrained model/spotnet_lighter2_bnfixed_768 \
-    # --epoch 0
+    --pretrained model/spotnet_lighter2_bnfixed_768 \
+    --epoch 0
+    # --resume 11 
     # --monitor 2000 \
     # --lr-steps 10,15,18,21 \
