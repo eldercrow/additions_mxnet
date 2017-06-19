@@ -112,6 +112,7 @@ class DetIter(mx.io.DataIter):
         """
         batch_data = mx.nd.zeros((self.batch_size, 3, self._data_shape[0], self._data_shape[1]))
         batch_label = []
+        # batch_lidx = []
         for i in range(self.batch_size):
             if (self._current + i) >= self._size:
                 if not self.is_train:
@@ -128,14 +129,20 @@ class DetIter(mx.io.DataIter):
             img = mx.img.imdecode(img_content)
             gt = self._imdb.label_from_index(index).copy() if self.is_train else None
             data, label = self._data_augmentation(img, gt)
+            # data, label, lidx = self._data_augmentation(img, gt)
             batch_data[i] = data
             if self.is_train:
                 batch_label.append(label)
+                # batch_lidx.append(lidx)
         self._data = {'data': batch_data}
         if self.is_train:
             self._label = {'label': mx.nd.array(np.array(batch_label))}
+            # self._label = {'label': mx.nd.array(np.array(batch_label)), \
+            #                'index': mx.nd.array(np.array(index)), \
+            #                'lidx': mx.nd.array(np.array(batch_lidx))}
         else:
             self._label = {'label': None}
+            # self._label = {'label': None, 'index': None, 'lidx': None}
 
     def _data_augmentation(self, data, label):
         """
@@ -158,6 +165,7 @@ class DetIter(mx.io.DataIter):
                 ymax = int(crop[3] * height)
                 data = crop_roi_patch(data.asnumpy(), (xmin, ymin, xmax, ymax))
                 label = rand_crops[index][1]
+                # index = rand_crops[index][2]
         if self.is_train:
             interp_methods = [cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_AREA, \
                               cv2.INTER_NEAREST, cv2.INTER_LANCZOS4]
@@ -206,3 +214,4 @@ class DetIter(mx.io.DataIter):
         data = data.astype('float32')
         data = data - self._mean_pixels
         return data, label
+        # return data, label, index

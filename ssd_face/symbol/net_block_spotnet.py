@@ -120,6 +120,15 @@ def clone_bn(data, name, src_layer):
     return bn
 
 
+def clone_in(data, name, src_layer):
+    attrs = src_layer.list_attr()
+    inputs = src_layer.get_children()
+
+    bn = mx.symbol.InstanceNorm(
+        name=name, data=data, beta=inputs[2], gamma=inputs[1], **attrs)
+    return bn
+
+
 def clone_bn_relu_conv(data, prefix_name='', src_syms=None):
     assert prefix_name != ''
     conv_name = prefix_name + 'conv'

@@ -337,7 +337,11 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Resume training with {} from epoch {}"
             .format(ctx_str, resume))
         mod = PlateauModule.load(prefix, resume, load_optimizer_states=True,
-                label_names=[('label')], logger=logger, context=ctx)
+                label_names=('label',), logger=logger, context=ctx)
+        import ipdb
+        ipdb.set_trace()
+        # mod = PlateauModule.load(prefix, resume, load_optimizer_states=True,
+        #         label_names=[('label', 'index', 'lidx')], logger=logger, context=ctx)
         # mod = mx.mod.Module.load(prefix, resume, load_optimizer_states=True,
         #         label_names=[('label')], logger=logger, context=ctx)
         args = None
@@ -366,8 +370,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Start training with {} from pretrained model {}"
             .format(ctx_str, pretrained))
         _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
-        del args['loc_beta']
-        del args['cls_beta']
+        # del args['loc_beta']
+        # del args['cls_beta']
         # del auxs['multibox_target_mean_pos_prob_bias']
         # del auxs['multibox_target_target_loc_weight']
         # args = convert_pretrained(pretrained, args)
@@ -393,9 +397,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     num_example=imdb.num_images
     # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
     #         lr_refactor_ratio, num_example, batch_size, begin_epoch)
-    eval_weights = {'Loss': 1.0, 'Smoothl1': 1.0, 'LossOrig': 0.0}
-    plateau_lr = PlateauScheduler(
-            patient_epochs=lr_refactor_step, factor=lr_refactor_ratio, eval_weights=eval_weights)
+    eval_weights = {'Loss': 1.0, 'SmoothL1': 1.0, 'Acc': 0.0}
+    plateau_lr = PlateauScheduler(patient_epochs=lr_refactor_step, factor=lr_refactor_ratio, eval_weights=eval_weights)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'clip_gradient': 10.0,
@@ -412,7 +415,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         [ScaleInitializer(), mx.init.Xavier(magnitude=2.34)])
 
     mod.fit(train_iter,
-            plateau_lr, plateau_metric=None, fn_curr_model=prefix+'-currbest.params',
+            plateau_lr, plateau_metric=None, fn_curr_model=prefix+'-1000.params',
             plateau_backtrace=False,
             eval_data=val_iter,
             eval_metric=eval_metric, # MultiBoxMetric(),

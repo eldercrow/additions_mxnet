@@ -49,6 +49,9 @@ def inception_group(data,
     syms['concat'] = s
 
     if num_filter_incep != n_curr_ch:
+        # data = mx.sym.Convolution(data, name=prefix_name + 'proj/conv', 
+        #         num_filter=num_filter_incep, kernel=(1,1))
+        # syms['proj_data'] = data
         data, s = bn_relu_conv(
             data,
             prefix_name=prefix_name + 'proj/',
@@ -83,6 +86,7 @@ def clone_inception_group(data, prefix_group_name, src_syms):
     concat_ = clone_bn_relu_conv(concat_, prefix_name + 'concat/', src_syms['concat'])
 
     if 'proj_data' in src_syms:
+        # data = clone_conv(data, name=prefix_name+'proj/conv', src_layer=src_syms['proj_data'])
         data = clone_bn_relu_conv(
             data,
             prefix_name=prefix_name + 'proj/',
@@ -161,18 +165,19 @@ def multibox_layer(from_layers,
         num_cls_pred = num_anchors * num_classes
 
         if k == clone_ref:
-            # fc_as_conv, ref_fc = bn_relu_conv(
-            #     from_layer,
-            #     prefix_name='{}_fc/clone/'.format(from_name),
-            #     num_filter=128,
-            #     kernel=(1, 1),
-            #     pad=(0, 0),
-            #     use_global_stats=use_global_stats,
-            #     get_syms=True)
+            from_layer, ref_fc = bn_relu_conv(
+                from_layer,
+                prefix_name='{}_fc/clone/'.format(from_name),
+                num_filter=128,
+                kernel=(1, 1),
+                pad=(0, 0),
+                use_global_stats=use_global_stats,
+                get_syms=True)
+
             pred_conv, ref_syms = bn_relu_conv(
                 from_layer,
                 prefix_name='{}_pred/clone/'.format(from_name),
-                num_filter=num_loc_pred + num_cls_pred,
+                num_filter=num_cls_pred+num_loc_pred,
                 kernel=(3, 3),
                 pad=(1, 1),
                 num_group=1,
@@ -180,26 +185,28 @@ def multibox_layer(from_layers,
                 use_global_stats=use_global_stats,
                 get_syms=True)  # (n ac h w)
         elif k in clone_idx:
-            # fc_as_conv = clone_bn_relu_conv(
-            #     from_layer,
-            #     prefix_name='{}_fc/clone/'.format(from_name),
-            #     src_syms=ref_fc)
+            from_layer = clone_bn_relu_conv(
+                from_layer,
+                prefix_name='{}_fc/clone/'.format(from_name),
+                src_syms=ref_fc)
+
             pred_conv = clone_bn_relu_conv(
                 from_layer,
                 prefix_name='{}_pred/clone/'.format(from_name),
                 src_syms=ref_syms)
         else:
-            # fc_as_conv = bn_relu_conv(
-            #     from_layer,
-            #     prefix_name='{}_fc/'.format(from_name),
-            #     num_filter=128,
-            #     kernel=(1, 1),
-            #     pad=(0, 0),
-            #     use_global_stats=use_global_stats)
+            from_layer = bn_relu_conv(
+                from_layer,
+                prefix_name='{}_fc/'.format(from_name),
+                num_filter=128,
+                kernel=(1, 1),
+                pad=(0, 0),
+                use_global_stats=use_global_stats)
+
             pred_conv = bn_relu_conv(
                 from_layer,
                 prefix_name='{}_pred/'.format(from_name),
-                num_filter=num_loc_pred + num_cls_pred,
+                num_filter=num_cls_pred+num_loc_pred,
                 kernel=(3, 3),
                 pad=(1, 1),
                 num_group=1,
@@ -273,7 +280,7 @@ def get_spotnet(n_classes, patch_size, use_global_stats, n_group=5):
     pool4 = pool(groups[-1])
 
     # context layer
-    n_curr_ch = 256
+    # n_curr_ch = 256
     nf_3x3_ctx = (64, 32, 32)
     group_ctx = pool4
     for i in range(2):
@@ -324,6 +331,8 @@ def get_spotnet(n_classes, patch_size, use_global_stats, n_group=5):
         use_global_stats=use_global_stats,
         get_syms=True)
     group_i, sym_dn = data_norm(group_i, name='dn/3', nch=64, get_syms=True)
+    # group_i = mx.sym.InstanceNorm(group_i, name='dn/3')
+    sym_in = group_i
     n_curr_ch = 64
     nf_3x3_ref = (32, 16, 16)
     syms_unit = []
@@ -344,6 +353,7 @@ def get_spotnet(n_classes, patch_size, use_global_stats, n_group=5):
         group_cloned = clone_bn_relu_conv(
             group_cloned, 'g{}/proj/clone/'.format(i), syms_proj)
         group_cloned = data_norm(group_cloned, name='dn/{}'.format(i), nch=64, bias=sym_dn['bias'])
+        # group_cloned = clone_in(group_cloned, name='dn/{}'.format(i), src_layer=sym_in)
         for j in range(1):
             group_cloned = clone_inception_group(
                 group_cloned, 'g{}/u{}/clone/'.format(i, j), syms_unit[j])
@@ -378,7 +388,9 @@ def get_spotnet(n_classes, patch_size, use_global_stats, n_group=5):
 
     # clone reference layer
     clone_ref = 3
-    groups[clone_ref], sym_dn_hyper = data_norm(groups[clone_ref], name='dn/hyper/3', nch=64, get_syms=True)
+    # groups[clone_ref], sym_dn_hyper = data_norm(groups[clone_ref], name='dn/hyper/3', nch=128, get_syms=True)
+    # groups[clone_ref] = mx.sym.InstanceNorm(groups[clone_ref], name='dn/hyper/3')
+    sym_in_hyper = groups[clone_ref]
     conv096, src_syms = bn_relu_conv(
         groups[clone_ref],
         prefix_name='hyper096/clone/',
@@ -394,7 +406,8 @@ def get_spotnet(n_classes, patch_size, use_global_stats, n_group=5):
     for i in range(clone_ref + 1, len(groups)):
         rf = int((2.0**i) * 12.0)
         prefix_name = 'hyper{}/clone/'.format(rf)
-        groups[i] = data_norm(groups[i], name='dn/hyper/{}'.format(i), nch=64, bias=sym_dn_hyper['bias'])
+        # groups[i] = data_norm(groups[i], name='dn/hyper/{}'.format(i), nch=128, bias=sym_dn_hyper['bias'])
+        # groups[i] = clone_in(groups[i], name='dn/hyper/{}'.format(i), src_layer=sym_in_hyper)
         conv_ = clone_bn_relu_conv(
             groups[i], prefix_name=prefix_name, src_syms=src_syms)
         from_layers.append(conv_)

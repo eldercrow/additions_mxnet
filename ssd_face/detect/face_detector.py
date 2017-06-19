@@ -120,24 +120,28 @@ class FaceDetector(object):
             dets = np.transpose(dets[:, iidx])
             sidx = np.argsort(dets[:, 1])[::-1]
             dets = dets[sidx, :]
-            vidx = self._do_nms(dets)
-            vdets = dets[vidx, :]
-            vdets[:, 2] *= im_scale[1]
-            vdets[:, 3] *= im_scale[0]
-            vdets[:, 4] *= im_scale[1]
-            vdets[:, 5] *= im_scale[0]
-            overlap = self._comp_overlap(vdets[:, 2:], im_info['im_shape'])
+            dets[:, 2] *= im_scale[1]
+            dets[:, 3] *= im_scale[0]
+            dets[:, 4] *= im_scale[1]
+            dets[:, 5] *= im_scale[0]
+            overlap = self._comp_overlap(dets[:, 2:], im_info['im_shape'])
             iidx = overlap > 0.6
             n_oob = np.where(iidx == False)[0].size
             # if n_oob > 0: 
             #     print('n_oob = {}'.format(n_oob))
-            vdets = vdets[iidx, :]
-            result.append(vdets)
+            dets = dets[iidx, :]
+            dets[:, 2] = np.maximum(dets[:, 2], 0.0)
+            dets[:, 3] = np.maximum(dets[:, 3], 0.0)
+            dets[:, 4] = np.minimum(dets[:, 4], im_info['im_shape'][1])
+            dets[:, 5] = np.minimum(dets[:, 5], im_info['im_shape'][0])
+            vidx = self._do_nms(dets)
+            dets = dets[vidx, :]
+            result.append(dets)
             time_elapsed = timer() - start
-            # print(vdets)
+            # print(dets)
 
             if i % 10 == 0:
-                n_dets = vdets.shape[0]
+                n_dets = dets.shape[0]
                 print('Processing image {}/{}, {} faces detected.'.format(i+1, num_images, n_dets))
         # time_elapsed = timer() - start
         if show_timer:
