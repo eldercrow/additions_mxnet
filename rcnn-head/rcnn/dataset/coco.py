@@ -3,6 +3,7 @@ import cv2
 import os
 import json
 import numpy as np
+from ..config import config
 
 from ..logger import logger
 from imdb import IMDB

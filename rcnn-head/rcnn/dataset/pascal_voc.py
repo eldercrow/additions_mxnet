@@ -15,6 +15,7 @@ from ..logger import logger
 from imdb import IMDB
 from pascal_voc_eval import voc_eval
 from ds_utils import unique_boxes, filter_small_boxes
+from ..config import config
 
 
 class PascalVOC(IMDB):
@@ -33,12 +34,14 @@ class PascalVOC(IMDB):
         self.devkit_path = devkit_path
         self.data_path = os.path.join(devkit_path, 'VOC' + year)
 
-        self.classes = ['__background__',  # always index 0
-                        'aeroplane', 'bicycle', 'bird', 'boat',
-                        'bottle', 'bus', 'car', 'cat', 'chair',
-                        'cow', 'diningtable', 'dog', 'horse',
-                        'motorbike', 'person', 'pottedplant',
-                        'sheep', 'sofa', 'train', 'tvmonitor']
+        self.classes = ( \
+                '__background__', \
+                'aeroplane', 'bicycle', 'bird', 'boat', \
+                'bottle', 'bus', 'car', 'cat', 'chair', \
+                'cow', 'diningtable', 'dog', 'horse', \
+                'motorbike', 'person', 'pottedplant', \
+                'sheep', 'sofa', 'train', 'tvmonitor')
+
         self.num_classes = len(self.classes)
         self.image_set_index = self.load_image_set_index()
         self.num_images = len(self.image_set_index)
@@ -112,6 +115,8 @@ class PascalVOC(IMDB):
         boxes = np.zeros((num_objs, 4), dtype=np.uint16)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
+        if config.USE_PART_BBOX:
+            part_boxes = np.full(boxes.shape, -1, dtype=np.int16)
 
         class_to_index = dict(zip(self.classes, range(self.num_classes)))
         # Load object bounding boxes into a data frame.
@@ -127,12 +132,31 @@ class PascalVOC(IMDB):
             gt_classes[ix] = cls
             overlaps[ix, cls] = 1.0
 
+            if config.USE_PART_BBOX:
+                # try do find head
+                part_obj = obj.find('part')
+                if part_obj is None:
+                    continue
+                part_name = part_obj.find('name').text.lower().string()
+                if part_name != 'head':
+                    continue
+                bbox = part_obj.find('bndbox')
+                x1 = float(bbox.find('xmin').text) - 1
+                y1 = float(bbox.find('ymin').text) - 1
+                x2 = float(bbox.find('xmax').text) - 1
+                y2 = float(bbox.find('ymax').text) - 1
+
+                part_boxes[ix, :] = (x1, y1, x2, y2)
+
         roi_rec.update({'boxes': boxes,
                         'gt_classes': gt_classes,
                         'gt_overlaps': overlaps,
                         'max_classes': overlaps.argmax(axis=1),
                         'max_overlaps': overlaps.max(axis=1),
                         'flipped': False})
+        if config.USE_PART_BBOX:
+            roi_rec['part_boxes'] = part_boxes
+
         return roi_rec
 
     def load_selective_search_roidb(self, gt_roidb):

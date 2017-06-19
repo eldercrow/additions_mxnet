@@ -51,8 +51,8 @@ LABEL_NAMES = ['cls_prob_label']
 DATA_SHAPES = [('data', (1, 3, LONG_SIDE, SHORT_SIDE)), ('im_info', (1, 3))]
 LABEL_SHAPES = None
 # visualization
-CONF_THRESH = 0.5
-NMS_THRESH = 0.3
+CONF_THRESH = 0.7
+NMS_THRESH = 0.333333
 nms = py_nms_wrapper(NMS_THRESH)
 
 
@@ -164,6 +164,8 @@ def main():
         ctx = mx.gpu(args.gpu)
     symbol = get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS)
     predictor = get_net(symbol, args.prefix, args.epoch, ctx)
+    # import ipdb
+    # ipdb.set_trace()
     demo_net(predictor, args.image, args.vis)
 
 

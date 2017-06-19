@@ -6,6 +6,7 @@ import logging
 import mxnet as mx
 import numpy as np
 from distutils.util import strtobool
+from ast import literal_eval
 
 from ..logger import logger
 from rcnn.io.rcnn import sample_rois
@@ -64,30 +65,41 @@ class ProposalTargetOperator(mx.operator.CustomOp):
 
 @mx.operator.register('proposal_target')
 class ProposalTargetProp(mx.operator.CustomOpProp):
-    def __init__(self, num_classes, batch_images, batch_rois, fg_fraction='0.25'):
+    def __init__(self, num_classes, batch_images, batch_rois, use_part=False, fg_fraction='0.25'):
         super(ProposalTargetProp, self).__init__(need_top_grad=False)
         self._num_classes = int(num_classes)
         self._batch_images = int(batch_images)
         self._batch_rois = int(batch_rois)
         self._fg_fraction = float(fg_fraction)
+        self._use_part = bool(literal_eval(str(use_part)))
 
     def list_arguments(self):
-        return ['rois', 'gt_boxes']
+        args = ['rois', 'gt_boxes']
+        if self._use_part:
+            args.append('gt_part_boxes')
+        return args
 
     def list_outputs(self):
-        return ['rois_output', 'label', 'bbox_target', 'bbox_weight']
+        outputs = ['rois_output', 'label', 'bbox_target', 'bbox_weight']
+        if self._use_part:
+            outputs += ['part_label', 'part_target', 'part_weight']
+        return outputs
 
     def infer_shape(self, in_shape):
         rpn_rois_shape = in_shape[0]
         gt_boxes_shape = in_shape[1]
+
+        in_shapes = [rpn_rois_shape, gt_boxes_shape]
+
 
         output_rois_shape = (self._batch_rois, 5)
         label_shape = (self._batch_rois, )
         bbox_target_shape = (self._batch_rois, self._num_classes * 4)
         bbox_weight_shape = (self._batch_rois, self._num_classes * 4)
 
-        return [rpn_rois_shape, gt_boxes_shape], \
-               [output_rois_shape, label_shape, bbox_target_shape, bbox_weight_shape]
+        out_shapes = [output_rois_shape, label_shape, bbox_target_shape, bbox_weight_shape]
+
+        return in_shapes, out_shapes
 
     def create_operator(self, ctx, shapes, dtypes):
         return ProposalTargetOperator(self._num_classes, self._batch_images, self._batch_rois, self._fg_fraction)

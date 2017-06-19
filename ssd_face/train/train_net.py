@@ -394,7 +394,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
     #         lr_refactor_ratio, num_example, batch_size, begin_epoch)
     eval_weights = {'Loss': 1.0, 'Smoothl1': 1.0, 'LossOrig': 0.0}
-    plateau_lr = PlateauScheduler(patient_epochs=lr_refactor_step, eval_weights=eval_weights)
+    plateau_lr = PlateauScheduler(
+            patient_epochs=lr_refactor_step, factor=lr_refactor_ratio, eval_weights=eval_weights)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'clip_gradient': 10.0,

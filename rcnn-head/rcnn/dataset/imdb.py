@@ -14,6 +14,7 @@ import os
 import cPickle
 import numpy as np
 from ..processing.bbox_transform import bbox_overlaps
+from ..config import config
 
 
 class IMDB(object):
@@ -175,6 +176,20 @@ class IMDB(object):
                      'max_classes': roidb[i]['max_classes'],
                      'max_overlaps': roidb[i]['max_overlaps'],
                      'flipped': True}
+            if config.USE_PART_BBOX:
+                if not 'part_boxes' in roi_rec:
+                    logger.info('Warning: no part boxes defined in roidb, adding it automatically.')
+                    roidb[i]['part_boxes'] = np.full_like(boxes, -1)
+                    entry['part_boxes'] = np.full_like(boxes, -1)
+                else:
+                    boxes = roi_rec['part_boxes'].copy()
+                    oldx1 = boxes[:, 0].copy()
+                    oldx2 = boxes[:, 2].copy()
+                    boxes[:, 0] = roi_rec['width'] - oldx2 - 1
+                    boxes[:, 2] = roi_rec['width'] - oldx1 - 1
+                    assert (boxes[:, 2] >= boxes[:, 0]).all()
+                    entry['part_boxes'] = boxes
+
             roidb.append(entry)
 
         self.image_set_index *= 2
@@ -291,4 +306,6 @@ class IMDB(object):
             a[i]['gt_overlaps'] = np.vstack((a[i]['gt_overlaps'], b[i]['gt_overlaps']))
             a[i]['max_classes'] = np.hstack((a[i]['max_classes'], b[i]['max_classes']))
             a[i]['max_overlaps'] = np.hstack((a[i]['max_overlaps'], b[i]['max_overlaps']))
+            if config.USE_PART_BBOX:
+                a[i]['part_boxes'] = np.vstack((a[i]['part_boxes'], b[i]['part_boxes']))
         return a

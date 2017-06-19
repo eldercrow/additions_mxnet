@@ -1,4 +1,5 @@
 import numpy as np
+from ..logger import logger
 
 
 def unique_boxes(boxes, scale=1.0):
@@ -14,3 +15,5 @@ def filter_small_boxes(boxes, min_size):
     h = boxes[:, 3] - boxes[:, 1]
     keep = np.where((w >= min_size) & (h > min_size))[0]
     return keep
+
+

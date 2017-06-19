@@ -11,7 +11,7 @@ def load_gt_roidb(dataset_name, image_set_name, root_path, dataset_path,
     roidb = imdb.gt_roidb()
     if flip:
         roidb = imdb.append_flipped_images(roidb)
-    return roidb
+    return roidb, imdb.classes
 
 
 def load_proposal_roidb(dataset_name, image_set_name, root_path, dataset_path,
@@ -50,3 +50,47 @@ def filter_roidb(roidb):
     logger.info('load data: filtered %d roidb entries: %d -> %d' % (num - num_after, num, num_after))
 
     return filtered_roidb
+
+
+def convert_roidb_class(roidb, src_class, dst_class, remove_bg=True):
+    ''' convert class idx '''
+    if src_class == dst_class:
+        return roidb
+
+    if len(src_class) > len(dst_class):
+        logger.info('Warning: number of source classes are bigger than that of target classes.')
+
+    src2dst = []
+    for scls in src_class:
+        if scls not in dst_class:
+            logger.info('Warning: {} is not in target, will be converted to background.'.format(scls))
+            src2dst.append(0)
+        else:
+            src2dst.append(dst_class.index(scls))
+    src2dst = np.array(src2dst)
+
+    for i, roi_rec in enumerate(roidb):
+        # we need to convert gt_classes, gt_overlaps, max_classes
+        gt_classes = roi_rec['gt_classes']
+        gt_overlaps = np.zeros((gt_classes.size, len(dst_class)), dtype=np.float32)
+        gt_classes = src2dst[gt_classes]
+        gt_overlap[:, gt_classes] = 1.0
+
+        roi_rec['gt_classes'] = gt_classes
+        roi_rec['gt_overlaps'] = gt_overlaps
+        roi_rec['max_classes'] = gt_overlaps.argmax(axis=1)
+
+        if remove_bg == True:
+            idx = np.where(gt_classes != 0)[0]
+            for k, v in roi_rec.items():
+                if k == 'flipped': 
+                    continue
+                if v.ndim == 1:
+                    roi_rec[k] = v[idx]
+                elif v.ndim == 2:
+                    roi_rec[k] = v[idx, :]
+                else:
+                    assert False
+        roidb[i] = roi_rec
+
+    return roidb

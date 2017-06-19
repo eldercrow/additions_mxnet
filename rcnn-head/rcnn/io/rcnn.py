@@ -128,8 +128,22 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
         overlaps = overlaps.max(axis=1)
         labels = gt_boxes[gt_assignment, 4]
 
+    fg_mask = overlaps >= config.TRAIN.FG_THRESH
+    fg_assignment = gt_assignment.copy()
+    fg_assignment[fg_mask == False] = -1
+    labels[fg_mask == False] = 0
+
+    # for each gt_box
+    fg_indexes = []
+    for i in range(gt_boxes.shape[0]):
+        idx = np.where(fg_assignment == i)[0]
+        if len(idx) > 3:
+            idx = npr.choice(idx, 3, replace=False)
+        fg_indexes += idx.tolist()
+    fg_indexes = np.array(fg_indexes)
+
     # foreground RoI with FG_THRESH overlap
-    fg_indexes = np.where(overlaps >= config.TRAIN.FG_THRESH)[0]
+    # fg_indexes = np.where(fg_mask)[0]
     # guard against the case when an image has fewer than fg_rois_per_image foreground RoIs
     fg_rois_per_this_image = np.minimum(fg_rois_per_image, fg_indexes.size)
     # Sample foreground regions without replacement
@@ -196,6 +210,9 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
             part_lidx[pidx] = part_lidx
             part_targets[pidx, :] = part_targets_pidx
             part_weights[pidx, :] = part_weights_pidx
+
+    if bg_rois_per_this_image > fg_rois_per_this_image * 3:
+        labels[(fg_rois_per_this_image*4):] = -1
 
     return rois, labels, bbox_targets, bbox_weights #, part_lidx, part_targets, part_weights
 

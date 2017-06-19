@@ -13,6 +13,7 @@ python train_end2end.py \
   --network pvanet \
   --gpu $1 \
   --prefix model/pva100_voc0712 \
+  --dataset voc+voc \
   --image_set 2007_trainval+2012_trainval \
   --frequent 100 \
   --end_epoch 100 \
@@ -21,6 +22,6 @@ python train_end2end.py \
   --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100_21cls \
   --pretrained_epoch 0
   # --resume \
-  # --begin_epoch 17
+  # --begin_epoch 16
 # python test.py --network resnet --gpu 1
 

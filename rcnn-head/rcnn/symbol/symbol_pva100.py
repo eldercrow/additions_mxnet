@@ -211,7 +211,9 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False, lr_mult=1.0):
     return reluf_rpn, concat_convf
 
 
-def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS):
+def get_pvanet_train(num_classes=config.NUM_CLASSES, 
+                     num_anchors=config.NUM_ANCHORS, 
+                     use_part=config.USE_PART_BBOX):
     ''' network for training '''
     # global parameters, (maybe will be changed)
     no_bias = False
@@ -223,6 +225,8 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
     rpn_label = mx.sym.Variable(name='label')
     rpn_bbox_target = mx.sym.Variable(name='bbox_target')
     rpn_bbox_weight = mx.sym.Variable(name='bbox_weight')
+    if use_part:
+        gt_part_boxes = mx.sym.var(name='gt_part_boxes')
 
     # shared conv layers
     reluf_rpn, concat_convf = \
@@ -244,24 +248,24 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
     rpn_cls_prob = mx.sym.SoftmaxOutput(rpn_cls_score_reshape, label=rpn_label, multi_output=True,
             normalization='valid', use_ignore=True, ignore_label=-1, name='rpn_cls_prob', out_grad=False)
     # [hyunjoon] weighted loss
-    rpn_cls_loss = mx.sym.Custom(rpn_cls_prob, rpn_label, op_type='softmax_loss', 
-            ignore_label=-1, use_ignore=True, multi_output=True, normalization='valid')
-    alpha_rpn_cls = mx.sym.var(name='rpn_cls_beta', shape=(1,), lr_mult=0.1, wd_mult=0.0)
-    w_rpn_cls_loss = rpn_cls_loss * mx.sym.exp(-alpha_rpn_cls) + alpha_rpn_cls # * 1.0
-    w_rpn_cls_loss = mx.sym.MakeLoss(w_rpn_cls_loss, name='rpn_cls_loss') 
-    #         # grad_scale=1.0 / config.TRAIN.RPN_BATCH_SIZE)
+    # rpn_cls_loss = mx.sym.Custom(rpn_cls_prob, rpn_label, op_type='softmax_loss', 
+    #         ignore_label=-1, use_ignore=True, multi_output=True, normalization='valid')
+    # alpha_rpn_cls = mx.sym.var(name='rpn_cls_beta', shape=(1,), lr_mult=1.0, wd_mult=0.0)
+    # w_rpn_cls_loss = rpn_cls_loss * mx.sym.exp(-alpha_rpn_cls) + alpha_rpn_cls # * 1.0
+    # w_rpn_cls_loss = mx.sym.MakeLoss(w_rpn_cls_loss, name='rpn_cls_loss') 
+            # grad_scale=1.0 / config.TRAIN.RPN_BATCH_SIZE)
 
     # bounding box regression
     rpn_bbox_loss_ = rpn_bbox_weight * \
             mx.sym.smooth_l1(rpn_bbox_pred - rpn_bbox_target, name='rpn_bbox_loss_', scalar=3.0)
+    rpn_bbox_loss = mx.sym.MakeLoss(rpn_bbox_loss_, name='rpn_bbox_loss', 
+            grad_scale=1.0 / config.TRAIN.RPN_BATCH_SIZE)
     # [hyunjoon] weighted loss
-    rpn_bbox_loss = mx.sym.sum(rpn_bbox_loss_) / config.TRAIN.RPN_BATCH_SIZE
-    alpha_rpn_bbox = mx.sym.var(name='rpn_bbox_beta', shape=(1,), lr_mult=0.1, wd_mult=0.0)
-    w_rpn_bbox_loss = rpn_bbox_loss * mx.sym.exp(-alpha_rpn_bbox) + alpha_rpn_bbox # * 1.0
-    w_rpn_bbox_loss = mx.sym.MakeLoss(w_rpn_bbox_loss, name='rpn_bbox_loss') 
+    # rpn_bbox_loss = mx.sym.sum(rpn_bbox_loss_) / config.TRAIN.RPN_BATCH_SIZE
+    # alpha_rpn_bbox = mx.sym.var(name='rpn_bbox_beta', shape=(1,), lr_mult=1.0, wd_mult=0.0)
+    # w_rpn_bbox_loss = rpn_bbox_loss * mx.sym.exp(-alpha_rpn_bbox) + alpha_rpn_bbox # * 1.0
+    # w_rpn_bbox_loss = mx.sym.MakeLoss(w_rpn_bbox_loss, name='rpn_bbox_loss') 
     # # ,grad_scale=1.0 / config.TRAIN.RPN_BATCH_SIZE)
-    # rpn_bbox_loss = mx.sym.MakeLoss(rpn_bbox_loss_, name='rpn_bbox_loss', 
-    #         grad_scale=1.0 / config.TRAIN.RPN_BATCH_SIZE)
 
     # ROI proposal
     rpn_cls_act = mx.sym.SoftmaxActivation(data=rpn_cls_score_reshape, mode='channel', name='rpn_cls_act')
@@ -317,22 +321,22 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
     # classification
     cls_score = fullyconnected(fc7_relu, name='cls_score', num_hidden=num_classes)
     cls_prob = mx.sym.SoftmaxOutput(data=cls_score, label=label, name='cls_prob', 
-            normalization='batch', out_grad=True)
+            normalization='valid', use_ignore=True, ignore_label=-1, out_grad=False)
     # [hyunjoon] weighted loss
-    cls_loss = mx.sym.Custom(cls_prob, label, op_type='softmax_loss', normalization='batch')
-    alpha_cls = mx.sym.var(name='cls_beta', shape=(1,), lr_mult=0.1, wd_mult=0.0)
-    w_cls_loss = cls_loss * mx.sym.exp(-alpha_cls) + alpha_cls # * 1.0
-    w_cls_loss = mx.sym.MakeLoss(w_cls_loss, name='cls_loss') #, grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
+    cls_loss = mx.sym.Custom(cls_prob, label, gt_boxes, op_type='softmax_loss', normalization='valid')
+    # alpha_cls = mx.sym.var(name='cls_beta', shape=(1,), lr_mult=1.0, wd_mult=0.0)
+    # w_cls_loss = cls_loss * mx.sym.exp(-alpha_cls) + alpha_cls # * 1.0
+    # w_cls_loss = mx.sym.MakeLoss(w_cls_loss, name='cls_loss') #, grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
     # bounding box regression
     bbox_pred = fullyconnected(fc7_relu, name='bbox_pred', num_hidden=num_classes*4)
     bbox_loss_ = bbox_weight * \
             mx.sym.smooth_l1(bbox_pred - bbox_target, name='bbox_loss_', scalar=1.0)
+    bbox_loss = mx.sym.MakeLoss(bbox_loss_, name='bbox_loss', grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
     # [hyunjoon] weighted loss
-    bbox_loss = mx.sym.sum(bbox_loss_) / config.TRAIN.BATCH_ROIS
-    alpha_bbox = mx.sym.var(name='bbox_beta', shape=(1,), lr_mult=0.1, wd_mult=0.0)
-    w_bbox_loss = bbox_loss * mx.sym.exp(-alpha_bbox) + alpha_bbox # * 1.0
-    w_bbox_loss = mx.sym.MakeLoss(w_bbox_loss, name='bbox_loss') #, grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
-    # bbox_loss = mx.sym.MakeLoss(bbox_loss_, name='bbox_loss', grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
+    # bbox_loss = mx.sym.sum(bbox_loss_) / config.TRAIN.BATCH_ROIS
+    # alpha_bbox = mx.sym.var(name='bbox_beta', shape=(1,), lr_mult=1.0, wd_mult=0.0)
+    # w_bbox_loss = bbox_loss * mx.sym.exp(-alpha_bbox) + alpha_bbox # * 1.0
+    # w_bbox_loss = mx.sym.MakeLoss(w_bbox_loss, name='bbox_loss') #, grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
 
     # reshape output
     label = mx.sym.Reshape(label, name='label_reshape', shape=(config.TRAIN.BATCH_IMAGES, -1))
@@ -341,10 +345,10 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
     bbox_loss = mx.sym.Reshape(bbox_loss, name='bbox_loss_reshape', 
             shape=(config.TRAIN.BATCH_IMAGES, -1, 4 * num_classes))
 
-    group = mx.sym.Group([w_rpn_cls_loss, w_rpn_bbox_loss, mx.sym.BlockGrad(rpn_cls_prob), \
-            w_cls_loss, w_bbox_loss, mx.sym.BlockGrad(cls_prob), mx.sym.BlockGrad(label)])
-    # group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss,  \
-    #         cls_prob, bbox_loss, mx.sym.BlockGrad(label)])
+    # group = mx.sym.Group([w_rpn_cls_loss, w_rpn_bbox_loss, mx.sym.BlockGrad(rpn_cls_prob), \
+    #         w_cls_loss, w_bbox_loss, mx.sym.BlockGrad(cls_prob), mx.sym.BlockGrad(label)])
+    group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss,  \
+            cls_prob, bbox_loss, mx.sym.BlockGrad(label), mx.sym.BlockGrad(cls_loss)])
     return group
 
 
