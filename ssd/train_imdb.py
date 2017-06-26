@@ -21,13 +21,15 @@ def parse_args():
     parser.add_argument('--devkit-path', dest='devkit_path', help='VOCdevkit path', 
                         default=os.path.join(os.getcwd(), 'data', 'VOCdevkit'), type=str)
     parser.add_argument('--network', dest='network', type=str, default='pva100_ssd_512',
-                        choices=['vgg16_ssd_300', 'pva100_ssd_512'], help='which network to use')
+                        choices=['pva100_ssd_256', 'pva100_ssd_512'], help='which network to use')
     parser.add_argument('--batch-size', dest='batch_size', type=int, default=32,
                         help='training batch size')
     parser.add_argument('--resume', dest='resume', type=int, default=-1,
                         help='resume training from epoch n')
     parser.add_argument('--finetune', dest='finetune', type=int, default=-1,
                         help='finetune from epoch n, rename the model before doing this')
+    parser.add_argument('--from-scratch', dest='from_scratch', type=int, default=0,
+                        help='experimental from scratch training')
     parser.add_argument('--pretrained', dest='pretrained', help='pretrained model prefix',
                         default=os.path.join(os.getcwd(), 'model', 'vgg16_reduced'), type=str)
     parser.add_argument('--epoch', dest='epoch', help='epoch of pretrained model',
@@ -111,7 +113,7 @@ if __name__ == '__main__':
     # start training
     train_net(args.network, args.dataset, args.image_set, args.devkit_path,
               args.batch_size, args.data_shape, [args.mean_r, args.mean_g, args.mean_b],
-              args.resume, args.finetune, args.pretrained,
+              args.resume, args.finetune, args.from_scratch, args.pretrained,
               args.epoch, args.prefix, ctx, args.begin_epoch, args.end_epoch,
               args.frequent, args.learning_rate, args.momentum, args.weight_decay,
               args.lr_refactor_step, args.lr_refactor_ratio,

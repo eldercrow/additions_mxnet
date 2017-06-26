@@ -124,7 +124,7 @@ def residual_inc(lhs, rhs, prefix_lhs, prefix_rhs, num_filter, stride, no_bias, 
     return relu, elt
 
 
-def pvanet_multibox(data, num_classes, use_global_stats=True, no_bias=False, lr_mult=1.0):
+def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no_bias=False, lr_mult=1.0):
     ''' pvanet 10.0 '''
     conv1 = conv_bn_relu(data, group_name='conv1',
             num_filter=16, kernel=(4,4), pad=(1,1), stride=(2,2), no_bias=no_bias,
@@ -203,7 +203,7 @@ def pvanet_multibox(data, num_classes, use_global_stats=True, no_bias=False, lr_
             use_global_stats=use_global_stats, lr_mult=lr_mult)
 
     from_layers = [convf]
-    sizes = [[32.0 / 512.0,]]
+    sizes = [[32.0 / float(patch_size),]]
     feat_strides = [16, 32, 64, 128, 256]
     for fs in feat_strides[1:]:
         projf = conv_bn_relu(convf, group_name='projf_{}'.format(fs),
@@ -213,11 +213,15 @@ def pvanet_multibox(data, num_classes, use_global_stats=True, no_bias=False, lr_
                 num_filter=256, pad=(1,1), kernel=(3,3), stride=(2,2), no_bias=no_bias,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         from_layers.append(convf)
-        sizes.append([fs * 2.0 / 512.0,])
+        sz = fs * 2.0 / float(patch_size)
+        sizes.append([sz,])
+        if sz >= 1.0:
+            break
 
     ratios = [[1.0, 0.5, 2.0]] * len(from_layers)
     normalizations = [(-1)] * len(from_layers)
     num_channels = []
+    feat_strides = feat_strides[:len(from_layers)]
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(from_layers, \
             num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \

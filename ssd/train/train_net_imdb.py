@@ -79,7 +79,7 @@ def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
         return (lr, lr_scheduler)
 
 def train_net(net, dataset, image_set, devkit_path, batch_size,
-              data_shape, mean_pixels, resume, finetune, pretrained, epoch,
+              data_shape, mean_pixels, resume, finetune, from_scratch, pretrained, epoch,
               prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
               momentum, weight_decay, lr_refactor_step, lr_refactor_ratio,
               year='', val_image_set=None, val_year='', freeze_layer_pattern='',
@@ -215,8 +215,6 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         train_iter = PatchIter(imdb, batch_size, data_shape[1], mean_pixels, is_train=True)
         val_iter = None
 
-    import ipdb
-    ipdb.set_trace()
 
     # load symbol
     sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
@@ -231,6 +229,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     else:
         fixed_param_names = None
 
+    import ipdb
+    ipdb.set_trace()
     # load pretrained or resume from previous state
     ctx_str = '('+ ','.join([str(c) for c in ctx]) + ')'
     if resume > 0:
@@ -246,6 +246,11 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         # the prediction convolution layers name starts with relu, so it's fine
         fixed_param_names = [name for name in net.list_arguments() \
             if name.startswith('conv')]
+    elif from_scratch:
+        logger.info('From scratch training.')
+        args = None
+        auxs = None
+        fixed_param_names = None
     elif pretrained:
         logger.info("Start training with {} from pretrained model {}"
             .format(ctx_str, pretrained))
@@ -270,7 +275,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
     learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
-        lr_refactor_ratio, num_example, batch_size, begin_epoch)
+        lr_refactor_ratio, imdb.num_images, batch_size, begin_epoch)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'clip_gradient': 10.0,

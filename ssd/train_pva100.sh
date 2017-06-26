@@ -1,6 +1,9 @@
 #!/usr/bin/bash
 python train_imdb.py \
     --dataset pascal_voc_patch \
-    --network pva100_ssd_512 \
+    --year 2007 \
+    --network pva100_ssd_256 \
     --data-shape 256 \
-    --val-image-set ''
+    --val-image-set '' \
+    --from-scratch 1 \
+    --end-epoch 1
