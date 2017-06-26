@@ -310,13 +310,13 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES,
 
     fc6 = fullyconnected(flat5, name='fc6', num_hidden=4096)
     fc6_bn = batchnorm(fc6, name='fc6/bn', use_global_stats=True, fix_gamma=False)
-    fc6_dropout = mx.sym.Dropout(fc6_bn, name='fc6/dropout', p=0.25)
-    fc6_relu = mx.sym.Activation(fc6_dropout, name='fc6/relu', act_type='relu')
+    # fc6_dropout = mx.sym.Dropout(fc6_bn, name='fc6/dropout', p=0.25)
+    fc6_relu = mx.sym.Activation(fc6_bn, name='fc6/relu', act_type='relu')
 
     fc7 = fullyconnected(fc6_relu, name='fc7', num_hidden=4096)
     fc7_bn = batchnorm(fc7, name='fc7/bn', use_global_stats=True, fix_gamma=False)
-    fc7_dropout = mx.sym.Dropout(fc7_bn, name='fc7/dropout', p=0.25)
-    fc7_relu = mx.sym.Activation(fc7_dropout, name='fc7/relu', act_type='relu')
+    # fc7_dropout = mx.sym.Dropout(fc7_bn, name='fc7/dropout', p=0.25)
+    fc7_relu = mx.sym.Activation(fc7_bn, name='fc7/relu', act_type='relu')
 
     # classification
     cls_score = fullyconnected(fc7_relu, name='cls_score', num_hidden=num_classes)

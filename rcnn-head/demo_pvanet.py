@@ -113,7 +113,7 @@ def demo_net(predictor, image_name, vis=False):
     assert os.path.exists(image_name), image_name + ' not found'
     im = cv2.imread(image_name)
     data_batch, data_names, im_scale = generate_batch(im)
-    scores, boxes, data_dict = im_detect(predictor, data_batch, data_names, im_scale)
+    scores, boxes, data_dict, _ = im_detect(predictor, data_batch, data_names, im_scale)
 
     all_boxes = [[] for _ in CLASSES]
     for cls in CLASSES:

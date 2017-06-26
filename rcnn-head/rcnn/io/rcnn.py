@@ -135,12 +135,18 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
 
     # for each gt_box
     fg_indexes = []
+    re_indexes = []
     for i in range(gt_boxes.shape[0]):
         idx = np.where(fg_assignment == i)[0]
-        if len(idx) > 3:
-            idx = npr.choice(idx, 3, replace=False)
-        fg_indexes += idx.tolist()
+        if len(idx) > 5:
+            fidx = npr.choice(idx, 5, replace=False)
+            ridx = np.setdiff1d(idx, fidx)
+            fg_indexes += fidx.tolist()
+            re_indexes += ridx.tolist()
+        else:
+            fg_indexes += idx.tolist()
     fg_indexes = np.array(fg_indexes)
+    re_indexes = np.array(re_indexes)
 
     # foreground RoI with FG_THRESH overlap
     # fg_indexes = np.where(fg_mask)[0]
@@ -153,40 +159,77 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
     # Select background RoIs as those within [BG_THRESH_LO, BG_THRESH_HI)
     bg_indexes = np.where((overlaps < config.TRAIN.BG_THRESH_HI) & (overlaps >= config.TRAIN.BG_THRESH_LO))[0]
     # Compute number of background RoIs to take from this image (guarding against there being fewer than desired)
-    bg_rois_per_this_image = rois_per_image - fg_rois_per_this_image
+    bg_rois_per_this_image = np.maximum(1, fg_rois_per_this_image * 3)
+    bg_rois_per_this_image = np.minimum(bg_rois_per_this_image, rois_per_image - fg_rois_per_this_image)
     bg_rois_per_this_image = np.minimum(bg_rois_per_this_image, bg_indexes.size)
     # Sample foreground regions without replacement
     if len(bg_indexes) > bg_rois_per_this_image:
         bg_indexes = npr.choice(bg_indexes, size=bg_rois_per_this_image, replace=False)
+
+    # regression target
+    re_rois_per_this_image = np.maximum(0, rois_per_image - fg_rois_per_this_image - bg_rois_per_this_image)
+    if len(re_indexes) > re_rois_per_this_image:
+        re_indexes = npr.choice(re_indexes, size=re_rois_per_this_image, replace=False)
     
     # indexes selected
     keep_indexes = np.append(fg_indexes, bg_indexes)
 
     # pad more to ensure a fixed minibatch size
-    while keep_indexes.shape[0] < rois_per_image:
-        gap = np.minimum(len(rois), rois_per_image - keep_indexes.shape[0])
-        gap_indexes = npr.choice(range(len(rois)), size=gap, replace=False)
-        keep_indexes = np.append(keep_indexes, gap_indexes)
+    # while keep_indexes.shape[0] < rois_per_image:
+    #     gap = np.minimum(len(rois), rois_per_image - keep_indexes.shape[0])
+    #     gap_indexes = npr.choice(range(len(rois)), size=gap, replace=False)
+    #     keep_indexes = np.append(keep_indexes, gap_indexes)
 
     # select labels
+    labels_orig = labels.copy()
+    rois_orig = rois.copy()
+
     labels = labels[keep_indexes]
     # set labels of bg_rois to be 0
-    labels[fg_rois_per_this_image:] = 0
+    # labels[fg_rois_per_this_image:] = 0
     rois = rois[keep_indexes]
 
+    assert bbox_targets is None
+    bbox_targets, bbox_weights = _compute_bbox_targets( \
+            rois[:, 1:], gt_boxes[gt_assignment[keep_indexes], :4], labels, num_classes)
+
+    # append regression targets
+    if re_indexes.size > 0:
+        labels_re = labels_orig[re_indexes]
+        rois_re = rois_orig[re_indexes]
+        bbox_targets_re, bbox_weights_re = _compute_bbox_targets( \
+                rois_re[:, 1:], gt_boxes[gt_assignment[re_indexes], :4], labels_re, num_classes)
+        rois = np.vstack((rois, rois_re))
+        bbox_targets = np.vstack((bbox_targets, bbox_targets_re))
+        bbox_weights = np.vstack((bbox_weights, bbox_weights_re))
+        labels = np.append(labels, np.full_like(labels_re, -1))
+
+    # pad to fit rois_per_image
+    if labels.size < rois_per_image:
+        pad_sz = rois_per_image - labels.size
+        rois_pad = np.zeros((pad_sz, rois.shape[1]), dtype=rois.dtype)
+        bbox_targets_pad = np.zeros((pad_sz, bbox_targets.shape[1]), dtype=bbox_targets.dtype)
+        bbox_weights_pad = np.zeros((pad_sz, bbox_weights.shape[1]), dtype=bbox_weights.dtype)
+
+        labels = np.append(labels, np.full((pad_sz,), -1, dtype=labels.dtype))
+        rois = np.vstack((rois, rois_pad))
+        bbox_targets = np.vstack((bbox_targets, bbox_targets_pad))
+        bbox_weights = np.vstack((bbox_weights, bbox_weights_pad))
+
     # load or compute bbox_target
-    if bbox_targets is not None:
-        bbox_target_data = bbox_targets[keep_indexes, :]
-    else:
-        targets = bbox_transform(rois[:, 1:], gt_boxes[gt_assignment[keep_indexes], :4])
-        if config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED:
-            targets = ((targets - np.array(config.TRAIN.BBOX_MEANS))
-                       / np.array(config.TRAIN.BBOX_STDS))
-        bbox_target_data = np.hstack((labels[:, np.newaxis], targets))
+    # if bbox_targets is not None:
+    #     bbox_target_data = bbox_targets[keep_indexes, :]
+    # else:
+    #     targets = bbox_transform(rois[:, 1:], gt_boxes[gt_assignment[keep_indexes], :4])
+    #     if config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED:
+    #         targets = ((targets - np.array(config.TRAIN.BBOX_MEANS))
+    #                    / np.array(config.TRAIN.BBOX_STDS))
+    #     bbox_target_data = np.hstack((labels[:, np.newaxis], targets))
+    #
+    # bbox_targets, bbox_weights = \
+    #     expand_bbox_regression_targets(bbox_target_data, num_classes)
 
-    bbox_targets, bbox_weights = \
-        expand_bbox_regression_targets(bbox_target_data, num_classes)
-
+    '''
     # compute part classification and regression target
     part_targets = None
     part_weights = None
@@ -210,9 +253,21 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
             part_lidx[pidx] = part_lidx
             part_targets[pidx, :] = part_targets_pidx
             part_weights[pidx, :] = part_weights_pidx
-
-    if bg_rois_per_this_image > fg_rois_per_this_image * 3:
-        labels[(fg_rois_per_this_image*4):] = -1
+    '''
+    # if bg_rois_per_this_image > fg_rois_per_this_image * 3:
+    #     labels[(fg_rois_per_this_image*4):] = -1
 
     return rois, labels, bbox_targets, bbox_weights #, part_lidx, part_targets, part_weights
 
+
+def _compute_bbox_targets(rois, gt_boxes, labels, num_classes):
+    targets = bbox_transform(rois, gt_boxes)
+    if config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED:
+        targets = ((targets - np.array(config.TRAIN.BBOX_MEANS))
+                   / np.array(config.TRAIN.BBOX_STDS))
+    bbox_target_data = np.hstack((labels[:, np.newaxis], targets))
+
+    bbox_targets, bbox_weights = \
+        expand_bbox_regression_targets(bbox_target_data, num_classes)
+
+    return bbox_targets, bbox_weights

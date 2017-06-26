@@ -177,12 +177,10 @@ class RandScaler(RandSampler):
         #     count += 1
         # return samples
 
-def _compute_overlap(roi, img_roi, asp_x=1.0, asp_y=1.0):
+def _compute_overlap(roi, img_roi):
     #
     ox = _compute_overlap_1d(roi[0], roi[2], img_roi[0], img_roi[2])
     oy = _compute_overlap_1d(roi[1], roi[3], img_roi[1], img_roi[3])
-    ox = ox ** asp_y
-    oy = oy ** asp_x
     return ox * oy
     
 def _compute_overlap_1d(p0, p1, q0, q1):

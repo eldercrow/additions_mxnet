@@ -148,17 +148,26 @@ def assign_anchor(feat_shape, gt_boxes, im_info, feat_stride=16,
         max_overlaps = overlaps[np.arange(len(inds_inside)), argmax_overlaps]
         gt_argmax_overlaps = overlaps.argmax(axis=0)
         gt_max_overlaps = overlaps[gt_argmax_overlaps, np.arange(overlaps.shape[1])]
-        gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
+        # gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
 
         if not config.TRAIN.RPN_CLOBBER_POSITIVES:
             # assign bg labels first so that positive labels can clobber them
             labels[max_overlaps < config.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
 
         # fg label: for each gt, anchor with highest overlap
-        labels[gt_argmax_overlaps] = 1
+        # labels[gt_argmax_overlaps] = 1
 
-        # fg label: above threshold IoU
-        labels[max_overlaps >= config.TRAIN.RPN_POSITIVE_OVERLAP] = 1
+        for i in range(gt_boxes.shape[0]):
+            fg_mask = max_overlaps >= np.minimum(gt_max_overlaps[i], config.TRAIN.RPN_POSITIVE_OVERLAP)
+            fidx = np.where(np.logical_and(argmax_overlaps == i, fg_mask))[0]
+            if len(fidx) > 5:
+                pidx = npr.choice(fidx, 5, replace=False)
+                iidx = np.setdiff1d(fidx, pidx)
+                labels[pidx] = 1
+                labels[iidx] = 2 # will be modified after computeing bbox_weights
+            else:
+                labels[fidx] = 1
+        # labels[max_overlaps >= config.TRAIN.RPN_POSITIVE_OVERLAP] = 1
 
         if config.TRAIN.RPN_CLOBBER_POSITIVES:
             # assign bg labels last so that negative labels can clobber positives
@@ -177,6 +186,7 @@ def assign_anchor(feat_shape, gt_boxes, im_info, feat_stride=16,
 
     # subsample negative labels if we have too many
     num_bg = config.TRAIN.RPN_BATCH_SIZE - np.sum(labels == 1)
+    # num_bg = np.minimum(num_bg, len(fg_inds) * 3)
     bg_inds = np.where(labels == 0)[0]
     if len(bg_inds) > num_bg:
         disable_inds = npr.choice(bg_inds, size=(len(bg_inds) - num_bg), replace=False)
@@ -189,7 +199,8 @@ def assign_anchor(feat_shape, gt_boxes, im_info, feat_stride=16,
         bbox_targets[:] = bbox_transform(anchors, gt_boxes[argmax_overlaps, :4])
 
     bbox_weights = np.zeros((len(inds_inside), 4), dtype=np.float32)
-    bbox_weights[labels == 1, :] = np.array(config.TRAIN.RPN_BBOX_WEIGHTS)
+    bbox_weights[labels > 0, :] = np.array(config.TRAIN.RPN_BBOX_WEIGHTS)
+    labels[labels == 2] = -1
 
     if logger.level == logging.DEBUG:
         _sums = bbox_targets[labels == 1, :].sum(axis=0)
