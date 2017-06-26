@@ -131,6 +131,8 @@ class PlateauModule(Module):
                 if fn_curr_model is not None and plateau_backtrace:
                     self.logger.info('Reset network parameters to the previous best result.')
                     super(PlateauModule, self).load_params(fn_curr_model)
+            else:
+                self.logger.info('Current lr = %.6f', self._optimizer.lr)
 
             # end of 1 epoch, reset the data-iter for another epoch
             train_data.reset()
