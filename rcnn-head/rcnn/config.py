@@ -17,6 +17,7 @@ config.SCALES = [(600, 1000)]  # first is scale (the shorter side); second is ma
 config.ANCHOR_SCALES = (8, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 1, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
+config.USE_PART_BBOX = False
 
 config.TRAIN = edict()
 
@@ -26,13 +27,13 @@ config.TRAIN.BATCH_IMAGES = 2
 # e2e changes behavior of anchor loader and metric
 config.TRAIN.END2END = False
 # group images with similar aspect ratio
-config.TRAIN.ASPECT_GROUPING = True
+config.TRAIN.ASPECT_GROUPING = False
 
 # R-CNN
 # rcnn rois batch size
-config.TRAIN.BATCH_ROIS = 128
+config.TRAIN.BATCH_ROIS = 512
 # rcnn rois sampling params
-config.TRAIN.FG_FRACTION = 0.25
+config.TRAIN.FG_FRACTION = 0.5
 config.TRAIN.FG_THRESH = 0.5
 config.TRAIN.BG_THRESH_HI = 0.5
 config.TRAIN.BG_THRESH_LO = 0.0
@@ -54,7 +55,7 @@ config.TRAIN.RPN_POSITIVE_WEIGHT = -1.0
 
 # used for end2end training
 # RPN proposal
-config.TRAIN.CXX_PROPOSAL = True
+config.TRAIN.CXX_PROPOSAL = False
 config.TRAIN.RPN_NMS_THRESH = 0.7
 config.TRAIN.RPN_PRE_NMS_TOP_N = 12000
 config.TRAIN.RPN_POST_NMS_TOP_N = 2000
@@ -87,6 +88,31 @@ config.TEST.PROPOSAL_MIN_SIZE = config.RPN_FEAT_STRIDE
 
 # RCNN nms
 config.TEST.NMS = 0.3
+
+# to handle multiple datasets
+VOC = edict()
+VOC.dataset = 'PascalVOC'
+VOC.image_set = '2007_trainval'
+VOC.test_image_set = '2007_test'
+VOC.root_path = 'data'
+VOC.dataset_path = 'data/VOCdevkit'
+
+COCO = edict()
+COCO.dataset = 'coco'
+COCO.image_set = 'train2014'
+COCO.test_image_set = 'val2014'
+COCO.root_path = 'data'
+COCO.dataset_path = 'data/coco'
+COCO.NUM_CLASSES = 81
+
+PVT = edict()
+PVT.dataset = 'PVTDSS'
+PVT.image_set = '2016_train'
+PVT.test_image_set = '2016_val'
+PVT.root_path = 'data'
+PVT.dataset_path = 'data/PVTdevkit'
+
+config.DATASET = {'voc': VOC, 'coco': COCO, 'pvt': PVT}
 
 # default settings
 default = edict()
@@ -181,9 +207,9 @@ def generate_config(_network, _dataset):
             config[k] = v
         elif k in default:
             default[k] = v
-    for k, v in dataset[_dataset].items():
-        if k in config:
-            config[k] = v
-        elif k in default:
-            default[k] = v
+    # for k, v in dataset[_dataset].items():
+    #     if k in config:
+    #         config[k] = v
+    #     elif k in default:
+    #         default[k] = v
 

@@ -9,4 +9,4 @@ gpu=${1:0:1}
 export MXNET_CUDNN_AUTOTUNE_DEFAULT=0
 export PYTHONUNBUFFERED=1
 
-python test.py --network pvanet --gpu 0 --prefix model/pva100_voc0712 --epoch 29
+python test.py --network pvanet --gpu 0 --prefix model/pva100_voc0712 --epoch 2

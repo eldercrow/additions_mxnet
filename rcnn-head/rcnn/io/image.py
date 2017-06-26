@@ -38,6 +38,9 @@ def get_image(roidb, is_test=False):
         new_rec['boxes'] = roi_rec['boxes'].copy() * im_scale
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
+    if processed_ims[0].shape[2] > 1440 or processed_ims[0].shape[3] > 1440:
+        import ipdb
+        ipdb.set_trace()
     return processed_ims, processed_roidb
 
 

@@ -372,11 +372,18 @@ class AnchorLoader(mx.io.DataIter):
 
             # add gt_boxes to data for e2e
             data['gt_boxes'] = label['gt_boxes'][np.newaxis, :, :]
+            if config.USE_PART_BBOX:
+                data['gt_part_boxes'] = label['gt_part_boxes'][np.newaxis, :, :]
 
             # assign anchor for label
-            label = assign_anchor(feat_shape, label['gt_boxes'], data['im_info'],
-                                  self.feat_stride, self.anchor_scales,
-                                  self.anchor_ratios, self.allowed_border)
+            if config.USE_PART_BBOX:
+                label = assign_anchor(feat_shape, label['gt_boxes'], data['im_info'],
+                                      self.feat_stride, self.anchor_scales,
+                                      self.anchor_ratios, self.allowed_border)
+            else:
+                label = assign_anchor(feat_shape, label['gt_boxes'], data['im_info'],
+                                      self.feat_stride, self.anchor_scales,
+                                      self.anchor_ratios, self.allowed_border)
             new_label_list.append(label)
 
         all_data = dict()

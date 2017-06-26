@@ -125,7 +125,7 @@ def im_detect(predictor, data_batch, data_names, scale):
     # we used scaled image & roi to train, so it is necessary to transform them back
     pred_boxes = pred_boxes / scale
 
-    return scores, pred_boxes, data_dict
+    return scores, pred_boxes, data_dict, rois
 
 
 def pred_eval(predictor, test_data, imdb, vis=False, thresh=1e-3):
@@ -154,6 +154,8 @@ def pred_eval(predictor, test_data, imdb, vis=False, thresh=1e-3):
     all_boxes = [[[] for _ in xrange(num_images)]
                  for _ in xrange(imdb.num_classes)]
 
+    all_rois = []
+
     i = 0
     t = time.time()
     for im_info, data_batch in test_data:
@@ -161,7 +163,8 @@ def pred_eval(predictor, test_data, imdb, vis=False, thresh=1e-3):
         t = time.time()
 
         scale = im_info[0, 2]
-        scores, boxes, data_dict = im_detect(predictor, data_batch, data_names, scale)
+        scores, boxes, data_dict, rois = im_detect(predictor, data_batch, data_names, scale)
+        all_rois.append(rois)
 
         t2 = time.time() - t
         t = time.time()
@@ -197,6 +200,8 @@ def pred_eval(predictor, test_data, imdb, vis=False, thresh=1e-3):
         cPickle.dump(all_boxes, f, protocol=cPickle.HIGHEST_PROTOCOL)
 
     imdb.evaluate_detections(all_boxes)
+    import ipdb
+    ipdb.set_trace()
 
 
 def vis_all_detection(im_array, detections, class_names, scale):

@@ -76,7 +76,7 @@ class RPNLossMetric(mx.metric.EvalMetric):
         label = label[keep_inds]
 
         self.sum_metric += pred.asnumpy()[0]
-        self.num_inst += len(label.flat)
+        self.num_inst += 1.0 #len(label.flat)
 
 
 class RCNNLossMetric(mx.metric.EvalMetric):
@@ -94,7 +94,7 @@ class RCNNLossMetric(mx.metric.EvalMetric):
         label = label.asnumpy().reshape(-1,).astype('int32')
 
         self.sum_metric += pred.asnumpy()[0]
-        self.num_inst += len(label.flat)
+        self.num_inst += 1.0 #len(label.flat)
 
         
 class RPNL1LossMetric(mx.metric.EvalMetric):
@@ -110,7 +110,7 @@ class RPNL1LossMetric(mx.metric.EvalMetric):
         num_inst = np.sum(bbox_weight > 0) / 4
 
         self.sum_metric += bbox_loss[0]
-        self.num_inst += num_inst
+        self.num_inst += 1.0 #num_inst
 
 
 class RCNNL1LossMetric(mx.metric.EvalMetric):
@@ -128,4 +128,4 @@ class RCNNL1LossMetric(mx.metric.EvalMetric):
         num_inst = len(keep_inds)
 
         self.sum_metric += bbox_loss[0]
-        self.num_inst += num_inst
+        self.num_inst += 1.0 #num_inst

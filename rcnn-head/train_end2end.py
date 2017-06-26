@@ -10,7 +10,7 @@ from rcnn.symbol import *
 from rcnn.core import callback, metric, metric_multitask
 from rcnn.core.loader import AnchorLoader
 from rcnn.core.module import MutableModule
-from rcnn.utils.load_data import load_gt_roidb, merge_roidb, filter_roidb
+from rcnn.utils.load_data import load_gt_roidb, merge_roidb, filter_roidb, convert_roidb_class
 from rcnn.utils.load_model import load_param
 from rcnn.core.plateau_lr import PlateauScheduler
 
@@ -19,7 +19,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
               lr=0.001, lr_step='5'):
     # setup config
     config.TRAIN.BATCH_IMAGES = 1
-    config.TRAIN.BATCH_ROIS = 128
+    config.TRAIN.BATCH_ROIS = 512
     config.TRAIN.END2END = True
     config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = True
 
@@ -35,10 +35,28 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     logger.info(pprint.pformat(config))
 
     # load dataset and prepare imdb for training
+    # [hyunjoon] handling multiple datasets
+    datasets = [dset for dset in args.dataset.split('+')]
     image_sets = [iset for iset in args.image_set.split('+')]
-    roidbs = [load_gt_roidb(args.dataset, image_set, args.root_path, args.dataset_path,
-                            flip=not args.no_flip)
-              for image_set in image_sets]
+    if len(datasets) == 1:
+        datasets = datasets * len(image_sets)
+    roidbs = []
+    classes = None
+    for (dset, iset) in zip(datasets, image_sets):
+        assert dset in config.DATASET, 'dataset string should be one of {}.'.format(config.DATASET.keys())
+        dataset = config.DATASET[dset]
+        roidb, cls = load_gt_roidb(dataset.dataset, iset, dataset.root_path, dataset.dataset_path, 
+                    flip=not args.no_flip)
+        if classes is None:
+            classes = cls
+        elif cls != classes:
+            roidb = convert_roidb_class(roidb, cls, classes)
+        roidbs.append(roidb)
+
+    # image_sets = [iset for iset in args.image_set.split('+')]
+    # roidbs = [load_gt_roidb(args.dataset, image_set, args.root_path, args.dataset_path,
+    #                         flip=not args.no_flip)
+    #           for image_set in image_sets]
     roidb = merge_roidb(roidbs)
     roidb = filter_roidb(roidb)
 
@@ -49,7 +67,9 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
                               anchor_ratios=config.ANCHOR_RATIOS, aspect_grouping=config.TRAIN.ASPECT_GROUPING)
 
     # infer max shape
-    max_data_shape = [('data', (input_batch_size, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
+    max_sz = np.max(np.array(config.SCALES))
+    max_data_shape = [('data', (input_batch_size, 3, max_sz, max_sz))]
+    # max_data_shape = [('data', (input_batch_size, 3, max([v[1] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
     max_data_shape, max_label_shape = train_data.infer_shape(max_data_shape)
     max_data_shape.append(('gt_boxes', (input_batch_size, 100, 5)))
     logger.info('providing maximum shape %s %s' % (max_data_shape, max_label_shape))
@@ -65,6 +85,8 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     # load and initialize params
     if args.resume:
         arg_params, aux_params = load_param(prefix, begin_epoch, convert=True)
+        # import ipdb
+        # ipdb.set_trace()
     else:
         arg_params, aux_params = load_param(pretrained, epoch, convert=True)
         arg_params['rpn_cls_beta'] = mx.nd.zeros((1,))
@@ -111,23 +133,23 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
 
     # decide training params
     # metric
-    # rpn_eval_metric = metric.RPNAccMetric()
-    # rpn_cls_metric = metric.RPNLogLossMetric()
-    # rpn_bbox_metric = metric.RPNL1LossMetric()
-    # eval_metric = metric.RCNNAccMetric()
-    # cls_metric = metric.RCNNLogLossMetric()
-    # bbox_metric = metric.RCNNL1LossMetric()
-    # eval_metrics = mx.metric.CompositeEvalMetric()
-    # for child_metric in [rpn_eval_metric, rpn_cls_metric, rpn_bbox_metric, eval_metric, cls_metric, bbox_metric]:
-    #     eval_metrics.add(child_metric)
-    # [hyunjoon] multitask loss metric
+    rpn_eval_metric = metric.RPNAccMetric()
+    rpn_cls_metric = metric.RPNLogLossMetric()
+    rpn_bbox_metric = metric.RPNL1LossMetric()
+    eval_metric = metric.RCNNAccMetric()
+    cls_metric = metric.RCNNLogLossMetric()
+    bbox_metric = metric.RCNNL1LossMetric()
     eval_metrics = mx.metric.CompositeEvalMetric()
-    eval_metrics.add(metric_multitask.RPNLossMetric())
-    eval_metrics.add(metric_multitask.RPNL1LossMetric())
-    eval_metrics.add(metric_multitask.RCNNLossMetric())
-    eval_metrics.add(metric_multitask.RCNNL1LossMetric())
-    eval_metrics.add(metric_multitask.RPNAccMetric())
-    eval_metrics.add(metric_multitask.RCNNAccMetric())
+    for child_metric in [rpn_eval_metric, rpn_cls_metric, rpn_bbox_metric, eval_metric, cls_metric, bbox_metric]:
+        eval_metrics.add(child_metric)
+    # [hyunjoon] multitask loss metric
+    # eval_metrics = mx.metric.CompositeEvalMetric()
+    # eval_metrics.add(metric_multitask.RPNLossMetric())
+    # eval_metrics.add(metric_multitask.RPNL1LossMetric())
+    # eval_metrics.add(metric_multitask.RCNNLossMetric())
+    # eval_metrics.add(metric_multitask.RCNNL1LossMetric())
+    # eval_metrics.add(metric_multitask.RPNAccMetric())
+    # eval_metrics.add(metric_multitask.RCNNAccMetric())
 
     eval_weights = [1.0, 1.0, 0.0, 1.0, 1.0, 0.0]
     plateau_weights = {}
@@ -207,7 +229,7 @@ def parse_args():
 
 
 def main():
-    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+    # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     logger.info('Called with argument: %s' % args)
     ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]

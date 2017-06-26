@@ -22,7 +22,6 @@ class SoftmaxLoss(mx.operator.CustomOp):
         Simply use CPU numpy for this layer.
         '''
         data = in_data[0].asnumpy()
-
         label = in_data[1].asnumpy().ravel().astype(int)
         if self.multi_output:
             n_class = data.shape[1]
@@ -32,6 +31,8 @@ class SoftmaxLoss(mx.operator.CustomOp):
             data = np.reshape(data, (-1, data.shape[-1]))
         else:
             data = np.reshape(data, (data.shape[0], -1))
+
+        gt_boxes = in_data[2].asnumpy()
 
         is_good = np.all(np.isfinite(data), axis=1)
         if self.use_ignore == True:
@@ -47,6 +48,8 @@ class SoftmaxLoss(mx.operator.CustomOp):
             loss = np.sum(loss) / np.maximum(1, label.size)
 
         # for DEBUG
+        # import ipdb
+        # ipdb.set_trace()
         self.assign(out_data[0], req[0], mx.nd.array((loss,), ctx=in_data[0].context))
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
@@ -72,7 +75,7 @@ class SoftmaxLossProp(mx.operator.CustomOpProp):
         self.normalization = normalization
 
     def list_arguments(self):
-        return ['data', 'label']
+        return ['data', 'label', 'gt_boxes']
 
     def list_outputs(self):
         return ['output']
