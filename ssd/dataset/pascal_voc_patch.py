@@ -45,7 +45,7 @@ class PascalVocPatch(Imdb):
         if random crop is enabled, defines the maximum trial time
         if trial exceed this number, will give up cropping
     """
-    IDX_VER = '170422_2' # for caching
+    IDX_VER = '170626_1' # for caching
 
     def __init__(self, image_set, year, devkit_path, shuffle=True, is_train=True, **kwargs):
         super(PascalVocPatch, self).__init__('voc_patch_' + year + '_' + image_set)
@@ -68,7 +68,7 @@ class PascalVocPatch(Imdb):
                 'patch_shape': 256, 
                 'min_roi_size': 8, 
                 'max_roi_size': 256,
-                'range_rand_scale': None,
+                'range_rand_scale': (0.3333, 1.0),
                 'max_crop_trial': 50,
                 'max_patch_per_image': 16, 
                 'use_difficult': False
@@ -89,14 +89,13 @@ class PascalVocPatch(Imdb):
         # try to load cached data
         cached = self._load_from_cache()
         if cached is None: # no cached data, load from DB (and save)
-            fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
-            self.image_set_index = self._load_image_set_index(shuffle)
-            self.num_orig_images = len(self.image_set_index)
+            self.full_image_set_index = self._load_full_image_set_index(shuffle)
+            self.num_orig_images = len(self.full_image_set_index)
             self.labels, self.img_shapes = self._load_image_labels()
             self._save_to_cache()
         else:
-            self.image_set_index = cached['image_set_index']
-            self.num_orig_images = len(self.image_set_index)
+            self.full_image_set_index = cached['full_image_set_index']
+            self.num_orig_images = len(self.full_image_set_index)
             if 'labels' in cached and 'img_shapes' in cached:
                 self.labels = cached['labels']
                 self.img_shapes = cached['img_shapes']
@@ -105,7 +104,6 @@ class PascalVocPatch(Imdb):
                 self._save_to_cache()
 
         self.patch_im_path = None
-        self.patch_im_scale = None
         self.patch_labels = None
         self.patch_im_path, self.patch_labels = self._build_patch_db()
         self.num_images = len(self.patch_im_path)
@@ -149,7 +147,7 @@ class PascalVocPatch(Imdb):
                     header = cPickle.load(fh)
                     assert header['ver'] == self.IDX_VER, "Version mismatch, re-index DB."
                     iidx = cPickle.load(fh)
-                    cached['image_set_index'] = iidx['image_set_index']
+                    cached['full_image_set_index'] = iidx['full_image_set_index']
                     img_shapes = cPickle.load(fh)
                     cached['img_shapes'] = img_shapes['img_shapes']
                     labels = cPickle.load(fh)
@@ -164,11 +162,11 @@ class PascalVocPatch(Imdb):
         fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
         with open(fn_cache, 'wb') as fh:
             cPickle.dump({'ver': self.IDX_VER}, fh, cPickle.HIGHEST_PROTOCOL)
-            cPickle.dump({'image_set_index': self.image_set_index}, fh, cPickle.HIGHEST_PROTOCOL)
+            cPickle.dump({'full_image_set_index': self.full_image_set_index}, fh, cPickle.HIGHEST_PROTOCOL)
             cPickle.dump({'img_shapes': self.img_shapes}, fh, cPickle.HIGHEST_PROTOCOL)
             cPickle.dump({'labels': self.labels}, fh, cPickle.HIGHEST_PROTOCOL)
 
-    def _load_image_set_index(self, shuffle):
+    def _load_full_image_set_index(self, shuffle):
         """
         find out which indexes correspond to given image set (train or val)
 
@@ -180,13 +178,16 @@ class PascalVocPatch(Imdb):
         ----------
         entire list of images specified in the setting
         """
-        image_set_index_file = os.path.join(self.data_path, 'img', self.image_set + '.txt')
-        assert os.path.exists(image_set_index_file), 'Path does not exist: {}'.format(image_set_index_file)
-        with open(image_set_index_file) as f:
-            image_set_index = [x.strip() for x in f.readlines()]
+        full_image_set_index_file = \
+                os.path.join(self.data_path, 'ImageSets', 'Main', self.image_set + '.txt')
+        assert os.path.exists(full_image_set_index_file), \
+                'Path does not exist: {}'.format(full_image_set_index_file)
+        with open(full_image_set_index_file) as f:
+            full_image_set_index = [x.strip().split()[0] for x in f.readlines()]
         if shuffle:
-            np.random.shuffle(image_set_index)
-        return image_set_index
+            np.random.shuffle(full_image_set_index)
+        
+        return full_image_set_index
 
     # we will index image path and label using other functions, 
     # the original functions will be used to refer patch based info.
@@ -202,8 +203,8 @@ class PascalVocPatch(Imdb):
         ----------
         full path of this image
         """
-        assert self.image_set_index is not None, "Dataset not initialized"
-        name = self.image_set_index[index]
+        assert self.full_image_set_index is not None, "Dataset not initialized"
+        name = self.full_image_set_index[index]
         image_file = os.path.join(self.data_path, 'JPEGImages', name + self.extension)
         assert os.path.exists(image_file), 'Path does not exist: {}'.format(image_file)
         return image_file
@@ -274,7 +275,7 @@ class PascalVocPatch(Imdb):
         max_objects = 0
 
         # load ground-truth from xml annotations
-        for idx in self.image_set_index:
+        for idx in self.full_image_set_index:
             label_file = self._label_path_from_index(idx)
             tree = ET.parse(label_file)
             root = tree.getroot()
@@ -292,17 +293,17 @@ class PascalVocPatch(Imdb):
                     continue
                 cls_id = self.classes.index(cls_name)
                 xml_box = obj.find('bndbox')
-                xmin = float(xml_box.find('xmin').text) / width
-                ymin = float(xml_box.find('ymin').text) / height
-                xmax = float(xml_box.find('xmax').text) / width
-                ymax = float(xml_box.find('ymax').text) / height
+                xmin = float(xml_box.find('xmin').text) #/ width
+                ymin = float(xml_box.find('ymin').text) #/ height
+                xmax = float(xml_box.find('xmax').text) #/ width
+                ymax = float(xml_box.find('ymax').text) #/ height
                 label.append([cls_id, xmin, ymin, xmax-xmin, ymax-ymin, difficult])
             if len(label) > max_objects:
                 max_objects = len(label)
             labels.append(np.array(label))
             img_shapes.append((width, height))
-            if label.shape[0] > max_objects:
-                max_objects = label.shape[0]
+            if len(label) > max_objects:
+                max_objects = len(label)
 
         assert max_objects > 0, "No objects found for any of the images"
         return labels, np.array(img_shapes, dtype=np.int32)
@@ -312,13 +313,13 @@ class PascalVocPatch(Imdb):
         patch_labels = np.empty((0, 10))
         for i in range(self.num_orig_images):
             im_path, patch_label = self._sample_patches(i)
+            if i % 500 == 1:
+                print('processing image {}'.format(i))
             if im_path is None:
                 continue
             n_patch = patch_label.shape[0]
             im_paths += [im_path] * n_patch
             patch_labels = np.vstack((patch_labels, patch_label))
-            # if i % 500 == 1:
-            #     print('processing image {}'.format(i))
         return im_paths, patch_labels
         # self.patch_im_path = im_paths
         # self.patch_labels = patch_labels
@@ -331,17 +332,17 @@ class PascalVocPatch(Imdb):
 
     def _sample_patches(self, index):
         """ 
-        sample face patches from self.image_set_index[index] 
+        sample face patches from self.full_image_set_index[index] 
 
         Returns:
         -------
         im_path: relative path of the image, w/o extension
-        scaler: random scale factor applied to this image
-        labels: n * (pos/neg label, 
+        labels: n * (scale, # random scale factor applied to this image
+                     pos/neg label, 
                      xmin_patch, ymin, xmax, ymax, 
                      xmin_target_roi, ymin, xmax, ymax)
         """
-        im_path = self.image_set_index[index]
+        im_path = self.full_image_set_index[index]
         ww_img, hh_img = self.img_shape_from_index(index)
         gt_label = self.full_label_from_index(index).copy() # (n_gt_bbox, 6)
 
@@ -419,13 +420,11 @@ class PascalVocPatch(Imdb):
         neg_labels = np.zeros((neg_rois.shape[0], 9))
         neg_labels[:, 1:5] = neg_rois
         neg_labels[:, 5:] = neg_patch_rois
-        if neg_labels.shape[0] > pos_labels.shape[0]:
-            neg_labels = neg_labels[:pos_labels.shape[0], :]
 
         # 2. semi hard negatives
         hard_neg_patch_rois = np.empty((0, 4))
         hard_neg_rois = np.empty((0, 4))
-        for i in range(3):
+        for i in range(7):
             nprois, nrois = _draw_random_trans_patches(gt_label_pos[:, 1:], -0.05, 0.3, self.patch_shape)
             nprois, nrois, _ = self._check_negative_patches(nprois, nrois, ww_img, hh_img, gt_label[:, 1:])
             hard_neg_patch_rois = np.vstack((hard_neg_patch_rois, nprois))
@@ -434,10 +433,12 @@ class PascalVocPatch(Imdb):
         hard_neg_labels = np.zeros((hard_neg_rois.shape[0], 9))
         hard_neg_labels[:, 1:5] = hard_neg_rois
         hard_neg_labels[:, 5:] = hard_neg_patch_rois
-        if hard_neg_labels.shape[0] > pos_labels.shape[0] * 2:
-            hard_neg_labels = hard_neg_labels[:pos_labels.shape[0] * 2, :]
 
-        rois = np.random.permutation(np.vstack((pos_labels, neg_labels, hard_neg_labels)))
+        neg_labels = np.vstack((neg_labels, hard_neg_labels))
+        if neg_labels.shape[0] > pos_labels.shape[0] * 3:
+            neg_labels = neg_labels[:(pos_labels.shape[0] * 3), :]
+
+        rois = np.random.permutation(np.vstack((pos_labels, neg_labels)))
         # make rois ralative to patch rois
         rois[:, 1] -= rois[:, 5]
         rois[:, 2] -= rois[:, 6]
@@ -471,7 +472,7 @@ class PascalVocPatch(Imdb):
         # iou check
         iou_all = _compute_IOU(neg_rois, gt_label)
         max_iou = np.max(iou_all, axis=1)
-        iidx2 = np.where(max_iou < 0.15)[0]
+        iidx2 = np.where(max_iou < 0.3)[0]
         neg_patch_rois = neg_patch_rois[iidx2, :]
         neg_rois = neg_rois[iidx2, :]
 

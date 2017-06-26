@@ -1,7 +1,9 @@
 import tools.find_mxnet
 import mxnet as mx
 from pascal_voc import PascalVoc
+from pascal_voc_patch import PascalVocPatch
 from concat_db import ConcatDB
+from concat_patch_db import ConcatPatchDB
 
 
 def load_pascal(image_set, year, devkit_path, shuffle=False):
@@ -44,7 +46,7 @@ def load_pascal(image_set, year, devkit_path, shuffle=False):
         return imdbs[0]
 
 
-def load_pascal_patch(image_set, year, devkit_path, shuffule=True):
+def load_pascal_patch(image_set, year, devkit_path, patch_shape, shuffle=True):
     '''
     '''
     image_set = [y.strip() for y in image_set.split(',')]
@@ -61,9 +63,10 @@ def load_pascal_patch(image_set, year, devkit_path, shuffule=True):
 
     imdbs = []
     for s, y in zip(image_set, year):
-        imdbs.append(PascalVocPatch(s, y, devkit_path, shuffle, is_train=True))
+        imdbs.append( \
+                PascalVocPatch(s, y, devkit_path, shuffle=shuffle, is_train=True, patch_shape=patch_shape))
     if len(imdbs) > 1:
-        return ConcatDB(imdbs, shuffle)
+        return ConcatPatchDB(imdbs, merge_classes=False, shuffle=False)
     else:
         return imdbs[0]
 

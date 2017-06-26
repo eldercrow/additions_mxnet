@@ -6,7 +6,8 @@ import os
 import importlib
 import re
 from dataset.iterator import DetIter
-from dataset.dataset_loader import load_pascal
+from dataset.patch_iterator import PatchIter
+from dataset.dataset_loader import load_pascal, load_pascal_patch
 from train.metric import MultiBoxMetric
 from evaluate.eval_metric import MApMetric, VOC07MApMetric
 from tools.rand_sampler import RandScaler
@@ -178,29 +179,41 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             val_imdb = load_pascal(val_image_set, val_year, devkit_path, False)
         else:
             val_imdb = None
+    elif dataset == 'pascal_voc_patch':
+        imdb = load_pascal_patch(image_set, year, devkit_path, shuffle=cfg.train['init_shuffle'], 
+                patch_shape=data_shape[1])
+        if val_image_set and val_image_set != '' and val_year:
+            val_imdb = load_pascal_patch(val_image_set, val_year, devkit_path, shuffle=False, 
+                    patch_shape=data_shape[1])
+        else:
+            val_imdb = None
     else:
         raise NotImplementedError("Dataset " + dataset + " not supported")
 
-    rand_scaler = RandScaler(min_scale=cfg.train['min_aug_scale'],
-                             max_scale=cfg.train['max_aug_scale'],
-                             min_gt_scale=cfg.train['min_aug_gt_scale'],
-                             max_trials=cfg.train['max_aug_trials'],
-                             max_sample=cfg.train['max_aug_sample'],
-                             patch_size=cfg.train['aug_patch_size'])
-    # init data iterator
-    train_iter = DetIter(imdb, batch_size, data_shape, mean_pixels, 
-                         [rand_scaler], cfg.train['rand_mirror'],
-                         cfg.train['epoch_shuffle'], cfg.train['seed'],
-                         is_train=True)
-    # TODO: enable val_iter
-    val_iter = None
-    # if val_imdb:
-    #     val_iter = DetIter(val_imdb, batch_size, data_shape, mean_pixels,
-    #                        cfg.valid.rand_scaler, cfg.valid.rand_mirror,
-    #                        cfg.valid.epoch_shuffle, cfg.valid.seed,
-    #                        is_train=True)
-    # else:
-    #     val_iter = None
+    # init iterator
+    if dataset.find('_patch') < 0:
+        rand_scaler = RandScaler(min_scale=cfg.train['min_aug_scale'],
+                                 max_scale=cfg.train['max_aug_scale'],
+                                 min_gt_scale=cfg.train['min_aug_gt_scale'],
+                                 max_trials=cfg.train['max_aug_trials'],
+                                 max_sample=cfg.train['max_aug_sample'],
+                                 patch_size=cfg.train['aug_patch_size'])
+        train_iter = DetIter(imdb, batch_size, data_shape, mean_pixels, 
+                             [rand_scaler], cfg.train['rand_mirror'],
+                             cfg.train['epoch_shuffle'], cfg.train['seed'],
+                             is_train=True)
+        # TODO: enable val_iter
+        val_iter = None
+        # if val_imdb:
+        #     val_iter = DetIter(val_imdb, batch_size, data_shape, mean_pixels,
+        #                        cfg.valid.rand_scaler, cfg.valid.rand_mirror,
+        #                        cfg.valid.epoch_shuffle, cfg.valid.seed,
+        #                        is_train=True)
+        # else:
+        #     val_iter = None
+    else:
+        train_iter = PatchIter(imdb, batch_size, data_shape[1], mean_pixels, is_train=True)
+        val_iter = None
 
     import ipdb
     ipdb.set_trace()
