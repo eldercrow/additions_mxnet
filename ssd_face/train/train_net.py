@@ -338,8 +338,6 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             .format(ctx_str, resume))
         mod = PlateauModule.load(prefix, resume, load_optimizer_states=True,
                 label_names=('label',), logger=logger, context=ctx)
-        import ipdb
-        ipdb.set_trace()
         # mod = PlateauModule.load(prefix, resume, load_optimizer_states=True,
         #         label_names=[('label', 'index', 'lidx')], logger=logger, context=ctx)
         # mod = mx.mod.Module.load(prefix, resume, load_optimizer_states=True,
@@ -347,9 +345,6 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         args = None
         auxs = None
         # _, args, auxs = mx.model.load_checkpoint(prefix, resume)
-        # import ipdb
-        # ipdb.set_trace()
-        # auxs.pop('multibox_target_target_loc_weight')
         begin_epoch = resume
         fixed_param_names = None
     elif finetune > 0:
@@ -373,7 +368,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         # del args['loc_beta']
         # del args['cls_beta']
         # del auxs['multibox_target_mean_pos_prob_bias']
-        # del auxs['multibox_target_target_loc_weight']
+        del auxs['multibox_target_target_loc_weight']
         # args = convert_pretrained(pretrained, args)
     else:
         logger.info("Experimental: start training from scratch with {}"
@@ -397,7 +392,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     num_example=imdb.num_images
     # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
     #         lr_refactor_ratio, num_example, batch_size, begin_epoch)
-    eval_weights = {'Loss': 1.0, 'SmoothL1': 1.0, 'Acc': 0.0}
+    eval_weights = {'Loss': 1.0, 'SmoothL1': 1.0, 'Recall': 0.0}
     plateau_lr = PlateauScheduler(patient_epochs=lr_refactor_step, factor=lr_refactor_ratio, eval_weights=eval_weights)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
@@ -413,6 +408,18 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     initializer = mx.init.Mixed([".*scale", ".*"], \
         [ScaleInitializer(), mx.init.Xavier(magnitude=2.34)])
+
+    # mod.bind(data_shapes=[('data', (2, 3, 256, 256))], label_shapes=[('label', (2, 5))])
+    # mod.init_params()
+    #
+    # args, auxs = mod.get_params()
+    # for k, v in sorted(args.items()):
+    #     print k + ': ' + str(v.shape)
+    # for k, v in sorted(auxs.items()):
+    #     print k + ': ' + str(v.shape)
+    #
+    # import ipdb
+    # ipdb.set_trace()
 
     mod.fit(train_iter,
             plateau_lr, plateau_metric=None, fn_curr_model=prefix+'-1000.params',

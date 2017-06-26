@@ -1,4 +1,4 @@
-from spotnet_lighter import get_spotnet
+from spotnet_lighter3 import get_spotnet
 from layer.anchor_target_layer import *
 from layer.softmax_loss import SoftmaxLoss, SoftmaxLossProp
 import numpy as np

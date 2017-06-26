@@ -36,7 +36,7 @@ def parse_wider_pkl(fn_pkl, root_path):
 
 if __name__ == '__main__':
     #
-    dataset = 'test'
+    dataset = 'val'
     fn_pkl = '../wider_eval_res_{}.pkl'.format(dataset)
     root_path = './spotnet_lighter_{}'.format(dataset)
 

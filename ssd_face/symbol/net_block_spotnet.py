@@ -90,6 +90,38 @@ def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
     return pool_
 
 
+def relu_conv_bn(data, prefix_name='',
+                 num_filter=0, kernel=(3, 3), pad=(0, 0), stride=(1, 1), use_crelu=False,
+                 use_global_stats=False, fix_gamma=False, no_bias=True,
+                 get_syms=False):
+    #
+    assert prefix_name != ''
+    conv_name = prefix_name + 'conv'
+    bn_name = prefix_name + 'bn'
+    syms = {}
+    relu_ = mx.sym.Activation(data, act_type='relu')
+    syms['relu'] = relu_
+
+    conv_ = mx.sym.Convolution(relu_, name=conv_name,
+        num_filter=num_filter, kernel=kernel, pad=pad, stride=stride,
+        no_bias=no_bias)
+
+    syms['conv'] = conv_
+    if use_crelu:
+        concat_name = prefix_name + 'concat'
+        conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
+        syms['concat'] = conv_
+
+    bn_ = mx.sym.BatchNorm(conv_, name=bn_name, 
+            use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+    syms['bn'] = bn_
+
+    if get_syms:
+        return bn_, syms
+    else:
+        return bn_
+
+
 '''
 Cloning blocks
 '''
@@ -140,6 +172,19 @@ def clone_bn_relu_conv(data, prefix_name='', src_syms=None):
         concat_name = prefix_name + 'concat'
         conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
     return conv_
+
+
+def clone_relu_conv_bn(data, prefix_name='', src_syms=None):
+    assert prefix_name != ''
+    conv_name = prefix_name + 'conv'
+    bn_name = prefix_name + 'bn'
+    relu_ = mx.sym.Activation(data, act_type='relu')
+    conv_ = clone_conv(relu_, name=conv_name, src_layer=src_syms['conv'])
+    if 'concat' in src_syms:
+        concat_name = prefix_name + 'concat'
+        conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
+    bn_ = clone_bn(conv_, name=bn_name, src_layer=src_syms['bn'])
+    return bn_
 
 
 '''

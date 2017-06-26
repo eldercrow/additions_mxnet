@@ -14,9 +14,17 @@ def freeze_bn(model_prefix, num_epoch, res_prefix, res_epoch, clone_only=True):
     cloned_name_h = ['hyper096', 'hyper192', 'hyper384', 'hyper768']
 
     for k in sorted(aux_params):
-        if clone_only and k.find('clone/') < 0:
-            continue
+        if clone_only:
+            is_clone = False
+            if k.find('clone/') >= 0:
+                is_clone = True
+            for cn in cloned_name_h:
+                if k.find(cn) >= 0:
+                    is_clone = True
+            if not is_clone:
+                continue
         if k.endswith('_moving_var'):
+            print 'Converting {}...'.format(k)
             mm = k.replace('_moving_var', '_moving_mean')
             if clone_only:
                 for cn in cloned_name_g[1:]:
@@ -50,12 +58,12 @@ def freeze_bn(model_prefix, num_epoch, res_prefix, res_epoch, clone_only=True):
                 aux_params[k] = mx.nd.ones(aux_params[k].shape) - 1e-05
                 aux_params[mm] = mx.nd.zeros(aux_params[mm].shape)
 
-    import ipdb
-    ipdb.set_trace()
+    # import ipdb
+    # ipdb.set_trace()
     mx.model.save_checkpoint(res_prefix, res_epoch, net, arg_params, aux_params)
 
 if __name__ == '__main__':
-    model_prefix = '/home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lighter2_768'
+    model_prefix = '/home/hyunjoon/github/additions_mxnet/ssd_face/model/spotnet_lighter3_768'
     num_epoch = 1000
     res_epoch = 0
     res_prefix = model_prefix.replace('_768', '') + '_bnfixed_768'

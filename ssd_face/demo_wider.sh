@@ -11,13 +11,13 @@ else
 fi
 
 python demo.py \
-  --network spotnet_lighter \
+  --network spotnet_lighter3 \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix model/spotnet_lighter2_clonefixed2_768 \
+  --prefix model/spotnet_lighter3_bnfixed_768 \
   --epoch 1000 \
   --max-data-shapes 2560 2560 \
   --thresh $TH_POS \
-  --gpu 0
+  --gpu 1
   # --cpu 

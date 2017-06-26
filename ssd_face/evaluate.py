@@ -45,6 +45,7 @@ def parse_args():
     return args
 
 if __name__ == '__main__':
+    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     if args.cpu:
         ctx = mx.cpu()
