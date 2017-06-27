@@ -180,10 +180,15 @@ class ConcatPatchDB(Imdb):
         ----------
         a tuple (sub-db, sub-index)
         """
-        assert index >= 0 and index < self.num_orig_images, "index out of range"
+        assert index >= 0 and index < self.num_images, "index out of range"
         pos = self.image_set_index[index]
         for k, v in enumerate(self.imdbs):
             if pos >= v.num_images:
                 pos -= v.num_images
             else:
                 return (k, pos)
+
+
+    def reset_patch(self):
+        for db in self.imdbs:
+            db.reset_patch()

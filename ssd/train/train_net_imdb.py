@@ -229,8 +229,6 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     else:
         fixed_param_names = None
 
-    import ipdb
-    ipdb.set_trace()
     # load pretrained or resume from previous state
     ctx_str = '('+ ','.join([str(c) for c in ctx]) + ')'
     if resume > 0:
@@ -271,6 +269,11 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
                         fixed_param_names=fixed_param_names)
 
+    # for debug
+    internals = net.get_internals()
+    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 256, 256), label=(32, 5))
+    shape_dict = dict(zip(internals.list_outputs(), out_shapes))
+
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
@@ -290,10 +293,11 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
 
     # run fit net, every n epochs we run evaluation network to get mAP
-    if voc07_metric:
-        valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, imdb.classes, pred_idx=3)
-    else:
-        valid_metric = MApMetric(ovp_thresh, use_difficult, imdb.classes, pred_idx=3)
+    # if voc07_metric:
+    #     valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, imdb.classes, pred_idx=3)
+    # else:
+    #     valid_metric = MApMetric(ovp_thresh, use_difficult, imdb.classes, pred_idx=3)
+    valid_metric = None
 
     mod.fit(train_iter,
             val_iter,

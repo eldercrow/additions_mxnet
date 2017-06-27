@@ -1,5 +1,36 @@
 import mxnet as mx
 import numpy as np
+from symbol.multibox_prior_layer import *
+
+def convolution(data, name, num_filter, kernel, pad, stride=(1,1), no_bias=False, lr_mult=1.0):
+    ''' convolution with lr_mult and wd_mult '''
+    w = mx.sym.var(name+'_weight', lr_mult=lr_mult, wd_mult=lr_mult)
+    b = None
+    if no_bias == False:
+        b = mx.sym.var(name+'_bias', lr_mult=lr_mult*2.0, wd_mult=0.0)
+    conv = mx.sym.Convolution(data, weight=w, bias=b, name=name, num_filter=num_filter,
+            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
+    return conv
+
+
+def fullyconnected(data, name, num_hidden, no_bias=False, lr_mult=1.0):
+    ''' convolution with lr_mult and wd_mult '''
+    w = mx.sym.var(name+'_weight', lr_mult=lr_mult, wd_mult=lr_mult)
+    b = None
+    if no_bias == False:
+        b = mx.sym.var(name+'_bias', lr_mult=lr_mult*2.0, wd_mult=0.0)
+    fc = mx.sym.FullyConnected(data, weight=w, bias=b, name=name, num_hidden=num_hidden, no_bias=no_bias)
+    return fc
+
+
+def batchnorm(data, name, use_global_stats, fix_gamma=False, lr_mult=1.0):
+    ''' batch norm with lr_mult and wd_mult '''
+    g = mx.sym.var(name+'_gamma', lr_mult=lr_mult, wd_mult=0.0)
+    b = mx.sym.var(name+'_beta', lr_mult=lr_mult, wd_mult=0.0)
+    bn = mx.sym.BatchNorm(data, gamma=g, beta=b, name=name,
+            use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+    return bn
+
 
 def conv_act_layer(from_layer, name, num_filter, kernel=(1,1), pad=(0,0), \
     stride=(1,1), act_type="relu", use_batchnorm=False):
@@ -42,7 +73,7 @@ def conv_act_layer(from_layer, name, num_filter, kernel=(1,1), pad=(0,0), \
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=True, interm_layer=0, steps=[]):
+                    clip=True, interm_layer=0, steps=[], has_bg_class=False):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
     generate multiple object detection targets by customized layers
@@ -115,7 +146,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
     loc_pred_layers = []
     cls_pred_layers = []
     anchor_layers = []
-    num_classes += 1 # always use background as label 0
+    if not has_bg_class:
+        num_classes += 1 # always use background as label 0
 
     for k, from_layer in enumerate(from_layers):
         from_name = from_layer.name
@@ -188,3 +220,35 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         num_args=len(anchor_layers), dim=1)
     anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
     return [loc_preds, cls_preds, anchor_boxes]
+
+
+def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides, clip=False):
+    ''' multibox layer '''
+    # parameter check
+    assert len(from_layers) > 0, "from_layers must not be empty list"
+    assert num_classes > 1, "num_classes {} must be larger than 1".format(num_classes)
+    assert len(ratios) == len(from_layers), "ratios and from_layers must have same length"
+    assert len(sizes) == len(from_layers), "sizes and from_layers must have same length"
+
+    pred_layers = []
+    anchor_layers = []
+
+    for k, from_layer in enumerate(from_layers):
+        from_name = from_layer.name
+        num_anchors = len(sizes[k]) * len(ratios[k])
+        num_loc_pred = num_anchors * 4
+        num_cls_pred = num_anchors * num_classes
+        num_filter = num_loc_pred + num_cls_pred
+
+        pred_conv = convolution(from_layer, name='{}_pred/conv'.format(from_name),
+                num_filter=num_filter, kernel=(3, 3), pad=(1, 1))
+        pred_conv = mx.sym.transpose(pred_conv, axes=(0, 2, 3, 1))  # (n h w ac), a=num_anchors
+        pred_conv = mx.sym.reshape(pred_conv, shape=(0, -1, num_classes + 4))
+        # pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -4, num_anchors, -1))  # (n h*w a c)
+        # pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -1))  # (n h*w*a c)
+        pred_layers.append(pred_conv)
+
+    anchors = mx.sym.Custom(*from_layers, op_type='multibox_prior_python',
+        sizes=sizes, ratios=ratios, strides=strides, clip=int(clip))
+    preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
+    return [preds, anchors]

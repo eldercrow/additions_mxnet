@@ -1,35 +1,6 @@
 import mxnet as mx
-from common import multibox_layer
-
-
-def convolution(data, name, num_filter, kernel, pad, stride=(1,1), no_bias=False, lr_mult=1.0):
-    ''' convolution with lr_mult and wd_mult '''
-    w = mx.sym.var(name+'_weight', lr_mult=lr_mult, wd_mult=lr_mult)
-    b = None
-    if no_bias == False:
-        b = mx.sym.var(name+'_bias', lr_mult=lr_mult*2.0, wd_mult=0.0)
-    conv = mx.sym.Convolution(data, weight=w, bias=b, name=name, num_filter=num_filter,
-            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
-    return conv
-
-
-def fullyconnected(data, name, num_hidden, no_bias=False, lr_mult=1.0):
-    ''' convolution with lr_mult and wd_mult '''
-    w = mx.sym.var(name+'_weight', lr_mult=lr_mult, wd_mult=lr_mult)
-    b = None
-    if no_bias == False:
-        b = mx.sym.var(name+'_bias', lr_mult=lr_mult*2.0, wd_mult=0.0)
-    fc = mx.sym.FullyConnected(data, weight=w, bias=b, name=name, num_hidden=num_hidden, no_bias=no_bias)
-    return fc
-
-
-def batchnorm(data, name, use_global_stats, fix_gamma=False, lr_mult=1.0):
-    ''' batch norm with lr_mult and wd_mult '''
-    g = mx.sym.var(name+'_gamma', lr_mult=lr_mult, wd_mult=0.0)
-    b = mx.sym.var(name+'_beta', lr_mult=lr_mult, wd_mult=0.0)
-    bn = mx.sym.BatchNorm(data, gamma=g, beta=b, name=name,
-            use_global_stats=use_global_stats, fix_gamma=fix_gamma)
-    return bn
+from numpy import power
+from common import convolution, fullyconnected, batchnorm, multibox_layer_python
 
 
 def conv_bn_relu(data, group_name,
@@ -203,8 +174,9 @@ def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no
             use_global_stats=use_global_stats, lr_mult=lr_mult)
 
     from_layers = [convf]
-    sizes = [[32.0 / float(patch_size),]]
+    sizes = [[48.0,]]
     feat_strides = [16, 32, 64, 128, 256]
+    sz_ratio = power(2.0, 1.0 / 4.0)
     for fs in feat_strides[1:]:
         projf = conv_bn_relu(convf, group_name='projf_{}'.format(fs),
                 num_filter=64, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=no_bias,
@@ -213,18 +185,13 @@ def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no
                 num_filter=256, pad=(1,1), kernel=(3,3), stride=(2,2), no_bias=no_bias,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         from_layers.append(convf)
-        sz = fs * 2.0 / float(patch_size)
-        sizes.append([sz,])
-        if sz >= 1.0:
+        sz = fs * 3.0
+        sizes.append([sz * sz_ratio, sz / sz_ratio,])
+        if sz >= patch_size:
             break
-
     ratios = [[1.0, 0.5, 2.0]] * len(from_layers)
-    normalizations = [(-1)] * len(from_layers)
-    num_channels = []
     feat_strides = feat_strides[:len(from_layers)]
 
-    loc_preds, cls_preds, anchor_boxes = multibox_layer(from_layers, \
-            num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-            num_channels=num_channels, clip=False, interm_layer=0, steps=feat_strides)
-
-    return loc_preds, cls_preds, anchor_boxes
+    preds, anchors = multibox_layer_python(from_layers, num_classes, 
+            sizes=sizes, ratios=ratios, strides=feat_strides, clip=False)
+    return preds, anchors

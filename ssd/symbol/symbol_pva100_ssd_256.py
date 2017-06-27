@@ -12,16 +12,23 @@ def get_symbol_train(num_classes=20, nms_thresh=0.5, force_suppress=False, nms_t
     use_global_stats = False
     no_bias = False
 
-    loc_preds, cls_preds, anchor_boxes = pvanet_multibox(data, num_classes, 256, use_global_stats, no_bias)
+    preds, anchor_boxes = pvanet_multibox(data, num_classes, 256, use_global_stats, no_bias)
+    cls_preds = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
+    loc_preds = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
-    tmp = mx.contrib.symbol.MultiBoxTarget(
-        *[anchor_boxes, label, cls_preds], overlap_threshold=.5, \
-        ignore_label=-1, negative_mining_ratio=3, minimum_negative_samples=0, \
-        negative_mining_thresh=.5, variances=(0.1, 0.1, 0.2, 0.2),
-        name="multibox_target")
-    loc_target = tmp[0]
-    loc_target_mask = tmp[1]
-    cls_target = tmp[2]
+    cls_preds = mx.sym.transpose(cls_preds, axes=(0, 2, 1))
+    # loc_preds = mx.sym.flatten(loc_preds)
+
+    tmp = mx.sym.Custom(cls_preds, loc_preds, anchor_boxes, label, name='anchor_target', 
+            op_type='anchor_target')
+    # tmp = mx.contrib.symbol.MultiBoxTarget(
+    #     *[anchor_boxes, label, cls_preds], overlap_threshold=.5, \
+    #     ignore_label=-1, negative_mining_ratio=3, minimum_negative_samples=0, \
+    #     negative_mining_thresh=.5, variances=(0.1, 0.1, 0.2, 0.2),
+    #     name="multibox_target")
+    cls_target = tmp[0]
+    loc_target = tmp[1]
+    loc_target_mask = tmp[2]
 
     cls_prob = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
         ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
@@ -32,14 +39,15 @@ def get_symbol_train(num_classes=20, nms_thresh=0.5, force_suppress=False, nms_t
         normalization='valid', name="loc_loss")
 
     # monitoring training status
-    cls_label = mx.symbol.MakeLoss(data=cls_target, grad_scale=0, name="cls_label")
-    det = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
-        name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
-        variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk)
-    det = mx.symbol.BlockGrad(data=det, name="det_out")
+    cls_label = mx.symbol.BlockGrad(data=cls_target, grad_scale=0, name="cls_label")
+    # det = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, mx.sym.flatten(loc_preds), anchor_boxes], \
+    #     name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
+    #     variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk)
+    # det = mx.symbol.BlockGrad(data=det, name="det_out")
 
     # group output
-    out = mx.symbol.Group([cls_prob, loc_loss, cls_label, det])
+    out = mx.symbol.Group([cls_prob, loc_loss, cls_label])
+    # out = mx.symbol.Group([cls_prob, loc_loss, cls_label, det])
     return out
 
 
