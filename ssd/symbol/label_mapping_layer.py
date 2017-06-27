@@ -22,22 +22,35 @@ class LabelMapping(mx.operator.CustomOp):
         n_batch = labels_all.shape[0]
         n_anchor = anchors.shape[1]
 
-        label_map = mx.nd.zeros((n_batch, n_anchor, 5), ctx=anchors.context)
+        label_map = mx.nd.zeros((n_batch, n_anchor), ctx=anchors.context)
+        bbox_target = mx.nd.zeros((n_batch, n_anchor, 4), ctx=anchors.context)
+        bbox_weight = mx.nd.ones((n_batch, n_anchor), ctx=anchors.context)
 
         for i, labels in enumerate(labels_all):
             lmap = label_map[i]
+            bb_map = bbox_target[i]
+            bb_w = bbox_weight[i]
             labels = _get_valid_labels(labels)
-            max_iou = mx.nd.full((n_anchor, ), self.th_iou, ctx=anchors.context)
+            max_iou = mx.nd.zeros((n_anchor, ), ctx=anchors.context)
 
             for l in labels:
-                L = mx.nd.tile(mx.nd.array((l), ctx=anchors.context), (n_anchor, 1))
+                L = mx.nd.full((n_anchor,), l[0], ctx=anchors.context)
+                BB = mx.nd.tile(mx.nd.array(l[1:], ctx=anchors.context), (n_anchor, 1)) # (n_anchor, 4)
                 iou = _compute_iou(l[1:], anchors, area_anchors)
                 lmask = iou >= max_iou
                 lmap = mx.nd.where(lmask, lmap, L)
-                lmap[lmask] = l[0]
+                bb_map = mx.nd.where(lmask, bb_map, BB)
                 max_iou = mx.nd.maximum(iou, max_iou)
+            bbox_target[i] = bb_map
+            bbox_weight[i] = bb_w * (max_iou > 0.33333)
+            label_map[i] = lmap * (max_iou > self.th_iou)
+
+        bbox_target = mx.nd.transpose(bbox_target, axes=(2, 0, 1)) # (4, n_batch, n_anchor)
 
         self.assign(out_data[0], req[0], label_map)
+        self.assign(out_data[1], req[1], \
+                _compute_bbox_target(bbox_target, mx.nd.reshape(anchors, shape=(4, 1, -1))))
+        self.assign(out_data[2], req[2], mx.nd.tile(bbox_weight, (1, 1, 4)))
 
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
@@ -66,6 +79,23 @@ def _compute_iou(label, anchors_t, area_anchors_t):
     return iou # (num_anchors, )
 
 
+def _compute_bbox_target(label_map, anchors):
+    #
+    label_map = mx.nd.transpose(label_map, axes=(2, 0, 1))
+    anchors = mx.nd.transpose(anchors, axes=(2, 0, 1))
+
+    aw = anchors[2] - anchors[0]
+    ah = anchors[3] - anchors[1]
+
+    bbox_target = mx.nd.zeros_like(label_map)
+    bbox_target[0] = ((label_map[2] + label_map[0]) - (anchors[2] - anchors[0])) * 0.5 / aw
+    bbox_target[1] = ((label_map[3] + label_map[1]) - (anchors[3] - anchors[1])) * 0.5 / ah
+    bbox_target[2] = mx.nd.log2((label_map[2] - label_map[0]) / aw + 1e-08)
+    bbox_target[3] = mx.nd.log2((label_map[3] - label_map[1]) / ah + 1e-08)
+
+    return mx.nd.transpose(bbox_target, axes=(1, 2, 0))
+
+
 @mx.operator.register("label_mapping")
 class LabelMappingProp(mx.operator.CustomOpProp):
     '''
@@ -82,7 +112,7 @@ class LabelMappingProp(mx.operator.CustomOpProp):
 
 
     def list_outputs(self):
-        return ['label_map']
+        return ['label_map', 'bbox_target', 'bbox_weight']
 
 
     def infer_shape(self, in_shape):
@@ -90,7 +120,9 @@ class LabelMappingProp(mx.operator.CustomOpProp):
         n_batch = in_shape[1][0]
         n_anchor = in_shape[0][1]
 
-        return in_shape, [(n_batch, n_anchor, 5)], []
+        label_shape = (n_batch_, n_anchor)
+        bbox_shape = (n_batch, n_anchor, 4)
+        return in_shape, [label_shape, bbox_shape, bbox_shape], []
 
 
     def create_operator(self, ctx, shapes, dtypes):

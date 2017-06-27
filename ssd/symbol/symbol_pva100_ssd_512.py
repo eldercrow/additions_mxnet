@@ -11,6 +11,11 @@ def get_symbol_train(num_classes=20, nms_thresh=0.5, force_suppress=False, nms_t
     use_global_stats = False
     no_bias = False
 
+    # preds, anchor_boxes = pvanet_multibox(data, num_classes, 256, use_global_stats, no_bias)
+    # cls_preds = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
+    # loc_preds = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
+    #
+    # cls_preds = mx.sym.transpose(cls_preds, axes=(0, 2, 1))
     loc_preds, cls_preds, anchor_boxes = pvanet_multibox(data, num_classes, use_global_stats, no_bias)
 
     tmp = mx.contrib.symbol.MultiBoxTarget(
