@@ -103,7 +103,7 @@ def parse_args():
 #     return class_names
 
 if __name__ == '__main__':
-    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+    # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     # context list
     ctx = [mx.gpu(int(i)) for i in args.gpus.split(',') if i.strip()]

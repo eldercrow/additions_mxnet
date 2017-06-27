@@ -66,9 +66,9 @@ class PascalVocPatch(Imdb):
 
         self.config = { \
                 'patch_shape': 256, 
-                'min_roi_size': 8, 
+                'min_roi_size': 32, 
                 'max_roi_size': 256,
-                'range_rand_scale': (0.3333, 1.0),
+                'range_rand_scale': (0.25, 1.0),
                 'max_crop_trial': 50,
                 'max_patch_per_image': 16, 
                 'use_difficult': False
