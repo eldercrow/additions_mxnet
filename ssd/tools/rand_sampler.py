@@ -62,8 +62,7 @@ class RandScaler(RandSampler):
         assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
         self.min_gt_scale = min_gt_scale
         # for sanity check
-        self.min_box_overlap = 0.7
-        self.min_gt_overlap = 0.7
+        self.min_gt_overlap = 0.5
         self.min_gt_ignore = 0.15
         self.patch_size = patch_size
 
@@ -116,8 +115,8 @@ class RandScaler(RandSampler):
             label = np.lib.pad(new_gt_boxes,
                 ((0, label.shape[0]-new_gt_boxes.shape[0]), (0,0)), \
                 'constant', constant_values=(-1, -1))
-            index = np.full((label.shape[0],), -1)
-            index[:new_gt_indices.size] = new_gt_indices
+            # index = np.full((label.shape[0],), -1)
+            # index[:new_gt_indices.size] = new_gt_indices
             bbox[0] /= float(img_shape[1])
             bbox[1] /= float(img_shape[0])
             bbox[2] /= float(img_shape[1])
@@ -126,54 +125,6 @@ class RandScaler(RandSampler):
             # samples.append((bbox, label, index))
             break
         return samples
-
-        # samples = []
-        # count = 0
-        # if img_shape[0] < img_shape[1]: # width > height
-        #     asp_x = float(img_shape[0]) / float(img_shape[1])
-        #     asp_y = 1
-        # else:
-        #     asp_x = 1
-        #     asp_y = float(img_shape[1]) / float(img_shape[0])
-        # img_size = np.mean(img_shape)
-        # for trial in range(self.max_trials):
-        #     if count >= self.max_sample:
-        #         return samples
-        #     scale = np.random.uniform(self.min_scale, self.max_scale)
-        #     width = scale * asp_x
-        #     height = scale * asp_y
-        #     cx = np.random.normal(0.5, 0.5 / 3.0)
-        #     cy = np.random.normal(0.5, 0.5 / 3.0)
-        #     left = cx - width / 2.0
-        #     top = cy - height / 2.0
-        #     right = cx + width / 2.0
-        #     bot = cy + height / 2.0
-        #     rand_box = (left, top, right, bot)
-        #     # sanity check for rand_box
-        #     overlap = _compute_overlap(rand_box, (0., 0., 1., 1.), asp_x, asp_y)
-        #     if overlap < self.min_box_overlap:
-        #         continue
-        #     new_gt_boxes = []
-        #     for i in range(gt.shape[0]):
-        #         xmin = (gt[i, 1] - left) / width
-        #         ymin = (gt[i, 2] - top) / height
-        #         xmax = (gt[i, 3] - left) / width
-        #         ymax = (gt[i, 4] - top) / height
-        #         new_size = max(xmax - xmin, ymax - ymin)
-        #         overlap = _compute_overlap(gt[i, 1:], rand_box)
-        #         if overlap < self.min_gt_ignore or new_size < self.min_gt_scale:
-        #             continue
-        #         l = gt[i, 0] if overlap > self.min_gt_overlap else -1
-        #         new_gt_boxes.append([l, xmin, ymin, xmax, ymax])
-        #     if not new_gt_boxes:
-        #         continue
-        #     new_gt_boxes = np.array(new_gt_boxes)
-        #     label = np.lib.pad(new_gt_boxes,
-        #         ((0, label.shape[0]-new_gt_boxes.shape[0]), (0,0)), \
-        #         'constant', constant_values=(-1, -1))
-        #     samples.append((rand_box, label))
-        #     count += 1
-        # return samples
 
 
 def _compute_overlap(roi, img_roi):

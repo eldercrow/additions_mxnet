@@ -25,7 +25,7 @@ class PascalVoc(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170623_1'  # for caching
+    IDX_VER = '170628_1'  # for caching
 
     def __init__(self, image_set, year, devkit_path, shuffle=False, is_train=False):
         super(PascalVoc, self).__init__('voc_' + year + '_' + image_set)
@@ -36,7 +36,8 @@ class PascalVoc(Imdb):
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ['aeroplane', 'bicycle', 'bird', 'boat',
+        self.classes = ['__background__', 
+                        'aeroplane', 'bicycle', 'bird', 'boat',
                         'bottle', 'bus', 'car', 'cat', 'chair',
                         'cow', 'diningtable', 'dog', 'horse',
                         'motorbike', 'person', 'pottedplant',

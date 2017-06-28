@@ -175,7 +175,7 @@ def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no
 
     from_layers = [convf]
     sizes = [[48.0,]]
-    feat_strides = [16, 32, 64, 128, 256]
+    feat_strides = [16, 32, 64, 128, 256, 512]
     sz_ratio = power(2.0, 1.0 / 4.0)
     for fs in feat_strides[1:]:
         projf = conv_bn_relu(convf, group_name='projf_{}'.format(fs),

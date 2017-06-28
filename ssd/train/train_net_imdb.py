@@ -198,7 +198,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                                  max_trials=cfg.train['max_aug_trials'],
                                  max_sample=cfg.train['max_aug_sample'],
                                  patch_size=cfg.train['aug_patch_size'])
-        train_iter = DetIter(imdb, batch_size, data_shape, mean_pixels, 
+        train_iter = DetIter(imdb, batch_size, data_shape[1], mean_pixels, 
                              [rand_scaler], cfg.train['rand_mirror'],
                              cfg.train['epoch_shuffle'], cfg.train['seed'],
                              is_train=True)
@@ -253,7 +253,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Start training with {} from pretrained model {}"
             .format(ctx_str, pretrained))
         _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
-        args = convert_pretrained(pretrained, args)
+        # args = convert_pretrained(pretrained, args)
     else:
         logger.info("Experimental: start training from scratch with {}"
             .format(ctx_str))
@@ -270,9 +270,13 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                         fixed_param_names=fixed_param_names)
 
     # for debug
-    internals = net.get_internals()
-    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 256, 256), label=(32, 5))
-    shape_dict = dict(zip(internals.list_outputs(), out_shapes))
+    # internals = net.get_internals()
+    # _, out_shapes, _ = internals.infer_shape(data=(32, 3, 512, 512), label=(32, 64, 5))
+    # shape_dict = dict(zip(internals.list_outputs(), out_shapes))
+    # for k, v in sorted(shape_dict.items()): 
+    #     print k, v
+    # import ipdb
+    # ipdb.set_trace()
 
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
