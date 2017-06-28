@@ -21,7 +21,7 @@ def parse_args():
     parser.add_argument('--devkit-path', dest='devkit_path', help='VOCdevkit path', 
                         default=os.path.join(os.getcwd(), 'data', 'VOCdevkit'), type=str)
     parser.add_argument('--network', dest='network', type=str, default='pva100_ssd_512',
-                        choices=['pva100_ssd_256', 'pva100_ssd_512'], help='which network to use')
+                        choices=['pva100_ssd_256', 'pva100_ssd_512', 'pva101_ssd_512'], help='which network to use')
     parser.add_argument('--batch-size', dest='batch_size', type=int, default=32,
                         help='training batch size')
     parser.add_argument('--resume', dest='resume', type=int, default=-1,

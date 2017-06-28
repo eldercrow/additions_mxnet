@@ -12,6 +12,7 @@ from train.metric import MultiBoxMetric
 from evaluate.eval_metric import MApMetric, VOC07MApMetric
 from tools.rand_sampler import RandScaler
 from config.config import cfg
+import tools.load_model as load_model
 
 
 def convert_pretrained(name, args):
@@ -253,6 +254,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Start training with {} from pretrained model {}"
             .format(ctx_str, pretrained))
         _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
+        # arg_params, aux_params = load_model.load_checkpoint(pretrained, epoch)
         # args = convert_pretrained(pretrained, args)
     else:
         logger.info("Experimental: start training from scratch with {}"
@@ -268,6 +270,10 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     # init training module
     mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
                         fixed_param_names=fixed_param_names)
+    if pretrained:
+        mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
+        mod.init_params(initializer=mx.init.Xavier(), \
+                arg_params=args, aux_params=auxs, allow_missing=True, allow_extra=True)
 
     # for debug
     # internals = net.get_internals()
