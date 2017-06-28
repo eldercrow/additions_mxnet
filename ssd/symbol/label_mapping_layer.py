@@ -11,6 +11,8 @@ class LabelMapping(mx.operator.CustomOp):
         super(LabelMapping, self).__init__()
         self.th_iou = th_iou
         self.variances = variances
+        self.th_reg = 0.33333
+        self.th_neg = 0.33333
 
 
     def forward(self, is_train, req, in_data, out_data, aux):
@@ -33,7 +35,7 @@ class LabelMapping(mx.operator.CustomOp):
             bb_map = bbox_target[i]
             bb_w = bbox_weight[i]
             labels = _get_valid_labels(labels)
-            max_iou = mx.nd.full((n_anchor, ), 0.33333, ctx=anchors.context)
+            max_iou = mx.nd.full((n_anchor, ), self.th_reg, ctx=anchors.context)
 
             for l in labels:
                 assert l[0] != 0
@@ -46,12 +48,15 @@ class LabelMapping(mx.operator.CustomOp):
                     bb_map = mx.nd.where(mask, BB, bb_map)
                 max_iou = mx.nd.maximum(iou, max_iou)
             bbox_target[i] = bb_map
-            bbox_weight[i] = bb_w * (max_iou > 0.33333)
-            label_map[i] = lmap * (max_iou > 0.33333)
+            bbox_weight[i] = bb_w * (max_iou > self.th_reg)
+            label_map[i] = lmap * (max_iou > self.th_reg)
 
         bbox_weight *= (mx.nd.sum(bbox_target, axis=2) != 0)
         bbox_target = mx.nd.transpose(bbox_target, axes=(2, 0, 1)) # (4, n_batch, n_anchor)
-        bbox_weight = mx.nd.reshape(bbox_weight, (0, 0, 1))
+        bbox_weight = mx.nd.reshape(bbox_weight, (0, 0, 1)) # (n_batch, n_anchor, 1)
+        # random subsample regression target
+        sample_map = mx.nd.uniform(0, 1, shape=bbox_weight.shape, ctx=bbox_weight.context) > 0.5
+        bbox_weight *= sample_map
 
         self.assign(out_data[0], req[0], label_map)
         self.assign(out_data[1], req[1], \

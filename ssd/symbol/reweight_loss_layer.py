@@ -20,18 +20,20 @@ class ReweightLoss(mx.operator.CustomOp):
         n_batch = cls_prob.shape[0]
 
         prob_gt = mx.nd.maximum(0.0, 1.0 - mx.nd.pick(cls_prob, cls_target, 1)) # (n_batch, n_anchor)
-        # psq = mx.nd.power(prob_gt, self.rand_mult)
 
         pos_map = (cls_target > 0)
+        rand_k = int(mx.nd.max(mx.nd.sum(pos_map, axis=1)).asscalar() * self.neg_ratio)
         n_pos = mx.nd.sum(pos_map).asscalar()
         n_neg = np.maximum(1, int(n_pos / n_batch * self.neg_ratio))
 
-        neg_map = (cls_target == 0)
+        # negative sample: random sampling + hard negative mining
+        sample_map = mx.nd.uniform(0, 1, shape=cls_target.shape, ctx=cls_target.context) >= 0.875
+        neg_map = (cls_target == 0) * sample_map
         neg_map = prob_gt * neg_map
 
         # pick some (more than needed) semi-hard negative samples, according to loss,
         # then randomly choose hard samples
-        th_batch = np.transpose(mx.nd.topk(neg_map, axis=1, k=n_neg*self.rand_mult).asnumpy())
+        th_batch = np.transpose(mx.nd.topk(neg_map, axis=1, k=rand_k).asnumpy())
         np.random.shuffle(th_batch)
         th_batch = np.transpose(th_batch[:n_neg]).astype(np.int32)
 
