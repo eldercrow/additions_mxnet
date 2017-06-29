@@ -1,7 +1,9 @@
 import mxnet as mx
 from pva101_multibox import pvanet_multibox
-from symbol.label_mapping_layer import *
-from symbol.reweight_loss_layer import *
+# from symbol.label_mapping_layer import *
+# from symbol.reweight_loss_layer import *
+from symbol.multibox_target import *
+from symbol.softmax_loss import *
 from symbol.anchor_target_layer import *
 
 
@@ -14,36 +16,45 @@ def get_symbol_train(num_classes=20, nms_thresh=0.5, force_suppress=False, nms_t
     use_global_stats = False
     no_bias = False
 
-    preds, anchor_boxes = pvanet_multibox(data, num_classes, 512, use_global_stats, no_bias)
+    preds, anchors = pvanet_multibox(data, num_classes, 512, use_global_stats, no_bias)
     cls_preds = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
-    cls_preds = mx.sym.transpose(cls_preds, axes=(0, 2, 1))
     loc_preds = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
-    cls_target, loc_target, loc_target_mask = \
-            mx.sym.Custom(anchor_boxes, label, name='label_mapping', op_type='label_mapping')
+    tmp = mx.symbol.Custom(*[cls_preds, loc_preds, anchors, label], op_type='multibox_target', 
+            name='multibox_target', n_class=2, variances=(0.1, 0.1, 0.2, 0.2))
+    sample_cls = tmp[0]
+    sample_reg = tmp[1]
+    target_cls = tmp[2]
+    target_reg = tmp[3]
+    mask_reg = tmp[4]
 
-    cls_prob = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
-        ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
+    # classification
+    cls_prob = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, \
+        ignore_label=-1, use_ignore=True, grad_scale=1.0, 
         normalization='null', name="cls_prob", out_grad=True)
-    cls_prob, cls_target_ohem = mx.sym.Custom(cls_prob, cls_target, op_type='reweight_loss', rand_mult=6)
-    cls_loss = mx.sym.MakeLoss(cls_prob, name='cls_prob_loss', grad_scale=1.)
+    cls_loss = mx.symbol.Custom(cls_prob, target_cls, op_type='softmax_loss', 
+            ignore_label=-1, use_ignore=True)
+    # alpha_cls = mx.sym.var(name='cls_beta', shape=(1,), lr_mult=0.1, wd_mult=0.0)
+    # cls_loss_w = cls_loss * mx.sym.exp(-alpha_cls) + 10.0 * alpha_cls
+    cls_loss = mx.sym.MakeLoss(cls_loss, name='cls_loss')
 
-    loc_diff = mx.symbol.smooth_l1(name="loc_diff", \
-        data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_diff, grad_scale=0.2, \
+    # regression
+    loc_diff = sample_reg - target_reg
+    masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
+    loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=masked_loc_diff, scalar=1.0)
+    loc_loss = mx.sym.sum(loc_loss) * 0.165
+    # alpha_loc = mx.sym.var(name='loc_beta', shape=(1,), 
+    #         lr_mult=0.1, wd_mult=0.0, init=mx.init.Constant(2.0))
+    # loc_loss_w = loc_loss * mx.sym.exp(-alpha_loc) + 10.0 * alpha_loc
+    loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=1.0, \
         normalization='null', name="loc_loss")
 
-    # monitoring training status
-    cls_label = mx.symbol.BlockGrad(data=cls_target_ohem, name="cls_label")
-    loc_label = mx.symbol.BlockGrad(data=loc_target_mask, name='loc_label')
-    # det = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
-    #     name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
-    #     variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk)
-    # det = mx.symbol.BlockGrad(data=det, name="det_out")
+    label_cls = mx.sym.BlockGrad(target_cls, name='label_cls')
+    label_reg = mx.sym.BlockGrad(target_reg, name='label_reg')
 
     # group output
-    out = mx.symbol.Group([cls_loss, loc_loss, cls_label, loc_label])
-    # out = mx.symbol.Group([cls_prob, loc_loss, cls_label, det])
+    out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg, mx.sym.BlockGrad(cls_prob)])
+    # out = mx.symbol.Group([cls_loss_w, loc_loss_w, label_cls, label_reg, mx.sym.BlockGrad(cls_loss)])
     return out
 
 

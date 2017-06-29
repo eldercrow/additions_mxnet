@@ -72,3 +72,74 @@ class MultiBoxMetric(mx.metric.EvalMetric):
             values = [x / y if y != 0 else float('nan') \
                 for x, y in zip(self.sum_metric, self.num_inst)]
             return (names, values)
+
+
+class FacePatchMetric(mx.metric.EvalMetric):
+    """Calculate metrics for Multibox training """
+    def __init__(self, num=3, postfix_names=['Loss', 'SmoothL1', 'Recall']): #'LossOrig']):
+        # super(FacePatchMetric, self).__init__(['Loss', 'SmoothL1', 'Recall'], 3)
+        self.sum_metric = np.zeros((num,))
+        self.num_inst = np.zeros((num,), dtype=int)
+        super(FacePatchMetric, self).__init__(name='')
+        self.postfix_names = postfix_names
+        self.num = num
+
+    def update(self, labels, preds):
+        """
+        Implementation of updating metrics
+        labels are not used here.
+        """
+        # get generated multi label from network
+        cls_loss = preds[0].asnumpy()
+        reg_loss = preds[1].asnumpy()
+        cls_label = preds[2].asnumpy()
+        reg_label = preds[3].asnumpy()
+        cls_prob = preds[4].asnumpy()
+
+        mask = np.where(cls_label >= 0)[0]
+        n_valid_sample = mask.size
+        if mask.size > 0:
+            self.sum_metric[0] += sum(cls_loss)
+
+        mask = np.where(np.any(reg_label != -1, axis=1))[0]
+        n_valid_sample += mask.size
+        if mask.size > 0:
+            self.sum_metric[1] += sum(reg_loss)
+        self.num_inst[0] += n_valid_sample
+        self.num_inst[1] += n_valid_sample
+
+        cls_acc = np.argmax(cls_prob, axis=1) == cls_label
+        mask = np.where(cls_label > 0)[0]
+        if mask.size > 0:
+            self.sum_metric[2] += sum(cls_acc[mask])
+            self.num_inst[2] += mask.size
+
+    def update_dict(self, labels, preds):
+        label = []
+        pred = []
+        for l, v in labels.items():
+            label.append(v)
+        for p, v in preds.items():
+            pred.append(v)
+
+        self.update(label, pred)
+
+    def reset(self):
+        self.sum_metric[:] = 0.0
+        self.num_inst[:] = 0
+
+    def get(self):
+        """Get the current evaluation result.
+        Override the default behavior
+
+        Returns
+        -------
+        name : str
+           Name of the metric.
+        value : float
+           Value of the evaluation.
+        """
+        names = ['%s'%(self.name+self.postfix_names[i]) for i in range(self.num)]
+        values = [x / y if y != 0 else float('nan') \
+            for x, y in zip(self.sum_metric, self.num_inst)]
+        return (names, values)

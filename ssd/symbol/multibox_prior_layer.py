@@ -65,7 +65,7 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
             anchors_all[:, 0::2] = np.minimum(np.maximum(anchors_all[:, 0::2], 0.0), w)
             anchors_all[:, 1::2] = np.minimum(np.maximum(anchors_all[:, 1::2], 0.0), h)
             # anchors_all = np.minimum(np.maximum(anchors_all, 0.0), 1.0)
-        anchors_all = np.reshape(anchors_all, (1, -1, 4))
+        # anchors_all = np.reshape(anchors_all, (1, -1, 4))
         self.anchor_data = mx.nd.array(anchors_all, ctx=in_data[0].context)
         self.assign(out_data[0], req[0], self.anchor_data)
 
@@ -99,7 +99,7 @@ class MultiBoxPriorPythonProp(mx.operator.CustomOpProp):
             apc = len(s) * len(r)
             n_anchor += h*w*apc
         return in_shape, \
-                [[1, n_anchor, 4]], \
+                [[n_anchor, 4]], \
                 []
 
     def create_operator(self, ctx, shapes, dtypes):

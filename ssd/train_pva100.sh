@@ -17,12 +17,12 @@
 #     --val-image-set '' \
 #     --freeze '' \
 #     --end-epoch 240 \
-#     --pretrained ./model/ssd_256 \
-#     --epoch 1
-#     # --from-scratch 1
- 
+#     --resume 14
+    # --pretrained ./model/ssd_256 \
+    # --epoch 1
+#  
 python train_imdb.py \
-    --gpus 0 \
+    --gpus 1 \
     --dataset pascal_voc \
     --year 2007,2012 \
     --network pva101_ssd_512 \

@@ -32,6 +32,20 @@ def batchnorm(data, name, use_global_stats, fix_gamma=False, lr_mult=1.0):
     return bn
 
 
+def subpixel_upsample(data, ch, c, r):
+    if r == 1 and c == 1:
+        return data
+    X = mx.sym.reshape(data=data, shape=(-3, 0, 0))  # (bsize*ch*r*c, a, b)
+    X = mx.sym.reshape(
+        data=X, shape=(-4, -1, r * c, 0, 0))  # (bsize*ch, r*c, a, b)
+    X = mx.sym.transpose(data=X, axes=(0, 3, 2, 1))  # (bsize*ch, b, a, r*c)
+    X = mx.sym.reshape(data=X, shape=(0, 0, -1, c))  # (bsize*ch, b, a*r, c)
+    X = mx.sym.transpose(data=X, axes=(0, 2, 1, 3))  # (bsize*ch, a*r, b, c)
+    X = mx.sym.reshape(
+        data=X, shape=(-4, -1, ch, 0, -3))  # (bsize, ch, a*r, b*c)
+    return X
+
+
 def conv_act_layer(from_layer, name, num_filter, kernel=(1,1), pad=(0,0), \
     stride=(1,1), act_type="relu", use_batchnorm=False):
     """

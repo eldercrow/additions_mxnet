@@ -8,7 +8,7 @@ import re
 from dataset.iterator import DetIter
 from dataset.patch_iterator import PatchIter
 from dataset.dataset_loader import load_pascal, load_pascal_patch
-from train.metric import MultiBoxMetric
+from train.metric import MultiBoxMetric, FacePatchMetric
 from evaluate.eval_metric import MApMetric, VOC07MApMetric
 from tools.rand_sampler import RandScaler
 from config.config import cfg
@@ -86,7 +86,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
               year='', val_image_set=None, val_year='', freeze_layer_pattern='',
               label_pad_width=350,
               nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
-              use_difficult=False, 
+              use_difficult=False,
               voc07_metric=False, nms_topk=400, force_suppress=False,
               iter_monitor=0, monitor_pattern=".*", log_file=None):
     """
@@ -181,10 +181,10 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         else:
             val_imdb = None
     elif dataset == 'pascal_voc_patch':
-        imdb = load_pascal_patch(image_set, year, devkit_path, shuffle=cfg.train['init_shuffle'], 
+        imdb = load_pascal_patch(image_set, year, devkit_path, shuffle=cfg.train['init_shuffle'],
                 patch_shape=data_shape[1])
         if val_image_set and val_image_set != '' and val_year:
-            val_imdb = load_pascal_patch(val_image_set, val_year, devkit_path, shuffle=False, 
+            val_imdb = load_pascal_patch(val_image_set, val_year, devkit_path, shuffle=False,
                     patch_shape=data_shape[1])
         else:
             val_imdb = None
@@ -199,7 +199,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                                  max_trials=cfg.train['max_aug_trials'],
                                  max_sample=cfg.train['max_aug_sample'],
                                  patch_size=cfg.train['aug_patch_size'])
-        train_iter = DetIter(imdb, batch_size, data_shape[1], mean_pixels, 
+        train_iter = DetIter(imdb, batch_size, data_shape[1], mean_pixels,
                              [rand_scaler], cfg.train['rand_mirror'],
                              cfg.train['epoch_shuffle'], cfg.train['seed'],
                              is_train=True)
@@ -279,10 +279,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     # internals = net.get_internals()
     # _, out_shapes, _ = internals.infer_shape(data=(32, 3, 512, 512), label=(32, 64, 5))
     # shape_dict = dict(zip(internals.list_outputs(), out_shapes))
-    # for k, v in sorted(shape_dict.items()): 
+    # for k, v in sorted(shape_dict.items()):
     #     print k, v
-    # import ipdb
-    # ipdb.set_trace()
 
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
@@ -311,7 +309,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
 
     mod.fit(train_iter,
             val_iter,
-            eval_metric=MultiBoxMetric(),
+            eval_metric=FacePatchMetric(), #MultiBoxMetric(),
             validation_metric=valid_metric,
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
