@@ -195,8 +195,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         labels = _get_valid_labels(labels)
         np.random.shuffle(labels)
         for label in labels:
-            lsq = _fit_box_ratio(label[1:], 1.0)
-            iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)
+            iou = _compute_iou(label[1:], self.anchors_t, self.area_anchors_t)
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
@@ -240,8 +239,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
                     pos_target_cls.append(label[0])
                 else:
                     pos_target_cls.append(-1)
-                asq = _fit_box_ratio(self.anchors[pid].asnumpy(), 0.8)
-                target_reg = _compute_loc_target(label[1:], asq, self.variances)
+                anc = self.anchors[pid].asnumpy()
+                target_reg = _compute_loc_target(label[1:], anc, self.variances)
                 # target_reg = _compute_loc_target(label[1:], self.anchors[pid].asnumpy(), self.variances)
                 pos_target_reg.append(target_reg.tolist())
                 # # apply nms

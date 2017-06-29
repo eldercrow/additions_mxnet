@@ -26,8 +26,10 @@ python train_imdb.py \
     --dataset pascal_voc \
     --year 2007,2012 \
     --network pva101_ssd_512 \
+    --freeze '^(conv1_).*' \
     --data-shape 512 \
     --val-image-set '' \
     --end-epoch 240 \
-    --pretrained /home/hyunjoon/github/model_mxnet/pva101/pva101 \
-    --epoch 0
+    --resume 27
+    # --pretrained /home/hyunjoon/github/model_mxnet/pva101/pva101 \
+    # --epoch 0

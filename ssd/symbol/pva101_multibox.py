@@ -169,16 +169,8 @@ def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no
     # TODO: feature size tuning
     # For now I will just use 256.
     # feature size would be (n, 256, 32, 32)
-    projf = conv_bn_relu(concat, group_name='projf_16',
-            num_filter=64, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
-            use_global_stats=use_global_stats, lr_mult=lr_mult)
-    # upsample hyperfeature
-    convf = conv_bn_relu(projf, group_name='upconv_16',
-            num_filter=256, pad=(1,1), kernel=(3,3), stride=(1,1), no_bias=True,
-            use_global_stats=use_global_stats, lr_mult=lr_mult)
-
     convf = conv_bn_relu(concat, group_name='convf_16',
-            num_filter=256, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
+            num_filter=256, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=no_bias,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
 
     from_layers = [convf]
@@ -187,10 +179,10 @@ def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no
     sz_ratio = power(2.0, 1.0 / 4.0)
     for fs in feat_strides[1:]:
         projf = conv_bn_relu(convf, group_name='projf_{}'.format(fs),
-                num_filter=64, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
+                num_filter=64, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=no_bias,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         convf = conv_bn_relu(projf, group_name='convf_{}'.format(fs),
-                num_filter=256, pad=(1,1), kernel=(3,3), stride=(2,2), no_bias=True,
+                num_filter=256, pad=(1,1), kernel=(3,3), stride=(2,2), no_bias=no_bias,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         from_layers.append(convf)
         sz = fs * 3.0

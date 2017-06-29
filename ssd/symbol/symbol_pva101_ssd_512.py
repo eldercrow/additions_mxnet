@@ -5,6 +5,7 @@ from pva101_multibox import pvanet_multibox
 from symbol.multibox_target import *
 from symbol.softmax_loss import *
 from symbol.anchor_target_layer import *
+from symbol.multibox_detection_layer import *
 
 
 def get_symbol_train(num_classes=20, nms_thresh=0.5, force_suppress=False, nms_topk=400):
@@ -58,18 +59,23 @@ def get_symbol_train(num_classes=20, nms_thresh=0.5, force_suppress=False, nms_t
     return out
 
 
-def get_symbol(num_classes=20, nms_thresh=0.5, force_suppress=False, nms_topk=400):
+def get_symbol(num_classes=21, nms_thresh=0.5, force_suppress=False, nms_topk=400):
     '''
     '''
     data = mx.symbol.Variable(name="data")
     use_global_stats = True
     no_bias = False
+    th_pos = 0.25
+    th_nms = nms_thresh
 
-    loc_preds, cls_preds, anchor_boxes = pvanet_multibox(data, num_classes, use_global_stats, no_bias)
+    preds, anchors = pvanet_multibox(data, num_classes, 512, use_global_stats, no_bias)
+    preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
+    preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
-    cls_prob = mx.symbol.SoftmaxActivation(data=cls_preds, mode='channel', \
-        name='cls_prob')
-    out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
-        name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
-        variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk)
-    return out
+    probs_cls = mx.sym.reshape(preds_cls, shape=(-1, num_classes))
+    probs_cls = mx.sym.SoftmaxActivation(probs_cls)
+    probs_cls = mx.sym.slice_axis(probs_cls, axis=1, begin=1, end=None)
+
+    tmp = mx.symbol.Custom(*[probs_cls, preds_reg, anchors], op_type='multibox_detection', 
+            name='multibox_detection', th_pos=th_pos, n_class=num_classes-1, th_nms=th_nms, max_detection=300)
+    return tmp
