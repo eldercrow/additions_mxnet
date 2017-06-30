@@ -32,6 +32,10 @@ def batchnorm(data, name, use_global_stats, fix_gamma=False, lr_mult=1.0):
     return bn
 
 
+def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
+    return mx.sym.Pooling(data, name=name, kernel=kernel, stride=stride, pool_type=pool_type)
+
+
 def subpixel_upsample(data, ch, c, r):
     if r == 1 and c == 1:
         return data
