@@ -98,31 +98,6 @@ def inception_group(data,
         return res_, num_filter_incep
 
 
-def clone_inception_group(data, prefix_group_name, src_syms):
-    """
-    inception unit, only full padding is supported
-    """
-    prefix_name = prefix_group_name
-    incep_layers = []
-    bn_ = data
-    for ii in range(3):
-        postfix_name = '3x3/{}'.format(ii + 1)
-        bn_ = clone_relu_conv_bn(bn_, prefix_name + '3x3/{}/'.format(ii),
-                                   src_syms['unit{}'.format(ii)])
-        incep_layers.append(bn_)
-
-    concat_ = mx.sym.concat(*incep_layers)
-    concat_ = clone_relu_conv_bn(concat_, prefix_name + 'concat/', src_syms['concat'])
-
-    if 'proj_data' in src_syms:
-        # data = clone_conv(data, name=prefix_name+'proj/conv', src_layer=src_syms['proj_data'])
-        data = clone_relu_conv_bn(
-            data,
-            prefix_name=prefix_name + 'proj/',
-            src_syms=src_syms['proj_data'])
-    return concat_ + data
-
-
 def upsample_feature(data,
                      name,
                      scale,
@@ -156,21 +131,21 @@ def get_spotnet(n_classes, patch_size, use_global_stats):
     data = mx.sym.Variable(name='data')
 
     conv1 = convolution(data / 128.0, name='1/conv',
-        num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=12, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1)
     bn2 = relu_conv_bn(pool1, prefix_name='2/',
-        num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+        num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
         use_global_stats=use_global_stats)
 
-    nf_3x3 = ((32, 16, 16), (48, 24, 24), (64, 32, 32))  # nch: 128 192 256
+    nf_3x3 = ((24, 12, 12), (36, 18, 18), (48, 24, 24))  # nch: 96, 144, 192
     n_incep = (1, 1, 1)
 
     # basic groups, 12, 24, 48
     group_i = bn2
     groups = []
-    n_curr_ch = 64
+    n_curr_ch = 48
     for i in range(len(nf_3x3)):
         group_i = pool(group_i)
         for j in range(n_incep[i]):
@@ -186,19 +161,31 @@ def get_spotnet(n_classes, patch_size, use_global_stats):
 
     # 96 and more
     curr_sz = 48
+    i = 3
     while curr_sz < patch_size:
-        for i in range(len(nf_3x3[-1])):
-            group_i = pool(group_i)
-            for j in range(n_incep[i]):
-                group_i, n_curr_ch = inception_group(
-                    group_i,
-                    'g{}/u{}/'.format(i, j),
-                    n_curr_ch,
-                    num_filter_3x3=nf_3x3[i],
-                    use_global_stats=use_global_stats,
-                    get_syms=False)
-            groups.append(group_i)
+        group_i = pool(group_i)
+        if i == 3:
+            pool5 = group_i
+        for j in range(n_incep[-1]):
+            group_i, n_curr_ch = inception_group(
+                group_i,
+                'g{}/u{}/'.format(i, j),
+                n_curr_ch,
+                num_filter_3x3=nf_3x3[-1],
+                use_global_stats=use_global_stats,
+                get_syms=False)
+        groups.append(group_i)
         curr_sz *= 2
+        i += 1
+
+    group_ctx, _ = inception_group(
+            pool5,
+            'g_ctx/u0/',
+            192,
+            num_filter_3x3=nf_3x3[-1],
+            use_crelu=False,
+            use_global_stats=use_global_stats,
+            get_syms=False)
 
     # we won't use the first group
     groups = groups[1:]
@@ -208,7 +195,7 @@ def get_spotnet(n_classes, patch_size, use_global_stats):
     nf_proj = 32
     nf_upsamples = [[32, 64], [64]]
     ctx_layers = []
-    for i, g in enumerate([groups[2], groups[1]]):
+    for i, g in enumerate([group_ctx, groups[1]]):
         cl = []
         for j, (s, u) in enumerate(zip(upscales[i], nf_upsamples[i])):
             c = upsample_feature(
@@ -269,6 +256,6 @@ def get_spotnet(n_classes, patch_size, use_global_stats):
     ratios = [[1.0, 0.5, 2.0, 1.0 / 3.0, 3.0]] * len(sizes)
     clip = False
 
-    preds, anchors = multibox_layer_python(from_layers, num_classes, 
-            sizes=sizes, ratios=ratios, strides=feat_strides, clip=False)
+    preds, anchors = multibox_layer_python(from_layers, n_classes, 
+            sizes=sizes, ratios=ratios, strides=strides, clip=False)
     return preds, anchors

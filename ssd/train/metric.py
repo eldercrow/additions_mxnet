@@ -76,7 +76,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
 
 class FacePatchMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, num=3, postfix_names=['Loss', 'SmoothL1', 'Recall']): #'LossOrig']):
+    def __init__(self, num=4, postfix_names=['Loss', 'SmoothL1', 'Acc', 'Recall']):
         # super(FacePatchMetric, self).__init__(['Loss', 'SmoothL1', 'Recall'], 3)
         self.sum_metric = np.zeros((num,))
         self.num_inst = np.zeros((num,), dtype=int)
@@ -96,23 +96,26 @@ class FacePatchMetric(mx.metric.EvalMetric):
         reg_label = preds[3].asnumpy()
         cls_prob = preds[4].asnumpy()
 
+        cls_acc = np.argmax(cls_prob, axis=1) == cls_label
+
         mask = np.where(cls_label >= 0)[0]
         n_valid_sample = mask.size
         if mask.size > 0:
             self.sum_metric[0] += sum(cls_loss)
+            self.sum_metric[2] += sum(cls_acc[mask])
+            self.num_inst[2] += mask.size
 
-        mask = np.where(np.any(reg_label != -1, axis=1))[0]
-        n_valid_sample += mask.size
-        if mask.size > 0:
+        mask_r = np.where(np.any(reg_label != -1, axis=1))[0]
+        n_valid_sample += mask_r.size
+        if mask_r.size > 0:
             self.sum_metric[1] += sum(reg_loss)
         self.num_inst[0] += n_valid_sample
         self.num_inst[1] += n_valid_sample
 
-        cls_acc = np.argmax(cls_prob, axis=1) == cls_label
-        mask = np.where(cls_label > 0)[0]
-        if mask.size > 0:
-            self.sum_metric[2] += sum(cls_acc[mask])
-            self.num_inst[2] += mask.size
+        mask_p = np.where(cls_label > 0)[0]
+        if mask_p.size > 0:
+            self.sum_metric[3] += sum(cls_acc[mask_p])
+            self.num_inst[3] += mask_p.size
 
     def update_dict(self, labels, preds):
         label = []
