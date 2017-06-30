@@ -25,11 +25,16 @@ python train_imdb.py \
     --gpus 1 \
     --dataset pascal_voc \
     --year 2007,2012 \
-    --network pva101_ssd_512 \
-    --freeze '^(conv1_).*' \
+    --network pva102_ssd_512 \
+    --prefix model/pva102_ssd \
+    --freeze '' \
     --data-shape 512 \
     --val-image-set '' \
-    --end-epoch 240 \
-    --resume 27
-    # --pretrained /home/hyunjoon/github/model_mxnet/pva101/pva101 \
-    # --epoch 0
+    --lr 1e-03 \
+    --lr-factor 0.316227766 \
+    --lr-steps 2,2,3,3,4,4,4 \
+    --frequent 100 \
+    --wd 1e-04 \
+    --pretrained /home/hyunjoon/github/model_mxnet/pva101/pva101 \
+    --epoch 0
+    # --resume 37

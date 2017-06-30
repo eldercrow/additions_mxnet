@@ -16,7 +16,7 @@ python demo.py \
   --dir image \
   --ext .jpg \
   --prefix model/ssd_512 \
-  --epoch 31 \
-  --max-data-shapes 640 640 \
+  --epoch 1000 \
+  --max-data-shapes 960 960 \
   --thresh $TH_POS \
   --gpu 0

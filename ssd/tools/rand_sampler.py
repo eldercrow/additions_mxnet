@@ -97,7 +97,7 @@ class RandScaler(RandSampler):
             bbox = [dx, dy, dx+patch_sz, dy+patch_sz]
 
             new_gt_boxes = []
-            new_gt_indices = []
+            # new_gt_indices = []
             for i, bb in enumerate(gt):
                 new_size = max(bb[4] - bb[2], bb[3] - bb[1]) * scale / float(self.patch_size)
                 overlap = _compute_overlap(bb[1:], bbox)
@@ -105,10 +105,10 @@ class RandScaler(RandSampler):
                     continue
                 l = bb[0] if overlap > self.min_gt_overlap else -1
                 new_gt_boxes.append([l, bb[1]-dx, bb[2]-dy, bb[3]-dx, bb[4]-dy])
-                new_gt_indices.append(valid_mask[i])
-            new_gt_boxes = np.array(new_gt_boxes)
-            new_gt_indices = np.array(new_gt_indices)
-            if len(new_gt_boxes) == 0:
+                # new_gt_indices.append(valid_mask[i])
+            new_gt_boxes = np.reshape(np.array(new_gt_boxes), (-1, 5))
+            # new_gt_indices = np.array(new_gt_indices)
+            if len(new_gt_boxes) == 0 and trial < self.max_trials - 1:
                 continue
             new_gt_boxes[:, 1::2] /= float(patch_sz)
             new_gt_boxes[:, 2::2] /= float(patch_sz)

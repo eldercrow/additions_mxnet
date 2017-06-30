@@ -1,6 +1,6 @@
 import mxnet as mx
 import numpy as np
-from symbol.multibox_prior_layer import *
+from layer.multibox_prior_layer import *
 
 def convolution(data, name, num_filter, kernel, pad, stride=(1,1), no_bias=False, lr_mult=1.0):
     ''' convolution with lr_mult and wd_mult '''

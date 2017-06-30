@@ -1,5 +1,5 @@
 import mxnet as mx
-from pva101_multibox import pvanet_multibox
+from pva102_multibox import pvanet_multibox
 # from symbol.label_mapping_layer import *
 # from symbol.reweight_loss_layer import *
 from layer.multibox_target_layer import *

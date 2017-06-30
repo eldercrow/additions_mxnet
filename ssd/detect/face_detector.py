@@ -127,7 +127,7 @@ class FaceDetector(object):
             overlap = self._comp_overlap(dets[:, 2:], im_info['im_shape'])
             iidx = overlap > 0.6
             n_oob = np.where(iidx == False)[0].size
-            # if n_oob > 0: 
+            # if n_oob > 0:
             #     print('n_oob = {}'.format(n_oob))
             dets = dets[iidx, :]
             dets[:, 2] = np.maximum(dets[:, 2], 0.0)
@@ -142,7 +142,7 @@ class FaceDetector(object):
 
             if i % 10 == 0:
                 n_dets = dets.shape[0]
-                print('Processing image {}/{}, {} faces detected.'.format(i+1, num_images, n_dets))
+                print('Processing image {}/{}, {} objects detected.'.format(i+1, num_images, n_dets))
         # time_elapsed = timer() - start
         if show_timer:
             print("Detection time for {} images: {:.4f} sec".format(
@@ -293,10 +293,10 @@ class FaceDetector(object):
     #     cy += dets[:, 3] * ah * variances[1]
     #     w = (2.0**(dets[:, 4] * variances[2])) * aw * 0.5
     #     h = (2.0**(dets[:, 5] * variances[3])) * ah * 0.5
-    #     dets[:, 2] = cx - w 
-    #     dets[:, 3] = cy - h 
-    #     dets[:, 4] = cx + w 
-    #     dets[:, 5] = cy + h 
+    #     dets[:, 2] = cx - w
+    #     dets[:, 3] = cy - h
+    #     dets[:, 4] = cx + w
+    #     dets[:, 5] = cy + h
     #     return dets
 
     def _do_nms(self, dets):

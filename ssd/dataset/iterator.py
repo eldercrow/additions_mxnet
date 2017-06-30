@@ -230,7 +230,8 @@ class DetIter(mx.io.DataIter):
                 batch_label.append(label)
         self._data = {'data': batch_data}
         if self.is_train:
-            self._label = {'label': mx.nd.array(np.array(batch_label))}
+            batch_label = np.array(batch_label)
+            self._label = {'label': mx.nd.array(batch_label)}
         else:
             self._label = {'label': None}
 

@@ -13,6 +13,8 @@ from evaluate.eval_metric import MApMetric, VOC07MApMetric
 from tools.rand_sampler import RandScaler
 from config.config import cfg
 import tools.load_model as load_model
+from plateau_lr import PlateauScheduler
+from plateau_module import PlateauModule
 
 
 def convert_pretrained(name, args):
@@ -268,8 +270,10 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
     # init training module
-    mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
+    mod = PlateauModule(net, label_names=('label',), logger=logger, context=ctx,
                         fixed_param_names=fixed_param_names)
+    # mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
+    #                     fixed_param_names=fixed_param_names)
     if pretrained:
         mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
         mod.init_params(initializer=mx.init.Xavier(), \
@@ -283,15 +287,18 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     #     print k, v
 
     # fit parameters
-    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
+    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=False)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
-    learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
-        lr_refactor_ratio, imdb.num_images, batch_size, begin_epoch)
+    # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
+    #     lr_refactor_ratio, imdb.num_images, batch_size, begin_epoch)
+    eval_weights = {'Loss': 1.0, 'SmoothL1': 1.0, 'Recall': 0.0}
+    plateau_lr = PlateauScheduler( \
+            patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'clip_gradient': 10.0,
-                      'rescale_grad': 1.0,
-                      'lr_scheduler': lr_scheduler}
+                      'rescale_grad': 1.0}
+                      # 'lr_scheduler': lr_scheduler}
     # optimizer_params={'learning_rate':learning_rate,
     #                   'momentum':momentum,
     #                   'wd':weight_decay,
@@ -308,7 +315,9 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     valid_metric = None
 
     mod.fit(train_iter,
-            val_iter,
+            plateau_lr, plateau_metric=None, fn_curr_model=prefix+'-1000.params',
+            plateau_backtrace=False,
+            eval_data=val_iter,
             eval_metric=FacePatchMetric(), #MultiBoxMetric(),
             validation_metric=valid_metric,
             batch_end_callback=batch_end_callback,
