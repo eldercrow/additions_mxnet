@@ -35,6 +35,6 @@ python train_imdb.py \
     --lr-steps 2,2,3,3,4,4,4 \
     --frequent 100 \
     --wd 1e-04 \
-    --pretrained /home/hyunjoon/github/model_mxnet/pva101/pva101 \
-    --epoch 0
+    --pretrained ./model/pva102_ssd_512 \
+    --epoch 1000
     # --resume 37

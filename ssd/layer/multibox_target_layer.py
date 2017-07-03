@@ -352,7 +352,7 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class,
-            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/3.0,
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/2.0,
             n_max_label=64, sample_per_label=15, hard_neg_ratio=3., ignore_label=-1,
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
