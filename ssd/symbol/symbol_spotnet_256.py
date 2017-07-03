@@ -2,7 +2,7 @@ import mxnet as mx
 from spotnet_lighter3 import get_spotnet
 # from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
 # from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
-# from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
+from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
 from layer.anchor_target_layer import *
 
 
@@ -10,7 +10,7 @@ def get_symbol_train(num_classes, **kwargs):
     '''
     '''
     fix_bn = False
-    patch_size = 512
+    patch_size = 256
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 

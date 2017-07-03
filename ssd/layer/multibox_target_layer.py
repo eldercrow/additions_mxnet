@@ -52,17 +52,21 @@ class MultiBoxTarget(mx.operator.CustomOp):
         preds_reg = in_data[1]
         self.anchors = in_data[2]
         labels_all = in_data[3].asnumpy().astype(np.float32) # (batch, num_label, 5)
-        # softmax
-        probs_cls = mx.nd.transpose(preds_cls, axes=(2, 0, 1)) # (nch, n_batch, n_anchor)
-        probs_cls = mx.nd.broadcast_sub(probs_cls, probs_cls[0])
-        probs_cls = mx.nd.exp(probs_cls[1:])
-        probs_cls = mx.nd.broadcast_div(probs_cls, mx.nd.sum(probs_cls, axis=0, keepdims=True) + 1.0)
-        max_probs_cls = mx.nd.zeros((1, n_batch, n_anchors), ctx=probs_cls.context)
-        for i in range(nch-1):
-            max_probs_cls = mx.nd.maximum(max_probs_cls, probs_cls[i])
-        max_probs_cls = mx.nd.transpose(max_probs_cls, (1, 2, 0)).asnumpy() # (n_batch, n_anchor, 1)
-        max_probs_cls[np.isnan(max_probs_cls)] = 0
-        max_probs_cls = np.reshape(max_probs_cls, (n_batch, n_anchors))
+        probs_cls = mx.nd.slice_axis(in_data[4], axis=1, begin=1, end=None).asnumpy()
+        max_probs_cls = np.max(probs_cls, axis=1)
+        max_cids = np.argmax(probs_cls, axis=1).astype(int)
+
+        # # softmax
+        # probs_cls = mx.nd.transpose(preds_cls, axes=(2, 0, 1)) # (nch, n_batch, n_anchor)
+        # probs_cls = mx.nd.broadcast_sub(probs_cls, probs_cls[0])
+        # probs_cls = mx.nd.exp(probs_cls[1:])
+        # probs_cls = mx.nd.broadcast_div(probs_cls, mx.nd.sum(probs_cls, axis=0, keepdims=True) + 1.0)
+        # max_probs_cls = mx.nd.zeros((1, n_batch, n_anchors), ctx=probs_cls.context)
+        # for i in range(nch-1):
+        #     max_probs_cls = mx.nd.maximum(max_probs_cls, probs_cls[i])
+        # max_probs_cls = mx.nd.transpose(max_probs_cls, (1, 2, 0)).asnumpy() # (n_batch, n_anchor, 1)
+        # max_probs_cls[np.isnan(max_probs_cls)] = 0
+        # max_probs_cls = np.reshape(max_probs_cls, (n_batch, n_anchors))
 
         sample_per_batch = n_batch * self.n_max_label * (self.sample_per_label + (1 + self.hard_neg_ratio))
 
@@ -92,7 +96,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
         max_iou_pos = []
         n_pos_sample = 0
         for i in range(n_batch):
-            anchor_locs, tc, tr, max_iou = self._forward_batch_pos(labels_all[i], max_probs_cls[i], i)
+            anchor_locs, tc, tr, max_iou = \
+                    self._forward_batch_pos(labels_all[i], probs_cls[i], max_cids[i], i)
             anchor_locs_pos += anchor_locs
             tc_pos += tc
             tr_pos += tr
@@ -178,8 +183,9 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.assign(in_grad[1], req[1], grad_reg)
         self.assign(in_grad[2], req[2], 0)
         self.assign(in_grad[3], req[3], 0)
+        self.assign(in_grad[4], req[4], 0)
 
-    def _forward_batch_pos(self, labels, max_probs, batch_id):
+    def _forward_batch_pos(self, labels, probs, max_cids, batch_id):
         n_anchors = self.anchors_t.shape[1]
 
         pos_anchor_locs = []
@@ -199,15 +205,20 @@ class MultiBoxTarget(mx.operator.CustomOp):
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
+            
+            gt_cls = int(label[0])
+            probs_cls = probs[gt_cls - 1]
 
             pidx = np.where(iou > self.th_iou)[0]
             if pidx.size == 0:
                 pidx = np.array([np.argmax(iou)])
-            pos_probs = max_probs[pidx]
-            sidx = np.argsort(pos_probs)
+            # pos_probs = probs_cls[pidx]
+            # pos_max_probs = max_probs[pidx]
+            sidx = np.argsort(probs_cls[pidx])
             pidx = pidx[sidx]
             ridx = np.where(iou > self.th_iou_neg)[0]
             ridx = np.setdiff1d(ridx, pidx)
+            ridx = ridx[max_cids[ridx] == gt_cls - 1]
             # np.random.shuffle(pidx)
             np.random.shuffle(ridx)
             # ridx = np.hstack((ridx, pidx[::-1]))
@@ -236,7 +247,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
                 is_sampled[pid] = iou[pid]
                 pos_anchor_locs.append((batch_id, pid))
                 if iou[pid] > self.th_iou:
-                    pos_target_cls.append(label[0])
+                    pos_target_cls.append(gt_cls)
                 else:
                     pos_target_cls.append(-1)
                 anc = self.anchors[pid].asnumpy()
@@ -370,7 +381,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         self.variances = np.array(variances)
 
     def list_arguments(self):
-        return ['probs_cls', 'preds_reg', 'anchors', 'label']
+        return ['preds_cls', 'preds_reg', 'anchors', 'label', 'probs_cls']
 
     def list_outputs(self):
         return ['sample_cls', 'sample_reg', 'target_cls', 'target_reg', 'mask_reg']
