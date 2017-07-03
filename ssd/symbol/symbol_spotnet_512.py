@@ -15,12 +15,13 @@ def get_symbol_train(num_classes, **kwargs):
         patch_size = kwargs['patch_size']
 
     preds, anchors = get_spotnet(num_classes, patch_size, use_global_stats=fix_bn)
-    preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
+    preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes) # (n_batch, n_anc, n_cls)
+    probs_cls = mx.sym.SoftmaxActivation(mx.sym.transpose(preds_cls, (0, 2, 1)), mode='channel')
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
     label = mx.sym.var(name='label')
 
-    tmp = mx.symbol.Custom(*[preds_cls, preds_reg, anchors, label], op_type='multibox_target', 
+    tmp = mx.symbol.Custom(*[preds_cls, preds_reg, anchors, label, probs_cls], op_type='multibox_target', 
             name='multibox_target', n_class=num_classes, variances=(0.1, 0.1, 0.2, 0.2))
     sample_cls = tmp[0]
     sample_reg = tmp[1]

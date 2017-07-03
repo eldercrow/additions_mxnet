@@ -24,6 +24,6 @@ python train_imdb.py \
     --lr-steps 2,2,3,3,4,4,4 \
     --frequent 50 \
     --wd 1e-04 \
-    --resume 7
-    # --pretrained model/spotnet_256 \
-    # --epoch 1000
+    --pretrained model/spotnet_512 \
+    --epoch 1000
+    # --resume 7
