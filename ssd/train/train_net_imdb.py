@@ -276,9 +276,17 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     #                     fixed_param_names=fixed_param_names)
     if resume <= 0 and from_scratch == False and finetune <= 0:
         mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
-        mod.init_params(initializer=mx.init.Xavier(), \
-                arg_params=args, aux_params=auxs, allow_missing=True, allow_extra=True)
-
+        mod.init_params(initializer=mx.init.Xavier())
+        args0, auxs0 = mod.get_params()
+        arg_params = args0.copy()
+        aux_params = auxs0.copy()
+        for k in args0:
+            if k in args and args0[k].shape == args[k].shape:
+                arg_params[k] = args[k]
+        for k in auxs0:
+            if k in auxs and auxs0[k].shape == auxs[k].shape:
+                aux_params[k] = auxs[k]
+        mod.set_params(arg_params=arg_params, aux_params=aux_params)
     # for debug
     # internals = net.get_internals()
     # _, out_shapes, _ = internals.infer_shape(data=(32, 3, 512, 512), label=(32, 64, 5))

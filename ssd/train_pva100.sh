@@ -13,8 +13,8 @@ python train_imdb.py \
     --gpus 1 \
     --dataset pascal_voc \
     --year 2007,2012 \
-    --network spotnet_512 \
-    --prefix model/spotnet \
+    --network pva102_ssd_512 \
+    --prefix model/pva102_ssd \
     --freeze '' \
     --batch-size 16 \
     --data-shape 512 \

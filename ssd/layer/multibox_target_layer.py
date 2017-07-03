@@ -52,9 +52,10 @@ class MultiBoxTarget(mx.operator.CustomOp):
         preds_reg = in_data[1]
         self.anchors = in_data[2]
         labels_all = in_data[3].asnumpy().astype(np.float32) # (batch, num_label, 5)
-        probs_cls = mx.nd.slice_axis(in_data[4], axis=1, begin=1, end=None).asnumpy()
-        max_probs_cls = np.max(probs_cls, axis=1)
-        max_cids = np.argmax(probs_cls, axis=1).astype(int)
+        probs_cls = mx.nd.slice_axis(in_data[4], axis=1, begin=1, end=None)
+        max_probs_cls = mx.nd.max(probs_cls, axis=1).asnumpy()
+        max_cids = mx.nd.argmax(probs_cls, axis=1).asnumpy().astype(int)
+        probs_cls = probs_cls.asnumpy()
 
         # # softmax
         # probs_cls = mx.nd.transpose(preds_cls, axes=(2, 0, 1)) # (nch, n_batch, n_anchor)
