@@ -36,6 +36,7 @@ class FaceDetector(object):
                  max_data_shapes,
                  mean_pixels,
                  img_stride=32,
+                 min_size=0,
                  th_nms=0.3333,
                  ctx=None):
         self.ctx = ctx
@@ -63,9 +64,10 @@ class FaceDetector(object):
         # self.mod.set_params(args, auxs)
         self.mean_pixels = mean_pixels
         self.img_stride = img_stride
+        self.min_size = min_size
         self.th_nms = th_nms
 
-    def detect(self, det_iter, show_timer=False):
+    def detect(self, det_iter, thresh=0.0, show_timer=False):
         """
         detect all images in iterator
 
@@ -111,7 +113,7 @@ class FaceDetector(object):
             out = self.mod.get_outputs()
 
             dets = out[0][0].asnumpy()
-            iidx = np.where(dets[0] > 0)[0]
+            iidx = np.where(np.logical_and(dets[0] > 0, dets[1] > thresh))[0]
             # time_elapsed = timer() - start
             if len(iidx) == 0:
                 result.append(np.zeros((0, 6)))
@@ -153,6 +155,7 @@ class FaceDetector(object):
                   im_list,
                   root_dir=None,
                   extension=None,
+                  thresh=0.0,
                   show_timer=False):
         """
         wrapper for detecting multiple images
@@ -174,8 +177,8 @@ class FaceDetector(object):
         """
         test_db = TestDB(im_list, root_dir=root_dir, extension=extension)
         test_iter = TestIter(test_db, self.max_data_shapes,
-                                 self.mean_pixels, self.img_stride)
-        return self.detect(test_iter, show_timer)
+                                 self.mean_pixels, self.img_stride, self.min_size)
+        return self.detect(test_iter, thresh, show_timer)
 
     def visualize_detection(self, img, dets, classes=[], thresh=0.6):
         """
@@ -270,7 +273,7 @@ class FaceDetector(object):
         """
         import cv2
         dets, _ = self.im_detect(
-            im_list, root_dir, extension, show_timer=show_timer)
+            im_list, root_dir, extension, thresh=thresh, show_timer=show_timer)
         root_dir = '' if not root_dir else root_dir
         extension = '' if not extension else extension
         if not isinstance(im_list, list):
@@ -301,8 +304,10 @@ class FaceDetector(object):
 
     def _do_nms(self, dets):
         #
-        areas = (dets[:, 4] - dets[:, 2]) * (dets[:, 5] - dets[:, 3])
         vidx = []
+        if dets.size == 0:
+            return vidx
+        areas = (dets[:, 4] - dets[:, 2]) * (dets[:, 5] - dets[:, 3])
         n_cls = int(np.max(dets[:, 0])) + 1
         for k in range(n_cls):
             cidx = np.where(dets[:, 0].astype(int) == k)[0]
