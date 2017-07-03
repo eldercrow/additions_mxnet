@@ -126,7 +126,7 @@ def upsample_feature(data,
     return subpixel_upsample(bn, num_filter_upsample, scale, scale)
 
 
-def get_spotnet(n_classes, patch_size, use_global_stats):
+def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     """ main shared conv layers """
     data = mx.sym.Variable(name='data')
 
@@ -257,5 +257,5 @@ def get_spotnet(n_classes, patch_size, use_global_stats):
     clip = False
 
     preds, anchors = multibox_layer_python(from_layers, n_classes, 
-            sizes=sizes, ratios=ratios, strides=strides, clip=False)
+            sizes=sizes, ratios=ratios, strides=strides, per_cls_reg=per_cls_reg, clip=False)
     return preds, anchors

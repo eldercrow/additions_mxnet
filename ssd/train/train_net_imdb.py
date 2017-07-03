@@ -283,9 +283,13 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         for k in args0:
             if k in args and args0[k].shape == args[k].shape:
                 arg_params[k] = args[k]
+            else:
+                logger.info('Warning: param {} is inited from scratch.'.format(k))
         for k in auxs0:
             if k in auxs and auxs0[k].shape == auxs[k].shape:
                 aux_params[k] = auxs[k]
+            else:
+                logger.info('Warning: param {} is inited from scratch.'.format(k))
         mod.set_params(arg_params=arg_params, aux_params=aux_params)
     # for debug
     # internals = net.get_internals()

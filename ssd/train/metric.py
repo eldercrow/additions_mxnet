@@ -42,7 +42,9 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         self.num_inst[0] += valid_count
         # smoothl1loss
         self.sum_metric[1] += np.sum(loc_loss)
-        self.num_inst[1] += np.sum(loc_label)
+        import ipdb
+        ipdb.set_trace()
+        self.num_inst[1] += np.sum(np.any(loc_label, axis=1))
         # accuracy
         # import ipdb
         # ipdb.set_trace()
@@ -105,9 +107,10 @@ class FacePatchMetric(mx.metric.EvalMetric):
             self.sum_metric[2] += sum(cls_acc[mask])
             self.num_inst[2] += mask.size
 
-        mask_r = np.where(np.any(reg_label != -1, axis=1))[0]
-        n_valid_sample += mask_r.size
-        if mask_r.size > 0:
+        mask_r = np.sum(np.any(reg_label, axis=1))
+        # mask_r = np.where(np.any(reg_label != -1, axis=1))[0]
+        n_valid_sample += mask_r
+        if mask_r > 0:
             self.sum_metric[1] += sum(reg_loss)
         self.num_inst[0] += n_valid_sample
         self.num_inst[1] += n_valid_sample
