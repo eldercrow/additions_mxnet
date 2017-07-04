@@ -19,11 +19,10 @@ python train_imdb.py \
     --batch-size 8 \
     --data-shape 512 \
     --val-image-set '' \
-    --lr 0.000316227766 \
+    --lr 1e-05 \
     --lr-factor 0.316227766 \
     --lr-steps 2,2,3,3,4,4,4 \
     --frequent 50 \
     --wd 1e-04 \
-    --resume 8
-    # --pretrained ./model/spotnet_ssd_512 \
-    # --epoch 1000
+    --pretrained ./model/spotnet_ssd_256 \
+    --epoch 1000
