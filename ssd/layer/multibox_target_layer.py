@@ -229,6 +229,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             ridx = np.setdiff1d(ridx, pidx)
             if not self.per_cls_reg:
                 ridx = ridx[max_cids[ridx] == gt_cls]
+                # ridx = ridx[np.logical_and(max_cids[ridx] == gt_cls, probs_cls[ridx] > probs_bg[ridx])]
             # ridx = ridx[max_cids[ridx] == gt_cls - 1]
             # np.random.shuffle(pidx)
             np.random.shuffle(ridx)

@@ -160,6 +160,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         groups.append(group_i)
 
     # 96 and more
+    nf_3x3 = (64, 32, 32)
     curr_sz = 48
     i = 3
     while curr_sz < patch_size:
@@ -171,7 +172,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
                 group_i,
                 'g{}/u{}/'.format(i, j),
                 n_curr_ch,
-                num_filter_3x3=nf_3x3[-1],
+                num_filter_3x3=nf_3x3,
                 use_global_stats=use_global_stats,
                 get_syms=False)
         groups.append(group_i)
@@ -182,7 +183,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
             pool5,
             'g_ctx/u0/',
             192,
-            num_filter_3x3=nf_3x3[-1],
+            num_filter_3x3=nf_3x3,
             use_crelu=False,
             use_global_stats=use_global_stats,
             get_syms=False)
