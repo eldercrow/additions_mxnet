@@ -36,7 +36,7 @@ class PascalVoc(Imdb):
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ['__background__', 
+        self.classes = ['__background__',
                         'aeroplane', 'bicycle', 'bird', 'boat',
                         'bottle', 'bus', 'car', 'cat', 'chair',
                         'cow', 'diningtable', 'dog', 'horse',
@@ -54,8 +54,9 @@ class PascalVoc(Imdb):
                                     self.name + '_' + self.IDX_VER + '.pkl')
             self.image_set_index = self._load_image_set_index(shuffle)
             self.num_images = len(self.image_set_index)
-            if self.is_train:
-                self.labels, self.max_objects = self._load_image_labels()
+            self.labels, self.max_objects = self._load_image_labels()
+            # if self.is_train:
+            #     self.labels, self.max_objects = self._load_image_labels()
             self._save_to_cache()
         else:
             self.image_set_index = cached['image_set_index']
@@ -277,6 +278,13 @@ class PascalVoc(Imdb):
         self.write_pascal_results(detections)
         self.do_python_eval()
 
+    def get_result_pkl_template(self):
+        res_file_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year, 'Main')
+        filename = 'det_' + self.image_set + '_all.pkl'
+        path = os.path.join(res_file_folder, filename)
+        return path
+
+
     def get_result_file_template(self):
         """
         this is a template
@@ -304,6 +312,8 @@ class PascalVoc(Imdb):
         None
         """
         for cls_ind, cls in enumerate(self.classes):
+            if cls_ind == 0:
+                continue
             print('Writing {} VOC results file'.format(cls))
             filename = self.get_result_file_template().format(cls)
             with open(filename, 'wt') as f:
@@ -317,8 +327,12 @@ class PascalVoc(Imdb):
                         if (int(dets[k, 0]) == cls_ind):
                             f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
                                     format(index, dets[k, 1],
-                                           int(dets[k, 2] * w) + 1, int(dets[k, 3] * h) + 1,
-                                           int(dets[k, 4] * w) + 1, int(dets[k, 5] * h) + 1))
+                                           int(dets[k, 2]) + 1, int(dets[k, 3]) + 1,
+                                           int(dets[k, 4]) + 1, int(dets[k, 5]) + 1))
+                            # f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
+                            #         format(index, dets[k, 1],
+                            #                int(dets[k, 2] * w) + 1, int(dets[k, 3] * h) + 1,
+                            #                int(dets[k, 4] * w) + 1, int(dets[k, 5] * h) + 1))
 
     def do_python_eval(self):
         """
@@ -336,6 +350,8 @@ class PascalVoc(Imdb):
         use_07_metric = True if int(self.year) < 2010 else False
         print('VOC07 metric? ' + ('Y' if use_07_metric else 'No'))
         for cls_ind, cls in enumerate(self.classes):
+            if cls_ind == 0:
+                continue
             filename = self.get_result_file_template().format(cls)
             rec, prec, ap = voc_eval(filename, annopath, imageset_file, cls, cache_dir,
                                      ovthresh=0.5, use_07_metric=use_07_metric)

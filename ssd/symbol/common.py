@@ -240,7 +240,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
     return [loc_preds, cls_preds, anchor_boxes]
 
 
-def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides, clip=False):
+def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides, per_cls_reg=False, clip=False):
     ''' multibox layer '''
     # parameter check
     assert len(from_layers) > 0, "from_layers must not be empty list"
@@ -251,17 +251,19 @@ def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides, clip
     pred_layers = []
     anchor_layers = []
 
+    num_reg = 4 * num_classes if per_cls_reg else 4
+
     for k, from_layer in enumerate(from_layers):
         from_name = from_layer.name
         num_anchors = len(sizes[k]) * len(ratios[k])
-        num_loc_pred = num_anchors * 4
+        num_loc_pred = num_anchors * num_reg
         num_cls_pred = num_anchors * num_classes
         num_filter = num_loc_pred + num_cls_pred
 
         pred_conv = convolution(from_layer, name='{}_pred/conv'.format(from_name),
                 num_filter=num_filter, kernel=(3, 3), pad=(1, 1))
         pred_conv = mx.sym.transpose(pred_conv, axes=(0, 2, 3, 1))  # (n h w ac), a=num_anchors
-        pred_conv = mx.sym.reshape(pred_conv, shape=(0, -1, num_classes + 4))
+        pred_conv = mx.sym.reshape(pred_conv, shape=(0, -1, num_classes + num_reg))
         # pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -4, num_anchors, -1))  # (n h*w a c)
         # pred_conv = mx.sym.reshape(pred_conv, shape=(0, -3, -1))  # (n h*w*a c)
         pred_layers.append(pred_conv)

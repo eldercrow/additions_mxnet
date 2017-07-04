@@ -16,7 +16,7 @@ class TestIter(mx.io.DataIter):
     mean_pixels : float or float list
         [R, G, B], mean pixel values
     """
-    def __init__(self, imdb, max_data_shapes, mean_pixels=[128, 128, 128], img_stride=32):
+    def __init__(self, imdb, max_data_shapes, mean_pixels=[128, 128, 128], img_stride=32, min_size=0):
         super(TestIter, self).__init__()
 
         self._imdb = imdb
@@ -24,6 +24,7 @@ class TestIter(mx.io.DataIter):
         self._max_data_shapes = max_data_shapes
         self._mean_pixels = mx.nd.array(mean_pixels).reshape((3,1,1))
         self._img_stride = img_stride
+        self._min_size = float(min_size)
 
         self._current = 0
         self._size = imdb.num_images
@@ -100,12 +101,17 @@ class TestIter(mx.io.DataIter):
         """
         perform data augmentations: resize, sub mean, swap channels
         """
+        ww = data.shape[1]
+        hh = data.shape[0]
+        sf = np.maximum(1.0, self._min_size / np.minimum(ww, hh))
+        ww *= sf
+        hh *= sf
         # first resize image w.r.t max image size
-        sf_y = float(self._max_data_shapes[0]) / data.shape[0]
-        sf_x = float(self._max_data_shapes[1]) / data.shape[1] 
+        sf_y = float(self._max_data_shapes[0]) / hh #data.shape[0]
+        sf_x = float(self._max_data_shapes[1]) / ww #data.shape[1] 
         sf = np.minimum(1.0, np.minimum(sf_x, sf_y))
-        sy = int(np.round(data.shape[0] * sf))
-        sx = int(np.round(data.shape[1] * sf))
+        sy = int(np.round(hh * sf))
+        sx = int(np.round(ww * sf))
         sf_y = data.shape[0] / float(sy)
         sf_x = data.shape[1] / float(sx)
         if sy != data.shape[0] or sx != data.shape[1]:

@@ -125,8 +125,9 @@ def voc_eval(detpath, annopath, imageset_file, classname, cache_dir, ovthresh=0.
     # sort by confidence
     sorted_inds = np.argsort(-confidence)
     sorted_scores = np.sort(-confidence)
-    bbox = bbox[sorted_inds, :]
-    image_ids = [image_ids[x] for x in sorted_inds]
+    if sorted_inds.size > 0:
+        bbox = bbox[sorted_inds, :]
+        image_ids = [image_ids[x] for x in sorted_inds]
 
     # go down detections and mark true positives and false positives
     nd = len(image_ids)

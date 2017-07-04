@@ -23,7 +23,7 @@ def get_symbol_train(num_classes=21, nms_thresh=0.5, force_suppress=False, nms_t
     loc_preds = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
     tmp = mx.symbol.Custom(*[cls_preds, loc_preds, anchors, label, cls_probs], op_type='multibox_target', 
-            name='multibox_target', n_class=num_classes, variances=(0.1, 0.1, 0.2, 0.2))
+            name='multibox_target', n_class=num_classes, variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=True)
     sample_cls = tmp[0]
     sample_reg = tmp[1]
     target_cls = tmp[2]

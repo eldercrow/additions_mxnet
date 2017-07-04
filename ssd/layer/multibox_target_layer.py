@@ -13,7 +13,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
     """
     def __init__(self, n_class, th_iou, th_nms, th_neg_nms,
             n_max_label, sample_per_label, hard_neg_ratio,
-            ignore_label, variances):
+            ignore_label, variances, per_cls_reg):
         #
         super(MultiBoxTarget, self).__init__()
         self.n_class = n_class
@@ -25,6 +25,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.hard_neg_ratio = hard_neg_ratio
         self.ignore_label = ignore_label
         self.variances = variances
+        self.per_cls_reg = per_cls_reg
         # precompute nms candidates
         self.nidx_neg = None
         # self.nidx_pos = None
@@ -84,24 +85,29 @@ class MultiBoxTarget(mx.operator.CustomOp):
         # process each batch
         sample_cls = mx.nd.zeros((sample_per_batch, nch), ctx=in_data[0].context)
         target_cls = np.full((sample_per_batch), -1, dtype=np.float32)
-        sample_reg = mx.nd.zeros((sample_per_batch, 4), ctx=in_data[0].context)
-        target_reg = np.full((sample_per_batch, 4), -1, dtype=np.float32)
-        mask_reg = np.zeros((sample_per_batch), dtype=np.float32)
+
+        nch_reg = 4 * self.n_class if self.per_cls_reg else 4
+        sample_reg = mx.nd.zeros((sample_per_batch, nch_reg), ctx=in_data[0].context)
+        target_reg = np.full((sample_per_batch, nch_reg), -1, dtype=np.float32)
+        mask_reg = np.zeros((sample_per_batch, nch_reg), dtype=np.float32)
+
         anchor_locs_all = np.full((sample_per_batch, 2), -1, dtype=np.int32)
 
         # positive samples
         anchor_locs_pos = []
         tc_pos = []
         tr_pos = []
+        mr_pos = []
         # probs_pos = []
         max_iou_pos = []
         n_pos_sample = 0
         for i in range(n_batch):
-            anchor_locs, tc, tr, max_iou = \
+            anchor_locs, tc, tr, mr, max_iou = \
                     self._forward_batch_pos(labels_all[i], probs_cls[i], max_cids[i], i)
             anchor_locs_pos += anchor_locs
             tc_pos += tc
             tr_pos += tr
+            mr_pos += mr
             # probs_pos += p
             max_iou_pos.append(max_iou)
             n_pos_sample = np.maximum(n_pos_sample, np.sum(np.array(tc) > 0))
@@ -140,8 +146,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
             target_cls[k] = tc_pos[i]
             sample_cls[k] = preds_cls[bid][aid]
             target_reg[k] = tr_pos[i]
+            mask_reg[k] = mr_pos[i]
             sample_reg[k] = preds_reg[bid][aid]
-            mask_reg[k] = 1
             anchor_locs_all[k] = aloc
             k += 1
 
@@ -157,11 +163,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
             anchor_locs_all[k] = aloc
             k += 1
 
-        mask_reg = np.reshape(mask_reg, (-1, 1))
+        # mask_reg = np.reshape(mask_reg, (-1, 1))
 
         self.assign(aux[0], 'write', mx.nd.array(anchor_locs_all))
-        self.assign(out_data[0], req[0], mx.nd.reshape(sample_cls, (-1, nch)))
-        self.assign(out_data[1], req[1], mx.nd.reshape(sample_reg, (-1, 4)))
+        self.assign(out_data[0], req[0], sample_cls)
+        self.assign(out_data[1], req[1], sample_reg)
         self.assign(out_data[2], req[2], mx.nd.array(target_cls, ctx=in_data[0].context))
         self.assign(out_data[3], req[3], mx.nd.array(target_reg, ctx=in_data[0].context))
         self.assign(out_data[4], req[4], mx.nd.array(mask_reg, ctx=in_data[0].context))
@@ -192,6 +198,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         pos_anchor_locs = []
         pos_target_cls = []
         pos_target_reg = []
+        pos_mask_reg = []
         max_iou = np.zeros(n_anchors)
         is_sampled = np.zeros(n_anchors)
 
@@ -220,8 +227,9 @@ class MultiBoxTarget(mx.operator.CustomOp):
             pidx = pidx[sidx]
             ridx = np.where(iou > self.th_iou_neg)[0]
             ridx = np.setdiff1d(ridx, pidx)
-            ridx = ridx[np.logical_and(max_cids[ridx] == gt_cls, probs_cls[ridx] > probs_bg[ridx])]
-            # ridx = ridx[max_cids[ridx] == gt_cls - 1]
+            if not self.per_cls_reg:
+                ridx = ridx[max_cids[ridx] == gt_cls]
+                # ridx = ridx[np.logical_and(max_cids[ridx] == gt_cls, probs_cls[ridx] > probs_bg[ridx])]
             # np.random.shuffle(pidx)
             np.random.shuffle(ridx)
             # ridx = np.hstack((ridx, pidx[::-1]))
@@ -246,6 +254,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
                     del pos_anchor_locs[didx]
                     del pos_target_cls[didx]
                     del pos_target_reg[didx]
+                    del pos_mask_reg[didx]
                     k -= 1
                 is_sampled[pid] = iou[pid]
                 pos_anchor_locs.append((batch_id, pid))
@@ -254,9 +263,12 @@ class MultiBoxTarget(mx.operator.CustomOp):
                 else:
                     pos_target_cls.append(-1)
                 anc = self.anchors[pid].asnumpy()
-                target_reg = _compute_loc_target(label[1:], anc, self.variances)
+                target_reg, mask_reg = _compute_loc_target(label[1:], anc, self.variances)
+                if self.per_cls_reg:
+                    target_reg, mask_reg = _expand_target(target_reg, gt_cls, self.n_class)
                 # target_reg = _compute_loc_target(label[1:], self.anchors[pid].asnumpy(), self.variances)
                 pos_target_reg.append(target_reg.tolist())
+                pos_mask_reg.append(mask_reg.tolist())
                 # # apply nms
                 # if len(self.nidx_pos[pid]) == 0:
                 #     self.nidx_pos[pid] = _compute_nms_cands( \
@@ -274,7 +286,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
             pos_anchor_locs = pos_anchor_locs[:n_max_sample]
             pos_target_cls = pos_target_cls[:n_max_sample]
             pos_target_reg = pos_target_reg[:n_max_sample]
-        return pos_anchor_locs, pos_target_cls, pos_target_reg, max_iou
+            pos_mask_reg = pos_mask_reg[:n_max_sample]
+        return pos_anchor_locs, pos_target_cls, pos_target_reg, pos_mask_reg, max_iou
 
     def _forward_batch_neg(self, n_neg_sample, max_probs, neg_iou, batch_id):
         # first remove positive samples from mining
@@ -361,14 +374,23 @@ def _compute_loc_target(gt_bb, bb, variances):
     loc_target[1] = ((gt_bb[3] + gt_bb[1]) - (bb[3] + bb[1])) * 0.5 / ah
     loc_target[2] = np.log2((gt_bb[2] - gt_bb[0]) / aw)
     loc_target[3] = np.log2((gt_bb[3] - gt_bb[1]) / ah)
-    return loc_target / variances
+    return loc_target / variances, np.ones_like(loc_target)
+
+def _expand_target(loc_target, cid, n_cls):
+    loc_target_e = np.zeros((4 * n_cls, ), dtype=np.float32)
+    loc_mask_e = np.zeros_like(loc_target_e)
+    sidx = cid * 4
+    loc_target_e[sidx:sidx+4] = loc_target
+    loc_mask_e[sidx:sidx+4] = 1
+    return loc_target_e, loc_mask_e
+
 
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class,
-            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/2.0,
-            n_max_label=64, sample_per_label=21, hard_neg_ratio=3., ignore_label=-1,
-            variances=(0.1, 0.1, 0.2, 0.2)):
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/3.0,
+            n_max_label=64, sample_per_label=15, hard_neg_ratio=3., ignore_label=-1,
+            variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False):
         #
         super(MultiBoxTargetProp, self).__init__(need_top_grad=True)
         self.n_class = int(n_class)
@@ -382,6 +404,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.array(variances)
+        self.per_cls_reg = bool(make_tuple(str(per_cls_reg)))
 
     def list_arguments(self):
         return ['preds_cls', 'preds_reg', 'anchors', 'label', 'probs_cls']
@@ -399,10 +422,13 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         sample_per_batch = self.n_max_label * (self.sample_per_label + (1 + self.hard_neg_ratio))
 
         sample_cls_shape = (n_batch*sample_per_batch, n_class)
-        sample_reg_shape = (n_batch*sample_per_batch, 4)
+        if self.per_cls_reg:
+            sample_reg_shape = (n_batch * sample_per_batch, 4 * n_class)
+        else:
+            sample_reg_shape = (n_batch*sample_per_batch, 4)
         target_cls_shape = (n_batch*sample_per_batch, )
         target_reg_shape = sample_reg_shape
-        mask_reg_shape = (n_batch*sample_per_batch, 1)
+        mask_reg_shape = sample_reg_shape
 
         out_shape = [sample_cls_shape, sample_reg_shape,
                 target_cls_shape, target_reg_shape, mask_reg_shape]
@@ -416,5 +442,5 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         return MultiBoxTarget( \
                 self.n_class, self.th_iou, self.th_nms, self.th_neg_nms,
                 self.n_max_label, self.sample_per_label, self.hard_neg_ratio,
-                self.ignore_label, self.variances)
+                self.ignore_label, self.variances, self.per_cls_reg)
 
