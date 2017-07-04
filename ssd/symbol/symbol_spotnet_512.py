@@ -11,7 +11,7 @@ def get_symbol_train(num_classes, **kwargs):
     '''
     fix_bn = False
     patch_size = 512
-    per_cls_reg = True
+    per_cls_reg = False
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 

@@ -99,7 +99,7 @@ class RandScaler(RandSampler):
             new_gt_boxes = []
             # new_gt_indices = []
             for i, bb in enumerate(gt):
-                new_size = min(bb[4] - bb[2], bb[3] - bb[1]) * scale / float(self.patch_size)
+                new_size = max(bb[4] - bb[2], bb[3] - bb[1]) * scale / float(self.patch_size)
                 overlap = _compute_overlap(bb[1:], bbox)
                 if overlap < self.min_gt_ignore or new_size < self.min_gt_scale:
                     continue

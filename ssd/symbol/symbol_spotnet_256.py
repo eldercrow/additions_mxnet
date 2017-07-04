@@ -13,7 +13,7 @@ def get_symbol_train(num_classes, **kwargs):
     patch_size = 256
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
-    per_cls_reg = True
+    per_cls_reg = False
 
     preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg, use_global_stats=fix_bn)
     label = mx.sym.var(name='label')

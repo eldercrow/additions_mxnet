@@ -422,12 +422,12 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         n_label = in_shape[3][1]
         sample_per_batch = self.n_max_label * (self.sample_per_label + (1 + self.hard_neg_ratio))
 
-        sample_cls_shape = (n_batch*sample_per_batch, n_class)
+        sample_cls_shape = (n_batch * sample_per_batch, n_class)
         if self.per_cls_reg:
             sample_reg_shape = (n_batch * sample_per_batch, 4 * n_class)
         else:
-            sample_reg_shape = (n_batch*sample_per_batch, 4)
-        target_cls_shape = (n_batch*sample_per_batch, )
+            sample_reg_shape = (n_batch * sample_per_batch, 4)
+        target_cls_shape = (n_batch * sample_per_batch, )
         target_reg_shape = sample_reg_shape
         mask_reg_shape = sample_reg_shape
 
