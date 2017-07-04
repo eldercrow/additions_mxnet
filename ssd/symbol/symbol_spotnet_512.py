@@ -1,6 +1,6 @@
 import mxnet as mx
 import numpy as np
-from spotnet_lighter3 import get_spotnet
+from spotnet_multibox import get_spotnet
 from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
 from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
 from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
