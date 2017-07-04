@@ -54,8 +54,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
         labels_all = in_data[3].asnumpy().astype(np.float32) # (batch, num_label, 5)
         probs_cls = mx.nd.slice_axis(in_data[4], axis=1, begin=1, end=None)
         max_probs_cls = mx.nd.max(probs_cls, axis=1).asnumpy()
-        max_cids = mx.nd.argmax(probs_cls, axis=1).asnumpy().astype(int)
-        probs_cls = probs_cls.asnumpy()
+        max_cids = mx.nd.argmax(probs_cls, axis=1).asnumpy().astype(int) + 1
+        probs_cls = in_data[4].asnumpy()
 
         # # softmax
         # probs_cls = mx.nd.transpose(preds_cls, axes=(2, 0, 1)) # (nch, n_batch, n_anchor)
@@ -206,9 +206,10 @@ class MultiBoxTarget(mx.operator.CustomOp):
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
-            
+
             gt_cls = int(label[0])
-            probs_cls = probs[gt_cls - 1]
+            probs_cls = probs[gt_cls] #probs[gt_cls - 1]
+            probs_bg = probs[0]
 
             pidx = np.where(iou > self.th_iou)[0]
             if pidx.size == 0:
@@ -219,7 +220,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
             pidx = pidx[sidx]
             ridx = np.where(iou > self.th_iou_neg)[0]
             ridx = np.setdiff1d(ridx, pidx)
-            ridx = ridx[max_cids[ridx] == gt_cls - 1]
+            ridx = ridx[np.logical_and(max_cids[ridx] == gt_cls, probs_cls[ridx] > probs_bg[ridx])]
+            # ridx = ridx[max_cids[ridx] == gt_cls - 1]
             # np.random.shuffle(pidx)
             np.random.shuffle(ridx)
             # ridx = np.hstack((ridx, pidx[::-1]))
@@ -314,17 +316,17 @@ def _get_valid_labels(labels):
     return labels[:n_valid_label, :]
 
 
-def _fit_box_ratio(bb, ratio):
-    #
-    cx = (bb[0] + bb[2]) / 2.0
-    cy = (bb[1] + bb[3]) / 2.0
-    sz2 = np.maximum(bb[2] - bb[0], bb[3] - bb[1]) / 2.0
-    res = bb.copy()
-    res[0] = cx - sz2 * ratio
-    res[1] = cy - sz2
-    res[2] = cx + sz2 * ratio
-    res[3] = cy + sz2
-    return res
+# def _fit_box_ratio(bb, ratio):
+#     #
+#     cx = (bb[0] + bb[2]) / 2.0
+#     cy = (bb[1] + bb[3]) / 2.0
+#     sz2 = np.maximum(bb[2] - bb[0], bb[3] - bb[1]) / 2.0
+#     res = bb.copy()
+#     res[0] = cx - sz2 * ratio
+#     res[1] = cy - sz2
+#     res[2] = cx + sz2 * ratio
+#     res[3] = cy + sz2
+#     return res
 
 
 def _compute_nms_cands(anc, anchors_t, area_anchors_t, th_nms):

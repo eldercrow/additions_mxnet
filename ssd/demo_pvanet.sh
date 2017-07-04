@@ -11,11 +11,11 @@ else
 fi
 
 python demo.py \
-  --network spotnet_512 \
+  --network pva102_ssd_512 \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix model/spotnet_512 \
+  --prefix model/pva102_ssd_512 \
   --epoch 1000 \
   --max-data-shapes 960 960 \
   --thresh $TH_POS \
