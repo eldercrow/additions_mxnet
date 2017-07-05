@@ -2,8 +2,8 @@ import os
 from utils import DotDict, namedtuple_with_defaults, zip_namedtuple, config_as_dict
 
 RandScaler = namedtuple_with_defaults('RandScaler',
-    'min_aug_scale, max_aug_scale, min_aug_gt_scale, max_aug_trials, max_aug_sample, aug_patch_size', 
-    [0.5, 2.0, 12.0 / 512.0, 50, 1, 512])
+    'min_aug_scale, max_aug_scale, min_aug_gt_scale, max_aug_trials, max_aug_sample, aug_patch_size',
+    [0.5, 2.0, 24.0 / 512.0, 50, 1, 512])
 
 RandCropper = namedtuple_with_defaults('RandCropper',
     'min_crop_scales, max_crop_scales, \

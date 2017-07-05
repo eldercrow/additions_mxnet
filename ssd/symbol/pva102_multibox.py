@@ -95,7 +95,8 @@ def residual_inc(lhs, rhs, prefix_lhs, prefix_rhs, num_filter, stride, no_bias, 
     return relu, elt
 
 
-def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no_bias=False, lr_mult=1.0):
+def pvanet_multibox(data, num_classes,
+        patch_size=512, per_cls_reg=False, use_global_stats=True, no_bias=False, lr_mult=1.0):
     ''' pvanet 10.1 '''
     conv1 = conv_bn_relu(data, group_name='conv1',
             num_filter=12, kernel=(4,4), pad=(1,1), stride=(2,2), no_bias=no_bias,
@@ -195,6 +196,6 @@ def pvanet_multibox(data, num_classes, patch_size=512, use_global_stats=True, no
     ratios = [[1.0, 1.0/2.0, 2.0, 1.0/3.0, 3.0]] * len(from_layers)
     feat_strides = feat_strides[:len(from_layers)]
 
-    preds, anchors = multibox_layer_python(from_layers, num_classes, 
+    preds, anchors = multibox_layer_python(from_layers, num_classes,
             sizes=sizes, ratios=ratios, strides=feat_strides, clip=False)
     return preds, anchors

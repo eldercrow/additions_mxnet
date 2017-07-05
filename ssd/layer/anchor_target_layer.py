@@ -60,16 +60,16 @@ class AnchorTarget(mx.operator.CustomOp):
                 # conv data
                 target_conv[k] = preds[sidx[j]]
                 # label
-                if iou[j] < self.th_iou:
-                    target_cls[k] = -1
-                else:
+                if iou[j] > self.th_iou:
                     target_cls[k] = l[0]
-                    if l[0] > 0:
-                        r, m = _compute_target(l[1:], anchors[:, sidx[j]], self.variances)
-                        if self.per_cls_reg:
-                            r, m = _expand_target(r, int(l[0]), self.n_class)
-                        target_reg[k, :] = r
-                        mask_reg[k, :] = m
+                else:
+                    target_cls[k] = -1
+                if iou[j] > 1.0 / 3.0 and l[0] > 0:
+                    r, m = _compute_target(l[1:], anchors[:, sidx[j]], self.variances)
+                    if self.per_cls_reg:
+                        r, m = _expand_target(r, int(l[0]), self.n_class)
+                    target_reg[k, :] = r
+                    mask_reg[k, :] = m
                 k += 1
             target_locs[i, :] = sidx
 

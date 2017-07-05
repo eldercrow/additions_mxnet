@@ -1,5 +1,5 @@
 import mxnet as mx
-from spotnet_lighter3 import get_spotnet
+from spotnet_multibox import get_spotnet
 # from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
 # from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
 from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
@@ -42,7 +42,7 @@ def get_symbol_train(num_classes, **kwargs):
     loc_diff = mask_reg * (pred_reg - target_reg)
     # masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0)
-    loc_loss = mx.sym.sum(loc_loss) #* 0.2
+    loc_loss = mx.sym.sum(loc_loss) * 0.2
     # alpha_loc = mx.sym.var(name='loc_beta', shape=(1,), 
     #         lr_mult=0.1, wd_mult=0.0, init=mx.init.Constant(2.0))
     # loc_loss_w = loc_loss * mx.sym.exp(-alpha_loc) + 10.0 * alpha_loc

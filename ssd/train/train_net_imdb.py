@@ -41,6 +41,29 @@ def convert_pretrained(name, args):
         del args['fc8_bias']
     return args
 
+
+def convert_spotnet(args, auxs):
+    # for k in args:
+    #     if k.find('g6/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('g6/', 'g5/')
+    #         args[k] = args[ks]
+    #     if k.find('hyper768/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('hyper768/', 'hyper384/')
+    #         args[k] = args[ks]
+    # for k in auxs:
+    #     if k.find('g6/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('g6/', 'g5/')
+    #         auxs[k] = auxs[ks]
+    #     if k.find('hyper768/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('hyper768/', 'hyper384/')
+    #         auxs[k] = auxs[ks]
+    return args, auxs
+
+
 def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
                      num_example, batch_size, begin_epoch):
     """
@@ -290,6 +313,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                 aux_params[k] = auxs[k]
             else:
                 logger.info('Warning: param {} is inited from scratch.'.format(k))
+        arg_params, aux_params = convert_spotnet(arg_params, aux_params)
         mod.set_params(arg_params=arg_params, aux_params=aux_params)
     # for debug
     # internals = net.get_internals()

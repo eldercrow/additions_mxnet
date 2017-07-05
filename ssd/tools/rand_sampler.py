@@ -62,8 +62,8 @@ class RandScaler(RandSampler):
         assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
         self.min_gt_scale = min_gt_scale
         # for sanity check
-        self.min_gt_overlap = 0.5
-        self.min_gt_ignore = 0.15
+        self.min_gt_overlap = 0.7
+        self.min_gt_ignore = 0.25
         self.patch_size = patch_size
 
     def sample(self, label, img_shape):
@@ -99,7 +99,7 @@ class RandScaler(RandSampler):
             new_gt_boxes = []
             # new_gt_indices = []
             for i, bb in enumerate(gt):
-                new_size = min(bb[4] - bb[2], bb[3] - bb[1]) * scale / float(self.patch_size)
+                new_size = max(bb[4] - bb[2], bb[3] - bb[1]) * scale / float(self.patch_size)
                 overlap = _compute_overlap(bb[1:], bbox)
                 if overlap < self.min_gt_ignore or new_size < self.min_gt_scale:
                     continue
