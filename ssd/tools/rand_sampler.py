@@ -62,8 +62,8 @@ class RandScaler(RandSampler):
         assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
         self.min_gt_scale = min_gt_scale
         # for sanity check
-        self.min_gt_overlap = 0.5
-        self.min_gt_ignore = 0.15
+        self.min_gt_overlap = 0.7
+        self.min_gt_ignore = 0.25
         self.patch_size = patch_size
 
     def sample(self, label, img_shape):

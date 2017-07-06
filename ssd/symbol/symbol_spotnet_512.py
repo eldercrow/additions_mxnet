@@ -1,6 +1,7 @@
 import mxnet as mx
 import numpy as np
 from spotnet_multibox import get_spotnet
+from layer.multibox_target2_layer import MultiBoxTarget2, MultiBoxTargetProp2
 from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
 from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
 from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
@@ -23,8 +24,10 @@ def get_symbol_train(num_classes, **kwargs):
     label = mx.sym.var(name='label')
 
     tmp_in = [preds_cls, preds_reg, anchors, label, probs_cls]
-    tmp = mx.symbol.Custom(*tmp_in, op_type='multibox_target', name='multibox_target',
-            n_class=num_classes, variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=per_cls_reg)
+    tmp = mx.symbol.Custom(*tmp_in, op_type='multibox_target2', name='multibox_target2',
+            n_class=num_classes, img_wh=(patch_size, patch_size), per_cls_reg=per_cls_reg)
+    # tmp = mx.symbol.Custom(*tmp_in, op_type='multibox_target', name='multibox_target',
+    #         n_class=num_classes, variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=per_cls_reg)
     sample_cls = tmp[0]
     sample_reg = tmp[1]
     target_cls = tmp[2]
@@ -70,6 +73,7 @@ def get_symbol(num_classes, **kwargs):
     per_cls_reg = False
     th_pos = 0.25
     th_nms = 1.0 / 3.0
+    per_cls_reg = False
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
     if 'th_pos' in kwargs:
@@ -77,7 +81,7 @@ def get_symbol(num_classes, **kwargs):
     if 'nms' in kwargs:
         th_nms = kwargs['nms']
 
-    preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg, use_global_stats=fix_bn)
+    preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg=per_cls_reg, use_global_stats=fix_bn)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 

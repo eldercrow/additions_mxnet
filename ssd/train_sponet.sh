@@ -17,7 +17,7 @@ python train_imdb.py \
     --network spotnet_512 \
     --prefix model/spotnet \
     --freeze '' \
-    --batch-size 12 \
+    --batch-size 16 \
     --data-shape 512 \
     --val-image-set '' \
     --lr 1e-03 \
@@ -25,6 +25,6 @@ python train_imdb.py \
     --lr-steps 2,2,3,3,4,4,4 \
     --frequent 50 \
     --wd 1e-04 \
-    --pretrained ./model/spotnet_256 \
-    --epoch 1000
-    # --resume 13
+    --resume 3
+    # --pretrained ./model/spotnet_256 \
+    # --epoch 1000

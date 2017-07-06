@@ -43,24 +43,24 @@ def convert_pretrained(name, args):
 
 
 def convert_spotnet(args, auxs):
-    for k in args:
-        if k.find('g6/') >= 0:
-            print 'copying {}'.format(k)
-            ks = k.replace('g6/', 'g5/')
-            args[k] = args[ks]
-        if k.find('hyper768/') >= 0:
-            print 'copying {}'.format(k)
-            ks = k.replace('hyper768/', 'hyper384/')
-            args[k] = args[ks]
-    for k in auxs:
-        if k.find('g6/') >= 0:
-            print 'copying {}'.format(k)
-            ks = k.replace('g6/', 'g5/')
-            auxs[k] = auxs[ks]
-        if k.find('hyper768/') >= 0:
-            print 'copying {}'.format(k)
-            ks = k.replace('hyper768/', 'hyper384/')
-            auxs[k] = auxs[ks]
+    # for k in args:
+    #     if k.find('g6/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('g6/', 'g5/')
+    #         args[k] = args[ks]
+    #     if k.find('hyper768/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('hyper768/', 'hyper384/')
+    #         args[k] = args[ks]
+    # for k in auxs:
+    #     if k.find('g6/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('g6/', 'g5/')
+    #         auxs[k] = auxs[ks]
+    #     if k.find('hyper768/') >= 0:
+    #         print 'copying {}'.format(k)
+    #         ks = k.replace('hyper768/', 'hyper384/')
+    #         auxs[k] = auxs[ks]
     return args, auxs
 
 
