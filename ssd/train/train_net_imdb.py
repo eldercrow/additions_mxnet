@@ -354,7 +354,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             plateau_lr, plateau_metric=None, fn_curr_model=prefix+'-1000.params',
             plateau_backtrace=False,
             eval_data=val_iter,
-            eval_metric=FacePatchMetric(), #MultiBoxMetric(),
+            eval_metric=MultiBoxMetric(), #FacePatchMetric(), #
             validation_metric=valid_metric,
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,

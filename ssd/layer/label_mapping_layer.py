@@ -16,6 +16,7 @@ class LabelMapping(mx.operator.CustomOp):
         '''
         '''
         # anchors = mx.nd.reshape(in_data[0], shape=(-1, 4))
+        anchors = in_data[0]
         anchors = mx.nd.transpose(anchors) # (4, n_anchor)
         area_anchors = (anchors[2] - anchors[0]) * (anchors[3] - anchors[1])
         labels_all = in_data[1].asnumpy()
@@ -48,12 +49,9 @@ class LabelMapping(mx.operator.CustomOp):
             label_map[i] = lmap * (max_iou[i] > self.th_iou_neg)
             bbox_weight[i] = bb_w * (lmap > 0)
 
-        bbox_weight *= (mx.nd.sum(bbox_target, axis=2) != 0)
+        # bbox_weight *= (mx.nd.sum(bbox_target, axis=2) != 0)
         bbox_target = mx.nd.transpose(bbox_target, axes=(2, 0, 1)) # (4, n_batch, n_anchor)
         bbox_weight = mx.nd.reshape(bbox_weight, (0, 0, 1)) # (n_batch, n_anchor, 1)
-        # random subsample regression target
-        sample_map = mx.nd.uniform(0, 1, shape=bbox_weight.shape, ctx=bbox_weight.context) > 0.5
-        bbox_weight *= sample_map
 
         self.assign(out_data[0], req[0], label_map)
         self.assign(out_data[1], req[1], \
@@ -127,7 +125,7 @@ class LabelMappingProp(mx.operator.CustomOpProp):
     def infer_shape(self, in_shape):
         assert in_shape[1][2] == 5, 'Label shape should be (n_batch, n_label, 5)'
         n_batch = in_shape[1][0]
-        n_anchor = in_shape[0][1]
+        n_anchor = in_shape[0][0]
 
         label_shape = (n_batch, n_anchor)
         bbox_shape = (n_batch, n_anchor, 4)
