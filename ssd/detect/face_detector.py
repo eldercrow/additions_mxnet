@@ -243,7 +243,7 @@ class FaceDetector(object):
                         '{:s} {:.3f}'.format(class_name, score),
                         bbox=dict(facecolor=colors[cls_id], alpha=0.5),
                         fontsize=10,
-                        color='white')
+                        color='red')
         # plt.gcf().savefig('res.png')
         plt.show()
 

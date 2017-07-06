@@ -55,31 +55,6 @@ class ReweightLoss(mx.operator.CustomOp):
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         '''
         '''
-        # cls_prob = in_data[0] # (n_batch, n_class, n_anchor)
-        # cls_target = in_data[1] # (n_batch, n_anchor)
-        #
-        # n_batch = cls_prob.shape[0]
-        #
-        # prob_gt = mx.nd.maximum(0.0, 1.0 - mx.nd.pick(cls_prob, cls_target, 1)) # (n_batch, n_anchor)
-        # # psq = mx.nd.power(prob_gt, self.rand_mult)
-        #
-        # pos_map = (cls_target > 0)
-        # n_pos = mx.nd.sum(pos_map).asscalar()
-        # n_neg = np.maximum(1, int(n_pos / n_batch * self.neg_ratio))
-        #
-        # neg_map = (cls_target == 0)
-        # neg_map = prob_gt * neg_map
-        # th_batch = np.transpose(mx.nd.topk(neg_map, axis=1, k=n_neg*3).asnumpy())
-        # np.random.shuffle(th_batch)
-        # th_batch = np.transpose(th_batch[:n_neg]).astype(np.int32)
-        # nneg = np.zeros(neg_map.shape, dtype=np.float32)
-        # for i, th in enumerate(th_batch):
-        #     nneg[i, th] = 1
-        # neg_map = mx.nd.array(nneg, ctx=cls_prob.context)
-        #
-        # weight_map = pos_map + neg_map
-        # weight_map = mx.nd.reshape(weight_map, shape=(0, 1, -1))
-
         weight_map = mx.nd.reshape(out_data[1] >= 0, shape=(0, 1, -1))
 
         self.assign(in_grad[0], req[0], out_grad[0] * weight_map)

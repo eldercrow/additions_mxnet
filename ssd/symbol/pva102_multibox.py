@@ -197,5 +197,5 @@ def pvanet_multibox(data, num_classes,
     feat_strides = feat_strides[:len(from_layers)]
 
     preds, anchors = multibox_layer_python(from_layers, num_classes,
-            sizes=sizes, ratios=ratios, strides=feat_strides, clip=False)
+            sizes=sizes, ratios=ratios, strides=feat_strides, per_cls_reg=per_cls_reg, clip=False)
     return preds, anchors
