@@ -67,6 +67,7 @@ def get_symbol(num_classes, **kwargs):
 
     fix_bn = True
     patch_size = 512
+    per_cls_reg = False
     th_pos = 0.25
     th_nms = 1.0 / 3.0
     if 'patch_size' in kwargs:
@@ -76,7 +77,7 @@ def get_symbol(num_classes, **kwargs):
     if 'nms' in kwargs:
         th_nms = kwargs['nms']
 
-    preds, anchors = get_spotnet(num_classes, patch_size, use_global_stats=fix_bn)
+    preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg, use_global_stats=fix_bn)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 

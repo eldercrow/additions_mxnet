@@ -69,16 +69,16 @@ def evaluate_net(net,
         data_iter = TestIter(imdb, max_data_shapes, mean_pixels)
         sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
         net = importlib.import_module("symbol_" + net) \
-            .get_symbol(imdb.num_classes, nms_thresh, force_nms)
+            .get_symbol(imdb.num_classes, nms_thresh=nms_thresh, force_nms=force_nms)
         # model_prefix += "_" + str(data_shape)
         detector = FaceDetector(
             net, model_prefix, epoch, max_data_shapes, mean_pixels, min_size=512, ctx=ctx)
         logger.info("Start evaluation with {} images, be patient...".format(imdb.num_images))
         detections = detector.detect(data_iter)
-        import cPickle as pickle
-        fn_pkl = imdb.get_result_pkl_template()
-        with open(fn_pkl, 'wb') as fh:
-            pickle.dump(detections, fh)
+        # import cPickle as pickle
+        # fn_pkl = imdb.get_result_pkl_template()
+        # with open(fn_pkl, 'wb') as fh:
+        #     pickle.dump(detections, fh)
         imdb.evaluate_detections(detections[0])
     elif dataset == 'wider':
         os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
