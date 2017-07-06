@@ -7,13 +7,11 @@ class LabelMapping(mx.operator.CustomOp):
     '''
     Convert labels (n_batch, n_max_label, 5) into (n_batch, n_anchor).
     '''
-    def __init__(self, th_iou, variances):
+    def __init__(self, th_iou, th_iou_neg, variances):
         super(LabelMapping, self).__init__()
         self.th_iou = th_iou
         self.variances = variances
-        self.th_reg = 0.33333
-        self.th_neg = 0.33333
-
+        self.th_iou_neg = th_iou_neg
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''
@@ -35,7 +33,7 @@ class LabelMapping(mx.operator.CustomOp):
             bb_map = bbox_target[i]
             bb_w = bbox_weight[i]
             labels = _get_valid_labels(labels)
-            max_iou = mx.nd.full((n_anchor, ), self.th_reg, ctx=anchors.context)
+            max_iou = mx.nd.full((n_anchor, ), self.th_iou_neg, ctx=anchors.context)
 
             for l in labels:
                 assert l[0] != 0
@@ -48,8 +46,8 @@ class LabelMapping(mx.operator.CustomOp):
                     bb_map = mx.nd.where(mask, BB, bb_map)
                 max_iou = mx.nd.maximum(iou, max_iou)
             bbox_target[i] = bb_map
-            bbox_weight[i] = bb_w * (max_iou > self.th_reg)
-            label_map[i] = lmap * (max_iou > self.th_reg)
+            bbox_weight[i] = bb_w * (max_iou > self.th_iou_neg)
+            label_map[i] = lmap * (max_iou > self.th_iou_neg)
 
         bbox_weight *= (mx.nd.sum(bbox_target, axis=2) != 0)
         bbox_target = mx.nd.transpose(bbox_target, axes=(2, 0, 1)) # (4, n_batch, n_anchor)
@@ -62,7 +60,6 @@ class LabelMapping(mx.operator.CustomOp):
         self.assign(out_data[1], req[1], \
                 _compute_bbox_target(bbox_target, mx.nd.reshape(anchors, shape=(4, 1, -1)), self.variances))
         self.assign(out_data[2], req[2], mx.nd.tile(bbox_weight, (1, 1, 4)))
-
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         for i in range(len(in_grad)):
@@ -112,23 +109,21 @@ def _compute_bbox_target(bbox_target, anchors, variances):
 class LabelMappingProp(mx.operator.CustomOpProp):
     '''
     '''
-    def __init__(self, th_iou=0.5, variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, th_iou=0.5, th_iou_neg=1.0/3.0, variances=(0.1, 0.1, 0.2, 0.2)):
         '''
         '''
         super(LabelMappingProp, self).__init__(need_top_grad=False)
         self.th_iou = float(th_iou)
+        self.th_iou_neg = float(th_iou_neg)
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.array(variances)
 
-
     def list_arguments(self):
         return ['anchors', 'label']
 
-
     def list_outputs(self):
         return ['label_map', 'bbox_target', 'bbox_weight']
-
 
     def infer_shape(self, in_shape):
         assert in_shape[1][2] == 5, 'Label shape should be (n_batch, n_label, 5)'
@@ -139,6 +134,5 @@ class LabelMappingProp(mx.operator.CustomOpProp):
         bbox_shape = (n_batch, n_anchor, 4)
         return in_shape, [label_shape, bbox_shape, bbox_shape], []
 
-
     def create_operator(self, ctx, shapes, dtypes):
-        return LabelMapping(self.th_iou, self.variances)
+        return LabelMapping(self.th_iou, self.th_iou_neg, self.variances)

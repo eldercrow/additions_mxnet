@@ -167,33 +167,50 @@ def pvanet_multibox(data, num_classes,
             sample_type='bilinear', num_filter=384, num_args=2)
     concat = mx.sym.concat(downsample, inc3e, upsample)
 
-    # TODO: feature size tuning
-    # For now I will just use 256.
-    # feature size would be (n, 256, 32, 32)
-    projf = conv_bn_relu(concat, group_name='projf_16',
+    # upsampled hyperfeature
+    proj3 = conv_bn_relu(concat, group_name='proj3',
             num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
-    convf = conv_bn_relu(projf, group_name='convf_16',
+    upsample3 = mx.sym.UpSampling(proj3, name='upsample3', scale=2,
+            sample_type='bilinear', num_filter=128, num_args=2)
+    concat3 = mx.sym.concat(conv3, upsample3)
+    projf = conv_bn_relu(concat3, group_name='projf_32',
+            num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
+            use_global_stats=use_global_stats, lr_mult=lr_mult)
+    convf = conv_bn_relu(projf, group_name='convf_32',
             num_filter=384, pad=(1,1), kernel=(3,3), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
 
     from_layers = [convf]
-    sz_ratio = power(2.0, 1.0 / 4.0)
-    sizes = [[48.0 * sz_ratio, 48.0 / sz_ratio]]
-    feat_strides = [16, 32, 64, 128, 256, 512]
-    for fs in feat_strides[1:]:
-        projf = conv_bn_relu(convf, group_name='projf_{}'.format(fs),
+
+    # TODO: feature size tuning
+    # For now I will just use 256.
+    # feature size would be (n, 256, 32, 32)
+    projf = conv_bn_relu(concat, group_name='projf_64',
+            num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
+            use_global_stats=use_global_stats, lr_mult=lr_mult)
+    convf = conv_bn_relu(projf, group_name='convf_64',
+            num_filter=384, pad=(1,1), kernel=(3,3), stride=(1,1), no_bias=True,
+            use_global_stats=use_global_stats, lr_mult=lr_mult)
+
+    from_layers.append(convf)
+    sz_ratio = power(2.0, 1.0 / 2.0)
+    sizes = [[32.0, 32.0 * sz_ratio]]
+    sizes.append([64.0, 64.0 * sz_ratio])
+    feat_strides = [8, 16, 32, 64, 128, 256, 512, 1024]
+    for fs in feat_strides[2:]:
+        sz = fs * 4.0
+        projf = conv_bn_relu(convf, group_name='projf_{}'.format(int(sz)),
                 num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
-        convf = conv_bn_relu(projf, group_name='convf_{}'.format(fs),
+        convf = conv_bn_relu(projf, group_name='convf_{}'.format(int(sz)),
                 num_filter=384, pad=(1,1), kernel=(3,3), stride=(2,2), no_bias=True,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         from_layers.append(convf)
-        sz = fs * 3.0
-        sizes.append([sz * sz_ratio, sz / sz_ratio,])
+        sizes.append([sz, sz * sz_ratio,])
         if sz >= patch_size:
             break
-    ratios = [[1.0, 1.0/2.0, 2.0, 1.0/3.0, 3.0]] * len(from_layers)
+    ratios = [[1.0, 2.0 / 3.0, 3.0 / 2.0, 4.0 / 9.0, 9.0 / 4.0]] * len(from_layers)
     feat_strides = feat_strides[:len(from_layers)]
 
     preds, anchors = multibox_layer_python(from_layers, num_classes,
