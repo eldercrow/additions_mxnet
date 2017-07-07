@@ -28,22 +28,27 @@ def get_symbol_train(num_classes, **kwargs):
     cls_target, bbox_target, bbox_weight, max_iou = mx.sym.Custom(anchors, label, op_type='label_mapping', \
             name='label_mapping', th_iou_neg=1.0 / 3.0)
 
-    probs_cls = mx.sym.SoftmaxOutput(preds_cls, label=cls_target, name='cls_prob',
-            ignore_label=-1, use_ignore=True, multi_output=True, normalization='null', out_grad=True)
+    # probs_cls = mx.sym.SoftmaxOutput(preds_cls, label=cls_target, name='cls_loss',
+    #         ignore_label=-1, use_ignore=True, multi_output=True, normalization='null', out_grad=True)
+    probs_cls = mx.sym.SoftmaxActivation(preds_cls, name='cls_prob', mode='channel')
     tmp_in = [probs_cls, cls_target, bbox_weight, max_iou]
-    probs_cls, cls_target_ohem, bbox_weight = mx.sym.Custom(*tmp_in, op_type='reweight_loss')
-    probs_cls = mx.sym.MakeLoss(probs_cls, name='cls_loss', normalization='null')
+    cls_target_ohem, bbox_weight = mx.sym.Custom(*tmp_in, op_type='reweight_loss')
+    # probs_cls, cls_target_ohem, bbox_weight = mx.sym.Custom(*tmp_in, op_type='reweight_loss')
+    # cls_loss = mx.sym.MakeLoss(probs_cls, name='cls_loss', grad_scale=1.0)
+    cls_loss = mx.sym.SoftmaxOutput(preds_cls, label=cls_target_ohem, name='cls_loss',
+            ignore_label=-1, use_ignore=True, multi_output=True, normalization='valid')
 
     # regression
     loc_diff = (preds_reg - bbox_target) * bbox_weight
-    loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0) * 0.2
-    loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=1.0, normalization='null', name="loc_loss")
+    loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0)
+    loc_loss = mx.symbol.MakeLoss(loc_loss, name='loc_loss',
+            normalization='valid', valid_thresh=np.finfo(np.float).eps, grad_scale=0.2)
 
     label_cls = mx.sym.BlockGrad(cls_target_ohem, name='label_cls')
     label_reg = mx.sym.BlockGrad(bbox_weight, name='label_reg')
 
     # group output
-    out = mx.symbol.Group([probs_cls, loc_loss, label_cls, label_reg])
+    out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
     # out = mx.symbol.Group([cls_loss_w, loc_loss_w, label_cls, label_reg, mx.sym.BlockGrad(cls_loss)])
     return out
 

@@ -33,7 +33,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         loc_label = preds[3].asnumpy()
 
         valid_count = np.sum(cls_label >= 0)
-        valid_count += np.sum(np.any(loc_label, axis=2))
+        # valid_count += np.sum(np.any(loc_label, axis=2))
         # overall accuracy & object accuracy
         label = cls_label.flatten()
         mask = np.where(label >= 0)[0]
@@ -44,7 +44,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         self.num_inst[0] += valid_count
         # smoothl1loss
         self.sum_metric[1] += np.sum(loc_loss)
-        self.num_inst[1] += valid_count #np.sum(np.any(loc_label, axis=1))
+        self.num_inst[1] += np.sum(np.any(loc_label, axis=2)) #valid_count
         # recall and acc
         acc = np.argmax(prob_all, axis=1) == label
         # recall

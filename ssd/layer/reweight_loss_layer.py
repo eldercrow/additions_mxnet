@@ -5,13 +5,12 @@ import numpy as np
 class ReweightLoss(mx.operator.CustomOp):
     '''
     '''
-    def __init__(self, neg_ratio, reg_ratio, rand_mult):
+    def __init__(self, th_iou, th_iou_neg, neg_ratio, rand_mult):
         super(ReweightLoss, self).__init__()
+        self.th_iou = th_iou
+        self.th_iou_neg = th_iou_neg
         self.neg_ratio = neg_ratio
-        self.reg_ratio = reg_ratio
         self.rand_mult = rand_mult
-        self.th_iou = 0.5
-        self.th_iou_neg = 1.0 / 3.0
 
 
     def forward(self, is_train, req, in_data, out_data, aux):
@@ -31,10 +30,7 @@ class ReweightLoss(mx.operator.CustomOp):
 
         bbox_mask = reg_mask * (mx.nd.argmax(cls_prob, axis=1) == cls_target)
         bbox_mask += pos_mask
-
         bbox_weight = mx.nd.broadcast_mul(in_data[2], mx.nd.reshape(bbox_mask, (0, 0, 1)))
-
-        # reg_mask *= -1000
 
         prob_gt = mx.nd.maximum(0.0, 1.0 - mx.nd.pick(cls_prob, cls_target, 1)) # (n_batch, n_anchor)
 
@@ -43,8 +39,6 @@ class ReweightLoss(mx.operator.CustomOp):
         n_neg = np.maximum(1, int(n_pos / n_batch * self.neg_ratio))
 
         # negative sample: random sampling + hard negative mining
-        # sample_map = mx.nd.uniform(0, 1, shape=cls_target.shape, ctx=cls_target.context) >= 0.875
-        # neg_map = (cls_target == 0) * sample_map
         neg_map = prob_gt * cls_target == 0
 
         # pick some (more than needed) semi-hard negative samples, according to loss,
@@ -64,30 +58,34 @@ class ReweightLoss(mx.operator.CustomOp):
         ohem_map *= (1 - pos_map)
         ohem_map = mx.nd.maximum(-1, cls_target + ohem_map)
 
-        self.assign(out_data[0], req[0], in_data[0])
-        self.assign(out_data[1], req[1], ohem_map)
-        self.assign(out_data[2], req[2], bbox_weight)
-
+        # self.assign(out_data[0], req[0], in_data[0])
+        # self.assign(out_data[1], req[1], ohem_map)
+        # self.assign(out_data[2], req[2], bbox_weight)
+        self.assign(out_data[0], req[0], ohem_map)
+        self.assign(out_data[1], req[1], bbox_weight)
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         '''
         '''
-        weight_map = mx.nd.reshape(out_data[1] >= 0, shape=(0, 1, -1))
+        # weight_map = mx.nd.reshape(out_data[1] >= 0, shape=(0, 1, -1))
+        # sum_weight = mx.nd.sum(weight_map) # 'valid'
+        # weight_map /= sum_weight
 
-        self.assign(in_grad[0], req[0], out_grad[0] * weight_map)
+        # self.assign(in_grad[0], req[0], out_grad[0] * weight_map)
+        self.assign(in_grad[0], req[0], 0)
         self.assign(in_grad[1], req[1], 0)
-        self.assign(in_grad[2], req[2], 0)
 
 
 @mx.operator.register("reweight_loss")
 class ReweightLossProp(mx.operator.CustomOpProp):
     '''
     '''
-    def __init__(self, neg_ratio=3.0, reg_ratio=2.0, rand_mult=3):
+    def __init__(self, th_iou=0.5, th_iou_neg=1.0 / 3.0, neg_ratio=3.0, rand_mult=3):
         #
-        super(ReweightLossProp, self).__init__(need_top_grad=True)
+        super(ReweightLossProp, self).__init__(need_top_grad=False)
+        self.th_iou = float(th_iou)
+        self.th_iou_neg = float(th_iou_neg)
         self.neg_ratio = float(neg_ratio)
-        self.reg_ratio = float(reg_ratio)
         self.rand_mult = int(float(rand_mult))
 
 
@@ -96,12 +94,14 @@ class ReweightLossProp(mx.operator.CustomOpProp):
 
 
     def list_outputs(self):
-        return ['cls_prob', 'cls_target', 'bbox_weight']
+        return ['cls_target', 'bbox_weight']
+        # return ['cls_prob', 'cls_target', 'bbox_weight']
 
 
     def infer_shape(self, in_shape):
-        return in_shape, in_shape[:-1], []
+        return in_shape, in_shape[1:-1], []
+        # return in_shape, in_shape[:-1], []
 
 
     def create_operator(self, ctx, shapes, dtypes):
-        return ReweightLoss(self.neg_ratio, self.reg_ratio, self.rand_mult)
+        return ReweightLoss(self.th_iou, self.th_iou_neg, self.neg_ratio, self.rand_mult)
