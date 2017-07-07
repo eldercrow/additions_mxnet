@@ -62,7 +62,7 @@ def get_symbol_train(num_classes=21, nms_thresh=0.5, force_suppress=False, nms_t
     return out
 
 
-def get_symbol(num_classes=21, nms_thresh=0.5, force_suppress=False, nms_topk=400):
+def get_symbol(num_classes=21, nms_thresh=0.5, force_nms=False, nms_topk=400):
     '''
     '''
     data = mx.symbol.Variable(name="data")

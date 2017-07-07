@@ -12,7 +12,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
     Python implementation of MultiBoxTarget layer.
     """
     def __init__(self, n_class, img_wh, th_iou, th_iou_neg, th_nms_neg, max_pos_sample,
-            reg_sample_ratio, hard_neg_ratio, ignore_label, variances, per_cls_reg):
+            reg_sample_ratio, hard_neg_ratio, ignore_label, variances, per_cls_reg, normalization):
         #
         super(MultiBoxTarget2, self).__init__()
         self.n_class = n_class
@@ -26,6 +26,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
         self.ignore_label = ignore_label
         self.variances = variances
         self.per_cls_reg = per_cls_reg
+        self.normalization = normalization
 
         # precompute nms candidates
         self.nidx_neg = None
@@ -173,13 +174,22 @@ class MultiBoxTarget2(mx.operator.CustomOp):
         grad_reg = mx.nd.zeros(in_grad[1].shape, ctx=in_grad[1].context) # (n n_anchor nch)
         n_batch = grad_cls.shape[0]
         target_locs = aux[0].asnumpy().astype(int)
+
+        if self.normalization == True:
+            eps = np.finfo(np.float32).eps
+            norm_cls = 1.0 / mx.nd.maximum(1.0, mx.nd.sum(out_data[2] >= 0))
+            norm_reg = 1.0 / mx.nd.maximum(1.0, mx.nd.sum(out_data[4] > 0) / 4.0)
+        else:
+            norm_cls = 1.0
+            norm_reg = 1.0
+            
         for i, tloc in enumerate(target_locs):
             bid = tloc[0]
             aid = tloc[1]
             if bid == -1 or aid == -1:
                 continue
-            grad_cls[bid][aid] = out_grad[0][i]
-            grad_reg[bid][aid] = out_grad[1][i]
+            grad_cls[bid][aid] = out_grad[0][i] * norm_cls
+            grad_reg[bid][aid] = out_grad[1][i] * norm_reg
 
         self.assign(in_grad[0], req[0], grad_cls)
         self.assign(in_grad[1], req[1], grad_reg)
@@ -333,7 +343,7 @@ class MultiBoxTargetProp2(mx.operator.CustomOpProp):
     def __init__(self, n_class, img_wh,
             th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0/1.5, max_pos_sample=512,
             reg_sample_ratio=2.0, hard_neg_ratio=3.0, ignore_label=-1,
-            variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False):
+            variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False, normalization=False):
         #
         super(MultiBoxTargetProp2, self).__init__(need_top_grad=True)
         self.n_class = int(n_class)
@@ -352,6 +362,7 @@ class MultiBoxTargetProp2(mx.operator.CustomOpProp):
             variances = make_tuple(variances)
         self.variances = np.reshape(np.array(variances), (1, -1))
         self.per_cls_reg = bool(make_tuple(str(per_cls_reg)))
+        self.normalization = bool(make_tuple(str(normalization)))
 
         self.max_sample = int(self.max_pos_sample + \
                           self.reg_sample_ratio * self.max_pos_sample + \
@@ -388,4 +399,4 @@ class MultiBoxTargetProp2(mx.operator.CustomOpProp):
         return MultiBoxTarget2( \
                 self.n_class, self.img_wh, self.th_iou, self.th_iou_neg, self.th_nms_neg,
                 self.max_pos_sample, self.reg_sample_ratio, self.hard_neg_ratio,
-                self.ignore_label, self.variances, self.per_cls_reg)
+                self.ignore_label, self.variances, self.per_cls_reg, self.normalization)
