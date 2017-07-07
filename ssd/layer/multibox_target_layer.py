@@ -296,12 +296,13 @@ class MultiBoxTarget(mx.operator.CustomOp):
             neg_probs.append(max_probs[ii])
             neg_anchor_locs.append((batch_id, ii))
             # apply nms
-            if len(self.nidx_neg[ii]) == 0:
-                self.nidx_neg[ii] = _compute_nms_cands( \
-                        self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_neg_nms)
-            nidx = self.nidx_neg[ii]
-            # nidx = ii
-            max_probs[nidx] = -1
+            if self.th_neg_nms < 1.0:
+                if len(self.nidx_neg[ii]) == 0:
+                    self.nidx_neg[ii] = _compute_nms_cands( \
+                            self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_neg_nms)
+                nidx = self.nidx_neg[ii]
+                # nidx = ii
+                max_probs[nidx] = -1
             if len(neg_anchor_locs) >= n_neg_sample:
                 break
 
@@ -377,8 +378,8 @@ def _expand_target(loc_target, cid, n_cls):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self, n_class,
-            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/3.0,
-            n_max_label=64, sample_per_label=15, hard_neg_ratio=3., ignore_label=-1,
+            th_iou=0.5, th_nms=0.65, th_neg_nms=1.0/1.5,
+            n_max_label=64, sample_per_label=21, hard_neg_ratio=3., ignore_label=-1,
             variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False):
         #
         super(MultiBoxTargetProp, self).__init__(need_top_grad=True)

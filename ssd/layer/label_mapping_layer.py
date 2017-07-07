@@ -7,18 +7,16 @@ class LabelMapping(mx.operator.CustomOp):
     '''
     Convert labels (n_batch, n_max_label, 5) into (n_batch, n_anchor).
     '''
-    def __init__(self, th_iou, variances):
+    def __init__(self, th_iou_neg, variances):
         super(LabelMapping, self).__init__()
-        self.th_iou = th_iou
+        self.th_iou_neg = th_iou_neg
         self.variances = variances
-        self.th_reg = 0.33333
-        self.th_neg = 0.33333
-
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''
         '''
-        anchors = mx.nd.reshape(in_data[0], shape=(-1, 4))
+        # anchors = mx.nd.reshape(in_data[0], shape=(-1, 4))
+        anchors = in_data[0]
         anchors = mx.nd.transpose(anchors) # (4, n_anchor)
         area_anchors = (anchors[2] - anchors[0]) * (anchors[3] - anchors[1])
         labels_all = in_data[1].asnumpy()
@@ -29,40 +27,37 @@ class LabelMapping(mx.operator.CustomOp):
         label_map = mx.nd.full((n_batch, n_anchor), -1, ctx=anchors.context)
         bbox_target = mx.nd.zeros((n_batch, n_anchor, 4), ctx=anchors.context)
         bbox_weight = mx.nd.ones((n_batch, n_anchor), ctx=anchors.context)
+        max_iou = mx.nd.zeros((n_batch, n_anchor), ctx=anchors.context)
 
         for i, labels in enumerate(labels_all):
             lmap = label_map[i]
             bb_map = bbox_target[i]
             bb_w = bbox_weight[i]
             labels = _get_valid_labels(labels)
-            max_iou = mx.nd.full((n_anchor, ), self.th_reg, ctx=anchors.context)
 
             for l in labels:
                 assert l[0] != 0
                 L = mx.nd.full((n_anchor,), l[0], ctx=anchors.context)
                 BB = mx.nd.tile(mx.nd.array(l[1:], ctx=anchors.context), (n_anchor, 1)) # (n_anchor, 4)
                 iou = _compute_iou(l[1:], anchors, area_anchors)
-                mask = iou > max_iou
-                lmap = mx.nd.where(mask * (iou > self.th_iou), L, lmap)
-                if l[0] != -1:
-                    bb_map = mx.nd.where(mask, BB, bb_map)
-                max_iou = mx.nd.maximum(iou, max_iou)
-            bbox_target[i] = bb_map
-            bbox_weight[i] = bb_w * (max_iou > self.th_reg)
-            label_map[i] = lmap * (max_iou > self.th_reg)
+                mask = iou > mx.nd.maximum(max_iou[i], self.th_iou_neg)
+                lmap = mx.nd.where(mask, L, lmap)
+                bb_map = mx.nd.where(mask, BB, bb_map)
+                max_iou[i] = mx.nd.maximum(iou, max_iou[i])
 
-        bbox_weight *= (mx.nd.sum(bbox_target, axis=2) != 0)
+            bbox_target[i] = bb_map.copy()
+            label_map[i] = lmap * (max_iou[i] > self.th_iou_neg).copy()
+            bbox_weight[i] = bb_w * (lmap > 0) * (max_iou[i] > self.th_iou_neg).copy()
+
+        # bbox_weight *= (mx.nd.sum(bbox_target, axis=2) != 0)
         bbox_target = mx.nd.transpose(bbox_target, axes=(2, 0, 1)) # (4, n_batch, n_anchor)
         bbox_weight = mx.nd.reshape(bbox_weight, (0, 0, 1)) # (n_batch, n_anchor, 1)
-        # random subsample regression target
-        sample_map = mx.nd.uniform(0, 1, shape=bbox_weight.shape, ctx=bbox_weight.context) > 0.5
-        bbox_weight *= sample_map
 
         self.assign(out_data[0], req[0], label_map)
         self.assign(out_data[1], req[1], \
                 _compute_bbox_target(bbox_target, mx.nd.reshape(anchors, shape=(4, 1, -1)), self.variances))
         self.assign(out_data[2], req[2], mx.nd.tile(bbox_weight, (1, 1, 4)))
-
+        self.assign(out_data[3], req[3], max_iou)
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         for i in range(len(in_grad)):
@@ -112,33 +107,29 @@ def _compute_bbox_target(bbox_target, anchors, variances):
 class LabelMappingProp(mx.operator.CustomOpProp):
     '''
     '''
-    def __init__(self, th_iou=0.5, variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, th_iou_neg=1.0 / 3.0, variances=(0.1, 0.1, 0.2, 0.2)):
         '''
         '''
         super(LabelMappingProp, self).__init__(need_top_grad=False)
-        self.th_iou = float(th_iou)
+        self.th_iou_neg = float(th_iou_neg)
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.array(variances)
 
-
     def list_arguments(self):
         return ['anchors', 'label']
 
-
     def list_outputs(self):
-        return ['label_map', 'bbox_target', 'bbox_weight']
-
+        return ['label_map', 'bbox_target', 'bbox_weight', 'max_iou']
 
     def infer_shape(self, in_shape):
         assert in_shape[1][2] == 5, 'Label shape should be (n_batch, n_label, 5)'
         n_batch = in_shape[1][0]
-        n_anchor = in_shape[0][1]
+        n_anchor = in_shape[0][0]
 
         label_shape = (n_batch, n_anchor)
         bbox_shape = (n_batch, n_anchor, 4)
-        return in_shape, [label_shape, bbox_shape, bbox_shape], []
-
+        return in_shape, [label_shape, bbox_shape, bbox_shape, label_shape], []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return LabelMapping(self.th_iou, self.variances)
+        return LabelMapping(self.th_iou_neg, self.variances)

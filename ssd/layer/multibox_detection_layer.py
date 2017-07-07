@@ -11,13 +11,14 @@ class MultiBoxDetection(mx.operator.CustomOp):
     python implementation of MultiBoxDetection layer.
     '''
 
-    def __init__(self, n_class, max_detection, th_pos, th_nms, variances):
+    def __init__(self, n_class, max_detection, th_pos, th_nms, per_cls_reg, variances):
         #
         super(MultiBoxDetection, self).__init__()
         self.n_class = n_class
         self.th_pos = th_pos
         self.th_nms = th_nms
         self.variances = variances
+        self.per_cls_reg = per_cls_reg
         self.max_detection = max_detection
 
     def forward(self, is_train, req, in_data, out_data, aux):
@@ -37,7 +38,7 @@ class MultiBoxDetection(mx.operator.CustomOp):
             out_i = out_data[0][nn]
             # out_i[:] = 0
             pcls = probs_cls[nn]  # (n_anchors, n_classes)
-            preg = preds_reg[nn]  # (n_anchor, 4)
+            preg = preds_reg[nn]  # (n_anchor, 4) or (n_anchor, 4 * n_class)
 
             if n_class == 1:
                 iidx = mx.nd.reshape(pcls > self.th_pos, (-1,))
@@ -46,10 +47,16 @@ class MultiBoxDetection(mx.operator.CustomOp):
             else:
                 max_pcls = mx.nd.max(pcls, axis=1)
                 iidx = mx.nd.reshape(max_pcls > self.th_pos, (-1,))
-                out_i[0] = iidx * (mx.nd.argmax(pcls, axis=1) + 1)
+                max_cid = mx.nd.argmax(pcls, axis=1) + 1
+                out_i[0] = iidx * max_cid
                 out_i[1] = max_pcls
-            out_i[2:] = _transform_roi( \
-                    mx.nd.transpose(preg), mx.nd.transpose(anchors), self.variances, 1.0)
+            if not self.per_cls_reg:
+                out_i[2:] = _transform_roi( \
+                        mx.nd.transpose(preg), mx.nd.transpose(anchors), self.variances, 1.0)
+            elif n_class > 1:
+                preg_cls = _pack_reg(preg, max_cid)
+                out_i[2:] = _transform_roi( \
+                        mx.nd.transpose(preg_cls), mx.nd.transpose(anchors), self.variances, 1.0)
 
         # for nn in range(n_batch):
         #     out_i = out_data[0][nn]
@@ -123,6 +130,16 @@ def _nms(out_t, th_nms):
     return np.where(nms_mask == False)[0]
 
 
+def _pack_reg(reg, max_cid):
+    # packed = mx.nd.zeros((reg.shape[0], 4), ctx=reg.context)
+    max_cid = mx.nd.tile(mx.nd.reshape(max_cid, (-1, 1)), (1, 4))
+    packed = mx.nd.pick(mx.nd.reshape(reg, (0, -1, 4)), max_cid, axis=1)
+    # max_cid = max_cid.asnumpy().astype(int)
+    # for i, (r, c) in enumerate(zip(reg, max_cid)):
+    #     packed[i] = r[c*4:(c+1)*4]
+    return packed
+
+
 def _transform_roi(reg_t, anc_t, variances, ratio=1.0):
     #
     # reg_t = mx.nd.transpose(reg)
@@ -140,11 +157,11 @@ def _transform_roi(reg_t, anc_t, variances, ratio=1.0):
     cy += reg_t[1] * ah
     w = (2.0**reg_t[2]) * aw * 0.5
     h = (2.0**reg_t[3]) * ah * 0.5
-    reg_t[0] = cx - w 
-    reg_t[1] = cy - h 
-    reg_t[2] = cx + w 
-    reg_t[3] = cy + h 
-    return reg_t 
+    reg_t[0] = cx - w
+    reg_t[1] = cy - h
+    reg_t[2] = cx + w
+    reg_t[3] = cy + h
+    return reg_t
 
 
 @mx.operator.register("multibox_detection")
@@ -154,6 +171,7 @@ class MultiBoxDetectionProp(mx.operator.CustomOpProp):
                  max_detection=1000,
                  th_pos=0.5,
                  th_nms=0.3333,
+                 per_cls_reg=False,
                  variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxDetectionProp, self).__init__(need_top_grad=True)
@@ -161,6 +179,7 @@ class MultiBoxDetectionProp(mx.operator.CustomOpProp):
         self.max_detection = int(max_detection)
         self.th_pos = float(th_pos)
         self.th_nms = float(th_nms)
+        self.per_cls_reg = bool(make_tuple(str(per_cls_reg)))
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.array(variances)
@@ -184,4 +203,4 @@ class MultiBoxDetectionProp(mx.operator.CustomOpProp):
 
     def create_operator(self, ctx, shapes, dtypes):
         return MultiBoxDetection(self.n_class, self.max_detection, self.th_pos,
-                                 self.th_nms, self.variances)
+                                 self.th_nms, self.per_cls_reg, self.variances)

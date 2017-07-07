@@ -82,8 +82,8 @@ class MultiBoxTarget2(mx.operator.CustomOp):
         # positive samples
         anchor_locs_pos = np.empty((0, 2), dtype=int)
         tc_pos = np.empty((0,), dtype=np.int32)
-        tr_pos = np.empty((0, 4))
-        mr_pos = np.empty((0, 4))
+        tr_pos = np.empty((0, nch_reg))
+        mr_pos = np.empty((0, nch_reg))
         # probs_pos = []
         max_iou_pos = []
         n_pos_sample = 0
@@ -191,8 +191,9 @@ class MultiBoxTarget2(mx.operator.CustomOp):
         n_anchors = self.anchors_t.shape[1]
 
         cls_target = np.zeros((n_anchors,), dtype=np.int32)
-        reg_target = np.zeros((n_anchors, 4))
-        reg_mask = np.zeros((n_anchors, 4))
+        nch_reg = 4 * self.n_class if self.per_cls_reg else 4
+        reg_target = np.zeros((n_anchors, nch_reg))
+        reg_mask = np.zeros((n_anchors, nch_reg))
 
         labels = _get_valid_labels(labels)
         max_iou = np.zeros(n_anchors)
@@ -244,7 +245,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
 
     def _forward_batch_neg(self, n_neg_sample, max_probs, neg_iou, batch_id):
         # first remove positive samples from mining
-        pidx = np.where(neg_iou > 1.0/3.0)[0]
+        pidx = np.where(neg_iou > self.th_iou_neg)[0]
         max_probs[pidx] = -1.0
 
         neg_probs = []
@@ -318,10 +319,12 @@ def _expand_target(loc_target, cid, n_cls):
     n_target = loc_target.shape[0]
     loc_target_e = np.zeros((n_target, 4 * n_cls), dtype=np.float32)
     loc_mask_e = np.zeros_like(loc_target_e)
-    for i, c in enumerate(cid):
-        sidx = c * 4
-        loc_target_e[i, sidx:sidx+4] = loc_target
-        loc_mask_e[i, sidx:sidx+4] = 1
+    sidx = cid * 4
+    loc_target_e[:, sidx:sidx+4] = loc_target
+    loc_mask_e[:, sidx:sidx+4] = 1
+    # for i in range(n_target):
+    #     loc_target_e[i, sidx:sidx+4] = loc_target
+    #     loc_mask_e[i, sidx:sidx+4] = 1
     return loc_target_e, loc_mask_e
 
 
