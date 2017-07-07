@@ -219,18 +219,18 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             reg_mask[pidx, :] = rm
 
             # regression samples
-            # ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
-            # ridx = np.setdiff1d(ridx, pidx)
-            # if not self.per_cls_reg:
-            #     ridx = ridx[max_cids[ridx] == gt_cls]
-            # if ridx.size > pidx.size * self.reg_sample_ratio:
-            #     ridx = np.random.choice(ridx, pidx.size * self.reg_sample_ratio, replace=False)
-            # cls_target[ridx] = -1
-            # rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
-            # if self.per_cls_reg:
-            #     rt, rm = _expand_target(rt, gt_cls, self.n_class)
-            # reg_target[ridx, :] = rt
-            # reg_mask[ridx, :] = rm
+            ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
+            ridx = np.setdiff1d(ridx, pidx)
+            if not self.per_cls_reg:
+                ridx = ridx[max_cids[ridx] == gt_cls]
+            if ridx.size > pidx.size * self.reg_sample_ratio:
+                ridx = np.random.choice(ridx, pidx.size * self.reg_sample_ratio, replace=False)
+            cls_target[ridx] = -1
+            rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
+            if self.per_cls_reg:
+                rt, rm = _expand_target(rt, gt_cls, self.n_class)
+            reg_target[ridx, :] = rt
+            reg_mask[ridx, :] = rm
 
         # gather data
         anc_idx = np.where(cls_target != 0)[0]
