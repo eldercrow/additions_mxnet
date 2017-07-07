@@ -162,7 +162,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         groups.append(group_i)
 
     # 96 and more
-    curr_sz = 80
+    curr_sz = 64
     i = 3
     while curr_sz < patch_size:
         group_i = pool(group_i)
@@ -214,7 +214,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     nf_hyper = 384
     nf_hyper_proj = 128
     # small scale: hyperfeature
-    hyper_names = ['hyper040/', 'hyper080/']
+    hyper_names = ['hyper032/', 'hyper064/']
     nf_base = [nf_hyper - np.sum(np.array(i)) for i in nf_upsamples]
     for i, g in enumerate(groups[:2]):
         # gather all the upper layers
@@ -236,7 +236,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     # remaining layers, bigger than 48
     for i, g in enumerate(groups[2:]):
         k = i + 2
-        rf = int((2.0**k) * 40.0)
+        rf = int((2.0**k) * 32.0)
         prefix_name = 'hyper{}/'.format(rf)
         # projh = relu_conv_bn(g, prefix_name='hyper{}/1x1/'.format(rf),
         #     num_filter=nf_hyper_proj, kernel=(1, 1), pad=(0, 0),
@@ -252,7 +252,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     sz_ratio = np.power(2.0, 1.0 / 2.0)
     for i in range(n_from_layers):
         st = 2 ** (i + 3)
-        sz = st * 5.0
+        sz = st * 4.0
         strides.append(st)
         sizes.append([sz, sz * sz_ratio])
     ratios = [[1.0, 2.0/3.0, 3.0/2.0, 4.0/9.0, 9.0/4.0]] * len(sizes)

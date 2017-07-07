@@ -5,7 +5,7 @@ from layer.label_mapping_layer import *
 from layer.reweight_loss_layer import *
 # from layer.multibox_target2_layer import MultiBoxTarget2, MultiBoxTargetProp2
 # from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
-# from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
+from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
 from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
 from layer.anchor_target_layer import *
 
@@ -21,7 +21,6 @@ def get_symbol_train(num_classes, **kwargs):
     preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg, use_global_stats=fix_bn)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes) # (n_batch, n_anc, n_cls)
     preds_cls = mx.sym.transpose(preds_cls, (0, 2, 1))
-    probs_cls = mx.sym.SoftmaxActivation(preds_cls, mode='channel')
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
     label = mx.sym.var(name='label')
@@ -29,21 +28,28 @@ def get_symbol_train(num_classes, **kwargs):
     cls_target, bbox_target, bbox_weight, max_iou = mx.sym.Custom(anchors, label, op_type='label_mapping', \
             name='label_mapping', th_iou_neg=1.0 / 3.0)
 
-    probs_cls = mx.sym.SoftmaxOutput(preds_cls, label=cls_target, name='cls_prob',
+    probs_cls = mx.sym.SoftmaxOutput(preds_cls, label=cls_target, name='cls_loss',
             ignore_label=-1, use_ignore=True, multi_output=True, normalization='null', out_grad=True)
+    # probs_cls = mx.sym.SoftmaxActivation(preds_cls, name='cls_prob', mode='channel')
     tmp_in = [probs_cls, cls_target, bbox_weight, max_iou]
-    probs_cls, cls_target_ohem, bbox_weight = mx.sym.Custom(*tmp_in, op_type='reweight_loss')
+    # cls_target_ohem, bbox_weight = mx.sym.Custom(*tmp_in, op_type='reweight_loss')
+    probs_cls, cls_target_ohem, bbox_weight, bbox_norm = mx.sym.Custom(*tmp_in, op_type='reweight_loss')
+    cls_loss = mx.sym.MakeLoss(probs_cls, name='cls_loss', grad_scale=1.0)
+    # cls_loss = mx.sym.SoftmaxOutput(preds_cls, label=cls_target_ohem, name='cls_loss',
+    #         ignore_label=-1, use_ignore=True, multi_output=True, normalization='valid')
 
     # regression
     loc_diff = (preds_reg - bbox_target) * bbox_weight
-    loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0) * 0.2
-    loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=1.0, normalization='null', name="loc_loss")
+    loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0)
+    loc_loss = mx.sym.broadcast_mul(loc_loss, bbox_norm)
+    loc_loss = mx.symbol.MakeLoss(loc_loss, name='loc_loss', grad_scale=0.2) #,
+            # normalization='null', valid_thresh=np.finfo(np.float).eps)
 
-    label_cls = mx.sym.BlockGrad(cls_target, name='label_cls')
+    label_cls = mx.sym.BlockGrad(cls_target_ohem, name='label_cls')
     label_reg = mx.sym.BlockGrad(bbox_weight, name='label_reg')
 
     # group output
-    out = mx.symbol.Group([probs_cls, loc_loss, label_cls, label_reg])
+    out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
     # out = mx.symbol.Group([cls_loss_w, loc_loss_w, label_cls, label_reg, mx.sym.BlockGrad(cls_loss)])
     return out
 

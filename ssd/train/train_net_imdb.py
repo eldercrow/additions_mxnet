@@ -327,7 +327,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
     # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
     #     lr_refactor_ratio, imdb.num_images, batch_size, begin_epoch)
-    eval_weights = {'Loss': 1.0, 'SmoothL1': 1.0, 'Acc': 0.0, 'Recall': 0.0}
+    eval_weights = {'Loss': 1.0, 'SmoothL1': 0.2, 'Acc': 0.0, 'Recall': 0.0}
     plateau_lr = PlateauScheduler( \
             patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
     optimizer_params={'learning_rate': learning_rate,
@@ -354,7 +354,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
             plateau_lr, plateau_metric=None, fn_curr_model=prefix+'-1000.params',
             plateau_backtrace=False,
             eval_data=val_iter,
-            eval_metric=FacePatchMetric(), #MultiBoxMetric(),
+            eval_metric=MultiBoxMetric(), #FacePatchMetric(), #
             validation_metric=valid_metric,
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
