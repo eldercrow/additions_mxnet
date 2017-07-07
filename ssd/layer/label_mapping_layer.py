@@ -46,8 +46,8 @@ class LabelMapping(mx.operator.CustomOp):
                 max_iou[i] = mx.nd.maximum(iou, max_iou[i])
 
             bbox_target[i] = bb_map.copy()
-            label_map[i] = lmap #* (max_iou[i] > self.th_iou_neg).copy()
-            bbox_weight[i] = bb_w * (lmap > 0) #* (max_iou[i] > self.th_iou_neg).copy()
+            label_map[i] = lmap * (max_iou[i] > self.th_iou_neg)
+            bbox_weight[i] = bb_w * (lmap > 0) #* (max_iou[i] > self.th_iou_neg)
 
         # bbox_weight *= (mx.nd.sum(bbox_target, axis=2) != 0)
         bbox_target = mx.nd.transpose(bbox_target, axes=(2, 0, 1)) # (4, n_batch, n_anchor)

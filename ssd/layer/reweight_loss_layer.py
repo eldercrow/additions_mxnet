@@ -24,9 +24,9 @@ class ReweightLoss(mx.operator.CustomOp):
         n_batch = cls_prob.shape[0]
 
         # regression sample masking
-        pos_mask = max_iou > self.th_iou
+        pos_mask = (max_iou > self.th_iou)
         reg_mask = 1 - pos_mask
-        reg_mask *= max_iou > self.th_iou_neg
+        reg_mask *= (max_iou > self.th_iou_neg)
 
         bbox_mask = reg_mask * (mx.nd.argmax(cls_prob, axis=1) == cls_target)
         bbox_mask += pos_mask
@@ -62,7 +62,7 @@ class ReweightLoss(mx.operator.CustomOp):
         self.assign(out_data[0], req[0], in_data[0])
         self.assign(out_data[1], req[1], ohem_map)
         self.assign(out_data[2], req[2], bbox_weight)
-        self.assign(out_data[3], req[3], mx.nd.maximum(np.finfo(np.float32).eps, 4.0 / mx.nd.sum(bbox_weight)))
+        self.assign(out_data[3], req[3], 4.0 / mx.nd.maximum(4.0, mx.nd.sum(bbox_weight)))
         # self.assign(out_data[0], req[0], ohem_map)
         # self.assign(out_data[1], req[1], bbox_weight)
 
@@ -70,7 +70,7 @@ class ReweightLoss(mx.operator.CustomOp):
         '''
         '''
         weight_map = mx.nd.reshape(out_data[1] >= 0, shape=(0, 1, -1))
-        sum_weight = mx.nd.sum(weight_map) # 'valid'
+        sum_weight = mx.nd.maximum(1.0, mx.nd.sum(weight_map)) # 'valid'
         weight_map /= sum_weight
 
         self.assign(in_grad[0], req[0], out_grad[0] * weight_map)
@@ -82,7 +82,7 @@ class ReweightLoss(mx.operator.CustomOp):
 class ReweightLossProp(mx.operator.CustomOpProp):
     '''
     '''
-    def __init__(self, th_iou=0.5, th_iou_neg=1.0 / 3.0, neg_ratio=3.0, rand_mult=3):
+    def __init__(self, th_iou=0.5, th_iou_neg=1.0 / 3.0, neg_ratio=1.0, rand_mult=8):
         #
         super(ReweightLossProp, self).__init__(need_top_grad=True)
         self.th_iou = float(th_iou)
