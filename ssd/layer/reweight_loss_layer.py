@@ -72,8 +72,8 @@ class ReweightLoss(mx.operator.CustomOp):
         # weight_map /= sum_weight
 
         # self.assign(in_grad[0], req[0], out_grad[0] * weight_map)
-        self.assign(in_grad[0], req[0], 0)
-        self.assign(in_grad[1], req[1], 0)
+        for i in range(4):
+            self.assign(in_grad[i], req[i], 0)
 
 
 @mx.operator.register("reweight_loss")
