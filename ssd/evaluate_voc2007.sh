@@ -3,8 +3,8 @@ python evaluate.py \
     --dataset pascal_voc \
     --eval-set test \
     --devkit-path ./data/VOCdevkit \
-    --network spotnet_512 \
-    --prefix ./model/spotnet_512 \
+    --network pva102_ssd_512 \
+    --prefix ./model/pva102_ssd_512 \
     --epoch 1000 \
     --gpus 0 \
     --data-shape 960 \

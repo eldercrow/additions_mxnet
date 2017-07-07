@@ -30,7 +30,7 @@ def get_symbol_train(num_classes, **kwargs):
             name='label_mapping', th_iou_neg=1.0 / 3.0)
 
     probs_cls = mx.sym.SoftmaxOutput(preds_cls, label=cls_target, name='cls_prob',
-            ignore_label=-1, use_ignore=True, multi_output=True, normalization='null')
+            ignore_label=-1, use_ignore=True, multi_output=True, normalization='null', out_grad=True)
     tmp_in = [probs_cls, cls_target, bbox_weight, max_iou]
     probs_cls, cls_target_ohem, bbox_weight = mx.sym.Custom(*tmp_in, op_type='reweight_loss')
 
