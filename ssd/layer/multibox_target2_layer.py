@@ -176,7 +176,6 @@ class MultiBoxTarget2(mx.operator.CustomOp):
         target_locs = aux[0].asnumpy().astype(int)
 
         if self.normalization == True:
-            eps = np.finfo(np.float32).eps
             norm_cls = 1.0 / mx.nd.maximum(1.0, mx.nd.sum(out_data[2] >= 0))
             norm_reg = 1.0 / mx.nd.maximum(1.0, mx.nd.sum(out_data[4] > 0) / 4.0)
         else:

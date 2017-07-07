@@ -38,13 +38,16 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         label = cls_label.flatten()
         mask = np.where(label >= 0)[0]
         indices = np.int64(label[mask])
-        prob_all = cls_prob.transpose((0, 2, 1)).reshape((-1, cls_prob.shape[1]))
+        if cls_prob.ndim == 3:
+            prob_all = cls_prob.transpose((0, 2, 1)).reshape((-1, cls_prob.shape[1]))
+        else:
+            prob_all = cls_prob
         prob = prob_all[mask, indices]
         self.sum_metric[0] += (-np.log(prob + self.eps)).sum()
         self.num_inst[0] += valid_count
         # smoothl1loss
         self.sum_metric[1] += np.sum(loc_loss)
-        self.num_inst[1] += 1 #np.sum(np.any(loc_label, axis=2)) #valid_count
+        self.num_inst[1] += np.sum(np.any(loc_label, axis=-1)) #valid_count
         # recall and acc
         acc = np.argmax(prob_all, axis=1) == label
         # recall

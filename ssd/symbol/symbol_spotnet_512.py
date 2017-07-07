@@ -36,13 +36,13 @@ def get_symbol_train(num_classes, **kwargs):
     mask_reg = tmp[4]
 
     # classification
-    cls_prob = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, name='cls_prob', \
+    cls_loss = mx.symbol.SoftmaxOutput(data=sample_cls, label=target_cls, name='cls_prob', \
             ignore_label=-1, use_ignore=True, grad_scale=1.0, normalization='null')
 
     # regression
     loc_diff = (sample_reg - target_reg) * mask_reg
     loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss, name='loc_loss', grad_scale=1.0)
+    loc_loss = mx.symbol.MakeLoss(loc_loss, name='loc_loss', grad_scale=0.2)
 
     # for metric
     label_cls = mx.sym.BlockGrad(target_cls, name='label_cls')
