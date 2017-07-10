@@ -1,6 +1,8 @@
 import os
 from utils import DotDict, namedtuple_with_defaults, zip_namedtuple, config_as_dict
 
+# DO NOT MODIFY THIS
+# Change parameters below, at cfg.train
 RandScaler = namedtuple_with_defaults('RandScaler',
     'min_aug_scale, max_aug_scale, min_aug_gt_scale, max_aug_trials, max_aug_sample, aug_patch_size',
     [0.5, 2.0, 32.0 / 512.0, 50, 1, 512])
@@ -40,7 +42,8 @@ cfg.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 # training configs
 cfg.train = DotDict()
 # random scaling/cropping samplers
-cfg.train.rand_scaler = RandScaler(min_aug_scale=0.5, max_aug_scale=1.5, aug_patch_size=512)
+cfg.train.rand_scaler = RandScaler(min_aug_scale=0.5, max_aug_scale=1.5, min_aug_gt_scale=24.0 / 384.0, 
+        aug_patch_size=384)
 # random cropping samplers
 cfg.train.rand_crop_samplers = [
     RandCropper(min_crop_scales=0.3, min_crop_overlaps=0.1),

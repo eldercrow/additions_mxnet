@@ -4,8 +4,7 @@ from easydict import EasyDict as edict
 config = edict()
 
 # network related params
-# config.PIXEL_MEANS = np.array([103.939, 116.779, 123.68])
-config.PIXEL_MEANS = np.array([102.9801, 115.9465, 122.7717])
+config.PIXEL_MEANS = np.array([103.939, 116.779, 123.68])
 config.IMAGE_STRIDE = 0
 config.RPN_FEAT_STRIDE = 16
 config.RCNN_FEAT_STRIDE = 16
@@ -18,17 +17,16 @@ config.SCALES = [(600, 1000)]  # first is scale (the shorter side); second is ma
 config.ANCHOR_SCALES = (8, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 1, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
-config.PVTDB_LABEL = False
 
 config.TRAIN = edict()
 
 # R-CNN and RPN
 # size of images for each device, 2 for rcnn, 1 for rpn and e2e
-config.TRAIN.BATCH_IMAGES = 1
+config.TRAIN.BATCH_IMAGES = 2
 # e2e changes behavior of anchor loader and metric
 config.TRAIN.END2END = False
 # group images with similar aspect ratio
-config.TRAIN.ASPECT_GROUPING = False
+config.TRAIN.ASPECT_GROUPING = True
 
 # R-CNN
 # rcnn rois batch size
@@ -62,7 +60,7 @@ config.TRAIN.RPN_PRE_NMS_TOP_N = 12000
 config.TRAIN.RPN_POST_NMS_TOP_N = 2000
 config.TRAIN.RPN_MIN_SIZE = config.RPN_FEAT_STRIDE
 # approximate bounding box regression
-config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = True
+config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = False
 config.TRAIN.BBOX_MEANS = (0.0, 0.0, 0.0, 0.0)
 config.TRAIN.BBOX_STDS = (0.1, 0.1, 0.2, 0.2)
 
@@ -70,7 +68,7 @@ config.TEST = edict()
 
 # R-CNN testing
 # use rpn to generate proposal
-config.TEST.HAS_RPN = True
+config.TEST.HAS_RPN = False
 # size of images for each device
 config.TEST.BATCH_IMAGES = 1
 
@@ -83,7 +81,7 @@ config.TEST.RPN_MIN_SIZE = config.RPN_FEAT_STRIDE
 
 # RPN generate proposal
 config.TEST.PROPOSAL_NMS_THRESH = 0.7
-config.TEST.PROPOSAL_PRE_NMS_TOP_N = 12000
+config.TEST.PROPOSAL_PRE_NMS_TOP_N = 20000
 config.TEST.PROPOSAL_POST_NMS_TOP_N = 2000
 config.TEST.PROPOSAL_MIN_SIZE = config.RPN_FEAT_STRIDE
 
@@ -139,30 +137,17 @@ network.resnet.FIXED_PARAMS = ['conv0', 'stage1', 'gamma', 'beta']
 network.resnet.FIXED_PARAMS_SHARED = ['conv0', 'stage1', 'stage2', 'stage3', 'gamma', 'beta']
 
 network.pvanet = edict()
-# network.pvanet.pretrained = 'model/pvanet_bn_freezed'
-# network.pvanet.pretrained_epoch = 0
-network.pvanet.SCALES = [(608, 1920)]  # first is scale (the shorter side); second is max size
+ss = [(i*32, 1440) for i in range(13, 28)] # from 416 to 864
+ss[0], ss[7] = ss[7], ss[0] # set 608 to the front for test and demo
+network.pvanet.SCALES = ss
 network.pvanet.IMAGE_STRIDE = 32
 network.pvanet.RPN_FEAT_STRIDE = 16
 network.pvanet.RCNN_FEAT_STRIDE = 16
 network.pvanet.ANCHOR_SCALES = (3, 6, 9, 16, 32)
-network.pvanet.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
-network.pvanet.NUM_ANCHORS = len(network.pvanet.ANCHOR_SCALES) * len(network.pvanet.ANCHOR_RATIOS)
-network.pvanet.FIXED_PARAMS = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
-network.pvanet.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
-
-network.pvanet_twn = edict()
-network.pvanet_twn.pretrained = 'model/pvanet_bn_freezed'
-network.pvanet_twn.pretrained_epoch = 0
-network.pvanet_twn.SCALES = [(608, 1024)]  # first is scale (the shorter side); second is max size
-network.pvanet_twn.IMAGE_STRIDE = 32
-network.pvanet_twn.RPN_FEAT_STRIDE = 16
-network.pvanet_twn.RCNN_FEAT_STRIDE = 16
-network.pvanet_twn.ANCHOR_SCALES = (3, 6, 9, 16, 32)
-network.pvanet_twn.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
-network.pvanet_twn.NUM_ANCHORS = len(network.pvanet_twn.ANCHOR_SCALES) * len(network.pvanet_twn.ANCHOR_RATIOS)
-network.pvanet_twn.FIXED_PARAMS = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
-network.pvanet_twn.FIXED_PARAMS_SHARED = ['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
+network.pvanet.ANCHOR_RATIOS = (0.5, 2.0/3.0, 1.0, 1.5, 2.0)
+network.pvanet.NUM_ANCHORS = 25
+network.pvanet.FIXED_PARAMS = ['conv1']
+network.pvanet.FIXED_PARAMS_SHARED = ['conv1']
 
 # dataset settings
 dataset = edict()

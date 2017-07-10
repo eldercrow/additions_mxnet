@@ -31,22 +31,12 @@ def get_symbol_train(num_classes, **kwargs):
 
     # classification
     cls_loss = mx.symbol.SoftmaxOutput(data=pred_cls, label=target_cls, \
-        ignore_label=-1, use_ignore=True, grad_scale=1.0,
-        normalization='null', name="cls_prob", out_grad=False)
-    # cls_loss = mx.symbol.Custom(cls_prob, target_cls, op_type='softmax_loss',
-    #         ignore_label=-1, use_ignore=True)
-    # alpha_cls = mx.sym.var(name='cls_beta', shape=(1,), lr_mult=0.1, wd_mult=0.0)
-    # cls_loss_w = cls_loss * mx.sym.exp(-alpha_cls) + 10.0 * alpha_cls
-    # cls_loss = mx.sym.MakeLoss(cls_loss, name='cls_loss')
+        ignore_label=-1, use_ignore=True, grad_scale=1.0, 
+        normalization='null', name="cls_loss", out_grad=False)
 
     # regression
     loc_diff = mask_reg * (pred_reg - target_reg)
-    # masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0)
-    # loc_loss = mx.sym.sum(loc_loss) * 0.2
-    # alpha_loc = mx.sym.var(name='loc_beta', shape=(1,),
-    #         lr_mult=0.1, wd_mult=0.0, init=mx.init.Constant(2.0))
-    # loc_loss_w = loc_loss * mx.sym.exp(-alpha_loc) + 10.0 * alpha_loc
     loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=0.2, \
         normalization='null', name="loc_loss")
 
