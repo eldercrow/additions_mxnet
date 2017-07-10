@@ -297,24 +297,30 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                         fixed_param_names=fixed_param_names)
     # mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
     #                     fixed_param_names=fixed_param_names)
-    if resume <= 0 and from_scratch == False and finetune <= 0:
+    if resume <= 0 and finetune <= 0:
         mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
         mod.init_params(initializer=mx.init.Xavier())
         args0, auxs0 = mod.get_params()
         arg_params = args0.copy()
         aux_params = auxs0.copy()
-        for k in args0:
-            if k in args and args0[k].shape == args[k].shape:
-                arg_params[k] = args[k]
-            else:
-                logger.info('Warning: param {} is inited from scratch.'.format(k))
-        for k in auxs0:
-            if k in auxs and auxs0[k].shape == auxs[k].shape:
-                aux_params[k] = auxs[k]
-            else:
-                logger.info('Warning: param {} is inited from scratch.'.format(k))
-        arg_params, aux_params = convert_spotnet(arg_params, aux_params)
+        if args is not None:
+            for k in args0:
+                if k in args and args0[k].shape == args[k].shape:
+                    arg_params[k] = args[k]
+                else:
+                    logger.info('Warning: param {} is inited from scratch.'.format(k))
+        if auxs is not None:
+            for k in auxs0:
+                if k in auxs and auxs0[k].shape == auxs[k].shape:
+                    aux_params[k] = auxs[k]
+                else:
+                    logger.info('Warning: param {} is inited from scratch.'.format(k))
+        # arg_params, aux_params = convert_spotnet(arg_params, aux_params)
         mod.set_params(arg_params=arg_params, aux_params=aux_params)
+
+        for k, v in sorted(arg_params.items()):
+            print k, v.shape
+
     # for debug
     # internals = net.get_internals()
     # _, out_shapes, _ = internals.infer_shape(data=(32, 3, 512, 512), label=(32, 64, 5))

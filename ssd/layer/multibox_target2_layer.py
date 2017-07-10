@@ -12,7 +12,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
     Python implementation of MultiBoxTarget layer.
     """
     def __init__(self, n_class, img_wh, th_iou, th_iou_neg, th_nms_neg, max_pos_sample,
-            reg_sample_ratio, hard_neg_ratio, ignore_label, variances, per_cls_reg, normalization):
+            reg_sample_ratio, hard_neg_ratio, ignore_label, box_ratios, variances, per_cls_reg, normalization):
         #
         super(MultiBoxTarget2, self).__init__()
         self.n_class = n_class
@@ -24,6 +24,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
         self.reg_sample_ratio = reg_sample_ratio
         self.hard_neg_ratio = hard_neg_ratio
         self.ignore_label = ignore_label
+        self.box_ratios = box_ratios
         self.variances = variances
         self.per_cls_reg = per_cls_reg
         self.normalization = normalization
@@ -109,14 +110,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             anchor_locs_neg += anchor_locs
             probs_neg += p
 
-        # hard negative sampling with whole batchs
-        n_max_sample_neg = np.sum(np.array(tc_pos) > 0) * self.hard_neg_ratio
-        sidx = np.argsort(np.array(probs_neg))[::-1]
-        if len(sidx) > n_max_sample_neg:
-            sidx = sidx[:n_max_sample_neg]
-        anchor_locs_neg = np.array(anchor_locs_neg)[sidx, :]
-
-        # subsample pos/reg/neg samples if we have too many
+        # subsample pos/reg samples if we have too many
         max_sample = int(1 + self.reg_sample_ratio) * self.max_pos_sample
         if len(tc_pos) > max_sample:
             pidx = np.random.choice(np.arange(len(tc_pos)), max_sample, replace=False)
@@ -125,13 +119,20 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             tr_pos = tr_pos[pidx, :]
             mr_pos = mr_pos[pidx, :]
 
+        # hard negative sampling with whole batchs
+        n_max_sample_neg = np.sum(np.array(tc_pos) > 0) * self.hard_neg_ratio
+        sidx = np.argsort(np.array(probs_neg))[::-1]
+        if len(sidx) > n_max_sample_neg:
+            sidx = sidx[:n_max_sample_neg]
+        anchor_locs_neg = np.array(anchor_locs_neg)[sidx, :]
+
+        # subsample neg samples if we have too many
         max_sample = int(self.hard_neg_ratio) * self.max_pos_sample
         if len(anchor_locs_neg) > max_sample:
             pidx = np.random.choice(np.arange(len(anchor_locs_neg)), max_sample, replace=False)
             anchor_locs_neg = anchor_locs_neg[pidx]
 
         # gather and arrange samples we will use
-
         k = 0
         for i, aloc in enumerate(anchor_locs_pos):
             if k >= self.max_sample:
@@ -209,7 +210,10 @@ class MultiBoxTarget2(mx.operator.CustomOp):
 
         for label in labels:
             gt_cls = int(label[0])
-            iou = _compute_iou(label[1:], self.anchors_t, self.area_anchors_t)
+            import ipdb
+            ipdb.set_trace()
+            lsq = _fit_box_ratio(label[1:], self.box_ratios)
+            iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)
 
             # skip already occupied ones
             iou_mask = iou > max_iou
@@ -290,6 +294,22 @@ def _get_valid_labels(labels):
         n_valid_label += 1
     return labels[:n_valid_label, :]
 
+def _fit_box_ratio(bb, bb_ratios):
+    #
+    logr = np.log((bb[2] - bb[0]) / (bb[3] - bb[1]))
+    diff_a = np.abs(logr - np.log(bb_ratios))
+    midx = np.argmin(diff_a)
+    target_r = bb_ratios[midx]
+
+    cx = (bb[0] + bb[2]) / 2.0
+    cy = (bb[1] + bb[3]) / 2.0
+
+    ww = (bb[2] - bb[0])
+    hh = (bb[3] - bb[1])
+    ww2 = np.maximum(ww, hh * target_r) / 2.0
+    hh2 = np.maximum(hh, ww * target_r) / 2.0
+    return np.array((cx - ww2, cy - hh2, cx + ww2, cy + hh2))
+
 def _compute_nms_cands(anc, anchors_t, area_anchors_t, th_nms):
     #
     iou = _compute_iou(anc, anchors_t, area_anchors_t)
@@ -341,7 +361,7 @@ def _expand_target(loc_target, cid, n_cls):
 class MultiBoxTargetProp2(mx.operator.CustomOpProp):
     def __init__(self, n_class, img_wh,
             th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0/1.5, max_pos_sample=512,
-            reg_sample_ratio=2.0, hard_neg_ratio=3.0, ignore_label=-1,
+            reg_sample_ratio=2.0, hard_neg_ratio=3.0, ignore_label=-1, box_ratios=(1.0,),
             variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False, normalization=False):
         #
         super(MultiBoxTargetProp2, self).__init__(need_top_grad=True)
@@ -356,6 +376,9 @@ class MultiBoxTargetProp2(mx.operator.CustomOpProp):
         self.reg_sample_ratio = int(reg_sample_ratio)
         self.hard_neg_ratio = int(hard_neg_ratio)
         self.ignore_label = float(ignore_label)
+        if isinstance(box_ratios, str):
+            box_ratios = make_tuple(box_ratios)
+        self.box_ratios = np.array(box_ratios)
         assert self.ignore_label == -1
         if isinstance(variances, str):
             variances = make_tuple(variances)
@@ -398,4 +421,4 @@ class MultiBoxTargetProp2(mx.operator.CustomOpProp):
         return MultiBoxTarget2( \
                 self.n_class, self.img_wh, self.th_iou, self.th_iou_neg, self.th_nms_neg,
                 self.max_pos_sample, self.reg_sample_ratio, self.hard_neg_ratio,
-                self.ignore_label, self.variances, self.per_cls_reg, self.normalization)
+                self.ignore_label, self.box_ratios, self.variances, self.per_cls_reg, self.normalization)
