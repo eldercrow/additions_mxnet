@@ -1,7 +1,8 @@
 import mxnet as mx
-from spotnet_multibox import get_spotnet
+from spotnet_voc import get_spotnet
 # from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
 # from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
+from layer.multibox_target2_layer import *
 from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
 from layer.anchor_target_layer import *
 
@@ -29,29 +30,29 @@ def get_symbol_train(num_classes, **kwargs):
     pred_reg = mx.sym.slice_axis(pred_target, axis=1, begin=num_classes, end=None)
 
     # classification
-    cls_prob = mx.symbol.SoftmaxOutput(data=pred_cls, label=target_cls, \
-        ignore_label=-1, use_ignore=True, grad_scale=1.0, 
-        normalization='null', name="cls_prob", out_grad=True)
-    cls_loss = mx.symbol.Custom(cls_prob, target_cls, op_type='softmax_loss', 
-            ignore_label=-1, use_ignore=True)
+    cls_loss = mx.symbol.SoftmaxOutput(data=pred_cls, label=target_cls, \
+        ignore_label=-1, use_ignore=True, grad_scale=1.0,
+        normalization='null', name="cls_prob", out_grad=False)
+    # cls_loss = mx.symbol.Custom(cls_prob, target_cls, op_type='softmax_loss',
+    #         ignore_label=-1, use_ignore=True)
     # alpha_cls = mx.sym.var(name='cls_beta', shape=(1,), lr_mult=0.1, wd_mult=0.0)
     # cls_loss_w = cls_loss * mx.sym.exp(-alpha_cls) + 10.0 * alpha_cls
-    cls_loss = mx.sym.MakeLoss(cls_loss, name='cls_loss')
+    # cls_loss = mx.sym.MakeLoss(cls_loss, name='cls_loss')
 
     # regression
     loc_diff = mask_reg * (pred_reg - target_reg)
     # masked_loc_diff = mx.sym.broadcast_mul(loc_diff, mask_reg)
     loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0)
-    loc_loss = mx.sym.sum(loc_loss) * 0.2
-    # alpha_loc = mx.sym.var(name='loc_beta', shape=(1,), 
+    # loc_loss = mx.sym.sum(loc_loss) * 0.2
+    # alpha_loc = mx.sym.var(name='loc_beta', shape=(1,),
     #         lr_mult=0.1, wd_mult=0.0, init=mx.init.Constant(2.0))
     # loc_loss_w = loc_loss * mx.sym.exp(-alpha_loc) + 10.0 * alpha_loc
-    loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=1.0, \
+    loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=0.2, \
         normalization='null', name="loc_loss")
 
     label_cls = mx.sym.BlockGrad(target_cls, name='label_cls')
     label_reg = mx.sym.BlockGrad(mask_reg, name='label_reg')
 
     # group output
-    out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg, mx.sym.BlockGrad(cls_prob)])
+    out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
     return out

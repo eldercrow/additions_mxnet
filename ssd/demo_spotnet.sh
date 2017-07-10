@@ -15,8 +15,9 @@ python demo.py \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix model/spotnet_512 \
+  --prefix model/spotnet_voc_512 \
   --epoch 1000 \
   --max-data-shapes 960 960 \
   --thresh $TH_POS \
-  --gpu 0
+  --cpu
+  # --gpu 0

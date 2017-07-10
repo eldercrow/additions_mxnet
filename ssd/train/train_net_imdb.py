@@ -292,6 +292,13 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     if fixed_param_names:
         logger.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
+    if args is not None:
+        for k, v in sorted(args.items()):
+            print k, v.shape
+    if auxs is not None:
+        for k, v in sorted(auxs.items()):
+            print k, v.shape
+
     # init training module
     mod = PlateauModule(net, label_names=('label',), logger=logger, context=ctx,
                         fixed_param_names=fixed_param_names)

@@ -109,14 +109,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             anchor_locs_neg += anchor_locs
             probs_neg += p
 
-        # hard negative sampling with whole batchs
-        n_max_sample_neg = np.sum(np.array(tc_pos) > 0) * self.hard_neg_ratio
-        sidx = np.argsort(np.array(probs_neg))[::-1]
-        if len(sidx) > n_max_sample_neg:
-            sidx = sidx[:n_max_sample_neg]
-        anchor_locs_neg = np.array(anchor_locs_neg)[sidx, :]
-
-        # subsample pos/reg/neg samples if we have too many
+        # subsample pos/reg samples if we have too many
         max_sample = int(1 + self.reg_sample_ratio) * self.max_pos_sample
         if len(tc_pos) > max_sample:
             pidx = np.random.choice(np.arange(len(tc_pos)), max_sample, replace=False)
@@ -125,6 +118,14 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             tr_pos = tr_pos[pidx, :]
             mr_pos = mr_pos[pidx, :]
 
+        # hard negative sampling with whole batchs
+        n_max_sample_neg = np.sum(tc_pos > 0) * self.hard_neg_ratio
+        sidx = np.argsort(np.array(probs_neg))[::-1]
+        if len(sidx) > n_max_sample_neg:
+            sidx = sidx[:n_max_sample_neg]
+        anchor_locs_neg = np.array(anchor_locs_neg)[sidx, :]
+
+        # subsample neg samples if we have too many
         max_sample = int(self.hard_neg_ratio) * self.max_pos_sample
         if len(anchor_locs_neg) > max_sample:
             pidx = np.random.choice(np.arange(len(anchor_locs_neg)), max_sample, replace=False)
@@ -340,7 +341,7 @@ def _expand_target(loc_target, cid, n_cls):
 @mx.operator.register("multibox_target2")
 class MultiBoxTargetProp2(mx.operator.CustomOpProp):
     def __init__(self, n_class, img_wh,
-            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0/1.5, max_pos_sample=512,
+            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0/3.0, max_pos_sample=1024,
             reg_sample_ratio=2.0, hard_neg_ratio=3.0, ignore_label=-1,
             variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False, normalization=False):
         #
