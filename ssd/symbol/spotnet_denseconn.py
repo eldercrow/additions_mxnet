@@ -132,7 +132,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
 
     nf_3x3 = [24, 32]
     nf_1x1 = [i * 8 for i in nf_3x3]
-    curr_sz = (2**5) * rf_ratio
+    curr_sz = (2**4) * rf_ratio
     while curr_sz < patch_size:
         nf_3x3.append(24)
         nf_1x1.append(24*8)
@@ -187,9 +187,6 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         projh = relu_conv_bn(concat, prefix_name=hyper_name+'1x1/',
             num_filter=nf_hyper_proj, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-        # convh = relu_conv_bn(projh, prefix_name=hyper_name+'3x3/',
-        #     num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
-        #     use_global_stats=use_global_stats)
         hyper_layers.append(projh)
 
     # remaining layers, bigger than 48
@@ -199,9 +196,6 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         projh = relu_conv_bn(g, prefix_name=hyper_name+'1x1/',
             num_filter=nf_hyper_proj, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-        # convh = relu_conv_bn(projh, prefix_name=hyper_name+'3x3/',
-        #     num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
-        #     use_global_stats=use_global_stats)
         hyper_layers.append(projh)
 
     from_layers = []

@@ -1,9 +1,9 @@
 import mxnet as mx
-from spotnet_voc import get_spotnet
+from spotnet_denseconn import get_spotnet
 # from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
 # from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
-from layer.multibox_target2_layer import *
-from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
+# from layer.multibox_target2_layer import *
+# from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
 from layer.anchor_target_layer import *
 
 

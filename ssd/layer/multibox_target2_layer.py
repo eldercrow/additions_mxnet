@@ -182,7 +182,7 @@ class MultiBoxTarget2(mx.operator.CustomOp):
         else:
             norm_cls = 1.0
             norm_reg = 1.0
-            
+
         for i, tloc in enumerate(target_locs):
             bid = tloc[0]
             aid = tloc[1]
@@ -210,8 +210,8 @@ class MultiBoxTarget2(mx.operator.CustomOp):
 
         for label in labels:
             gt_cls = int(label[0])
-            import ipdb
-            ipdb.set_trace()
+            # import ipdb
+            # ipdb.set_trace()
             lsq = _fit_box_ratio(label[1:], self.box_ratios)
             iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)
 
@@ -360,7 +360,7 @@ def _expand_target(loc_target, cid, n_cls):
 @mx.operator.register("multibox_target2")
 class MultiBoxTargetProp2(mx.operator.CustomOpProp):
     def __init__(self, n_class, img_wh,
-            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0/1.5, max_pos_sample=512,
+            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0/2.0, max_pos_sample=512,
             reg_sample_ratio=2.0, hard_neg_ratio=3.0, ignore_label=-1, box_ratios=(1.0,),
             variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False, normalization=False):
         #

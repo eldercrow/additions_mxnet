@@ -218,8 +218,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
 
     # init iterator
     if dataset.find('_patch') < 0:
-        rand_scaler = RandScaler(min_scale=cfg.train['min_aug_scale'],
-                                 max_scale=cfg.train['max_aug_scale'],
+        rand_scaler = RandScaler(scale_exp=cfg.train['aug_scale_exp'],
                                  min_gt_scale=cfg.train['min_aug_gt_scale'],
                                  max_trials=cfg.train['max_aug_trials'],
                                  max_sample=cfg.train['max_aug_sample'],
@@ -292,12 +291,12 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     if fixed_param_names:
         logger.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
-    if args is not None:
-        for k, v in sorted(args.items()):
-            print k, v.shape
-    if auxs is not None:
-        for k, v in sorted(auxs.items()):
-            print k, v.shape
+    # if args is not None:
+    #     for k, v in sorted(args.items()):
+    #         print k, v.shape
+    # if auxs is not None:
+    #     for k, v in sorted(auxs.items()):
+    #         print k, v.shape
 
     # init training module
     mod = PlateauModule(net, label_names=('label',), logger=logger, context=ctx,

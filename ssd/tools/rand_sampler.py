@@ -53,16 +53,18 @@ class RandScaler(RandSampler):
         maximum random crop samples to be generated
     """
     def __init__(self,
-            min_scale=1.0, max_scale=1.0, min_gt_scale=.01, max_trials=50, max_sample=1, patch_size=512):
+            scale_exp=1.0, min_gt_scale=.01, max_trials=50, max_sample=1, patch_size=512):
         super(RandScaler, self).__init__(max_trials, max_sample)
-        assert min_scale <= max_scale, "min_scale must <= max_scale"
-        assert min_scale <= 1 and min_scale > 0, "min_scale must in (0, 1]"
-        self.min_scale = min_scale
-        self.max_scale = max_scale
+        assert scale_exp >= 0
+        # assert min_scale <= max_scale, "min_scale must <= max_scale"
+        # assert min_scale <= 1 and min_scale > 0, "min_scale must in (0, 1]"
+        # self.min_scale = min_scale
+        # self.max_scale = max_scale
+        self.scale_exp = scale_exp
         assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
         self.min_gt_scale = min_gt_scale
         # for sanity check
-        self.min_gt_overlap = 0.7
+        self.min_gt_overlap = 0.6
         self.min_gt_ignore = 0.25
         self.patch_size = patch_size
 
@@ -85,33 +87,47 @@ class RandScaler(RandSampler):
         gt[:, 1::2] *= img_shape[1]
         gt[:, 2::2] *= img_shape[0]
         samples = []
+        base_scale = self.patch_size / float(np.sqrt(img_shape[0] * img_shape[1]))
         for trial in range(self.max_trials):
-            scale = np.random.uniform(self.min_scale, self.max_scale)
-            patch_sz = np.round(self.patch_size * scale)
-            dx = img_shape[1] - patch_sz
-            dy = img_shape[0] - patch_sz
+            scale = base_scale * np.power(2.0, np.random.uniform(-self.scale_exp, self.scale_exp))
+            asp = np.sqrt(1.0 + np.random.uniform(-0.1, 0.1))
+            scale_x = scale * asp
+            scale_y = scale / asp
+            patch_sz_x = np.round(self.patch_size / scale_x)
+            patch_sz_y = np.round(self.patch_size / scale_y)
+            # patch_sz = np.round(self.patch_size * scale)
+            dx = img_shape[1] - patch_sz_x
+            dy = img_shape[0] - patch_sz_y
             if dx != 0:
                 dx = np.random.randint(low=np.minimum(dx, 0), high=np.maximum(dx, 0))
             if dy != 0:
                 dy = np.random.randint(low=np.minimum(dy, 0), high=np.maximum(dy, 0))
-            bbox = [dx, dy, dx+patch_sz, dy+patch_sz]
+            bbox = [dx, dy, dx+patch_sz_x, dy+patch_sz_y]
 
             new_gt_boxes = []
             # new_gt_indices = []
             for i, bb in enumerate(gt):
-                new_size = max(bb[4] - bb[2], bb[3] - bb[1]) * scale / float(self.patch_size)
+                # some sanity check
                 overlap = _compute_overlap(bb[1:], bbox)
-                if overlap < self.min_gt_ignore or new_size < self.min_gt_scale:
+                if overlap < self.min_gt_ignore:
                     continue
-                l = bb[0] if overlap > self.min_gt_overlap else -1
+                new_size = max((bb[4] - bb[2]) * scale_y, (bb[3] - bb[1]) * scale_x) / float(self.patch_size)
+                if new_size < (self.min_gt_scale * 0.707):
+                    continue
+                # ignore check
+                if new_size < self.min_gt_scale or overlap < self.min_gt_overlap:
+                    l = -1
+                else:
+                    l = bb[0]
                 new_gt_boxes.append([l, bb[1]-dx, bb[2]-dy, bb[3]-dx, bb[4]-dy])
                 # new_gt_indices.append(valid_mask[i])
+
             new_gt_boxes = np.reshape(np.array(new_gt_boxes), (-1, 5))
             # new_gt_indices = np.array(new_gt_indices)
             if len(new_gt_boxes) == 0 and trial < self.max_trials - 1:
                 continue
-            new_gt_boxes[:, 1::2] /= float(patch_sz)
-            new_gt_boxes[:, 2::2] /= float(patch_sz)
+            new_gt_boxes[:, 1::2] /= float(patch_sz_x)
+            new_gt_boxes[:, 2::2] /= float(patch_sz_y)
             label = np.lib.pad(new_gt_boxes,
                 ((0, label.shape[0]-new_gt_boxes.shape[0]), (0,0)), \
                 'constant', constant_values=(-1, -1))

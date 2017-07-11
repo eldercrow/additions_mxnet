@@ -4,8 +4,8 @@ from utils import DotDict, namedtuple_with_defaults, zip_namedtuple, config_as_d
 # DO NOT MODIFY THIS
 # Change parameters below, at cfg.train
 RandScaler = namedtuple_with_defaults('RandScaler',
-    'min_aug_scale, max_aug_scale, min_aug_gt_scale, max_aug_trials, max_aug_sample, aug_patch_size',
-    [0.5, 2.0, 32.0 / 512.0, 50, 1, 512])
+    'aug_scale_exp, min_aug_gt_scale, max_aug_trials, max_aug_sample, aug_patch_size',
+    [1.0, 32.0 / 512.0, 50, 1, 512])
 
 RandCropper = namedtuple_with_defaults('RandCropper',
     'min_crop_scales, max_crop_scales, \
@@ -42,7 +42,7 @@ cfg.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 # training configs
 cfg.train = DotDict()
 # random scaling/cropping samplers
-cfg.train.rand_scaler = RandScaler(min_aug_scale=0.5, max_aug_scale=1.5, min_aug_gt_scale=24.0 / 384.0, 
+cfg.train.rand_scaler = RandScaler(aug_scale_exp=1.0, min_aug_gt_scale=24.0 / 384.0, 
         aug_patch_size=384)
 # random cropping samplers
 cfg.train.rand_crop_samplers = [
@@ -72,7 +72,7 @@ cfg.train = config_as_dict(cfg.train)  # convert to normal dict
 
 # validation
 cfg.valid = DotDict()
-cfg.valid.rand_scaler = RandScaler(min_aug_scale=0.5, max_aug_scale=1.5, aug_patch_size=512)
+cfg.valid.rand_scaler = RandScaler(aug_scale_exp=1.0, aug_patch_size=512)
 cfg.valid.rand_crop_samplers = []
 cfg.valid.rand_pad = RandPadder()
 cfg.valid.color_jitter = ColorJitter()

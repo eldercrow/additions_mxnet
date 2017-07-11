@@ -1,11 +1,11 @@
 #!/usr/bin/bash
 # python train_imdb.py \
-#     --gpus 0 \
+#     --gpus 1 \
 #     --dataset pascal_voc_patch \
 #     --year 2007,2012 \
 #     --network spotnet_256 \
 #     --frequent 100 \
-#     --prefix model/spotnet \
+#     --prefix model/spotnet_denseconn \
 #     --lr 0.001 \
 #     --batch-size 24 \
 #     --data-shape 256 \
@@ -18,10 +18,10 @@ python train_imdb.py \
     --gpus 0 \
     --dataset pascal_voc \
     --year 2007,2012 \
-    --network spotnet_512 \
-    --prefix model/spotnet_voc \
+    --network spotnet_384 \
+    --prefix model/spotnet_denseconn \
     --freeze '' \
-    --batch-size 16 \
+    --batch-size 24 \
     --data-shape 384 \
     --val-image-set '' \
     --lr 1e-03 \
@@ -29,6 +29,6 @@ python train_imdb.py \
     --lr-steps 2,2,3,3,4,4,4 \
     --frequent 100 \
     --wd 1e-04 \
-    --pretrained ./model/spotnet_voc_512 \
+    --pretrained ./model/spotnet_denseconn_384 \
     --epoch 1000
-#     --resume 31
+    # --resume 59
