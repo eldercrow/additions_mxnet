@@ -74,6 +74,8 @@ def parse_args():
                         help='monitor parameter pattern, as regex')
     parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.45,
                         help='non-maximum suppression threshold')
+    parser.add_argument('--min-obj-size', dest='min_obj_size', type=float, default=32.0,
+                        help='minimum object size to be used for training.')
     parser.add_argument('--overlap', dest='overlap_thresh', type=float, default=0.5,
                         help='evaluation overlap threshold')
     parser.add_argument('--force', dest='force_nms', type=bool, default=False,
@@ -125,6 +127,7 @@ if __name__ == '__main__':
               log_file=args.log_file,
               nms_thresh=args.nms_thresh,
               force_nms=args.force_nms,
+              min_obj_size=args.min_obj_size,
               ovp_thresh=args.overlap_thresh,
               use_difficult=args.use_difficult,
               voc07_metric=args.use_voc07_metric)

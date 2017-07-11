@@ -111,6 +111,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
               year='', val_image_set=None, val_year='', freeze_layer_pattern='',
               label_pad_width=350,
               nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
+              min_obj_size=32.0,
               use_difficult=False,
               voc07_metric=False, nms_topk=400, force_suppress=False,
               iter_monitor=0, monitor_pattern=".*", log_file=None):
@@ -218,11 +219,13 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
 
     # init iterator
     if dataset.find('_patch') < 0:
+        min_gt_scale = min_obj_size / float(data_shape[1])
+        patch_size = data_shape[1]
         rand_scaler = RandScaler(scale_exp=cfg.train['aug_scale_exp'],
-                                 min_gt_scale=cfg.train['min_aug_gt_scale'],
+                                 min_gt_scale=min_gt_scale, #cfg.train['min_aug_gt_scale'],
                                  max_trials=cfg.train['max_aug_trials'],
                                  max_sample=cfg.train['max_aug_sample'],
-                                 patch_size=cfg.train['aug_patch_size'])
+                                 patch_size=patch_size) #cfg.train['aug_patch_size'])
         train_iter = DetIter(imdb, batch_size, data_shape[1], mean_pixels,
                              [rand_scaler], cfg.train['rand_mirror'],
                              cfg.train['epoch_shuffle'], cfg.train['seed'],

@@ -21,10 +21,11 @@ def get_symbol_train(num_classes, **kwargs):
 
     label = mx.sym.var(name='label')
 
+    box_ratios = (1.0, 2.0, 3.0, 1.0/2.0, 1.0/3.0)
     tmp_in = [preds_cls, preds_reg, anchors, label, probs_cls]
     tmp = mx.symbol.Custom(*tmp_in, op_type='multibox_target2', name='multibox_target2',
             n_class=num_classes, img_wh=(patch_size, patch_size), variances=(0.1, 0.1, 0.2, 0.2),
-            box_ratios=(1.0, 2.5, 1.0/2.5), per_cls_reg=per_cls_reg, normalization=True)
+            box_ratios=box_ratios, per_cls_reg=per_cls_reg, normalization=True)
     sample_cls = tmp[0]
     sample_reg = tmp[1]
     target_cls = tmp[2]

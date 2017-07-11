@@ -132,8 +132,8 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
 
     nf_3x3 = [24, 32]
     nf_1x1 = [i * 8 for i in nf_3x3]
-    curr_sz = (2**4) * rf_ratio
-    while curr_sz < patch_size:
+    curr_sz = (2**5) * rf_ratio
+    while curr_sz <= patch_size:
         nf_3x3.append(24)
         nf_1x1.append(24*8)
         curr_sz *= 2
@@ -171,8 +171,8 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
 
     # build multi scale feature layers
     hyper_layers = []
-    nf_hyper = 192
-    nf_hyper_proj = 96
+    nf_hyper = 256
+    nf_hyper_proj = 128
     # small scale: hyperfeature
     nf_base = [nf_hyper_proj - np.sum(np.array(i)) for i in nf_upsamples]
     for i, g in enumerate(groups[:2]):
@@ -207,12 +207,12 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         st = 2 ** i
         sz = float(st * rf_ratio)
         hyper_name = 'hyper{0:03d}/'.format(int(sz))
-        sz2 = sz * np.sqrt(2.5)
+        sz2 = sz #* np.sqrt(2.0)
 
         # square
         strides.append(st)
         sizes.append([sz, sz * sz_ratio])
-        ratios.append([1.0, 2.0/3.0, 3.0/2.0])
+        ratios.append([1.0,])
 
         convh = relu_conv_bn(l, prefix_name=hyper_name+'sq/',
             num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),

@@ -42,8 +42,8 @@ cfg.ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 # training configs
 cfg.train = DotDict()
 # random scaling/cropping samplers
-cfg.train.rand_scaler = RandScaler(aug_scale_exp=1.0, min_aug_gt_scale=32.0 / 512.0,
-        aug_patch_size=512)
+cfg.train.rand_scaler = RandScaler(aug_scale_exp=1.0, min_aug_gt_scale=32.0 / 384.0,
+        aug_patch_size=384)
 # random cropping samplers
 cfg.train.rand_crop_samplers = [
     RandCropper(min_crop_scales=0.3, min_crop_overlaps=0.1),
