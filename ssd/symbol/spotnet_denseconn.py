@@ -113,7 +113,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     """ main shared conv layers """
     data = mx.sym.Variable(name='data')
 
-    rf_ratio = 3
+    rf_ratio = 4
 
     conv1 = convolution(data / 128.0, name='1/conv',
         num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)
@@ -171,7 +171,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
 
     # build multi scale feature layers
     hyper_layers = []
-    nf_hyper = 128
+    nf_hyper = 192
     nf_hyper_proj = 96
     # small scale: hyperfeature
     nf_base = [nf_hyper_proj - np.sum(np.array(i)) for i in nf_upsamples]
@@ -212,7 +212,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         # square
         strides.append(st)
         sizes.append([sz, sz * sz_ratio])
-        ratios.append([1.0])
+        ratios.append([1.0, 2.0/3.0, 3.0/2.0])
 
         convh = relu_conv_bn(l, prefix_name=hyper_name+'sq/',
             num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
@@ -220,12 +220,12 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         from_layers.append(convh)
 
         # horizontal
-        strides.append(st)
+        strides.append((st*2, st))
         sizes.append([sz2, sz2 * sz_ratio])
-        ratios.append([2.5])
+        ratios.append([2.0, 3.0])
 
         lh = relu_conv_bn(l, prefix_name=hyper_name+'1x3/',
-                num_filter=nf_hyper_proj, kernel=(1, 3), pad=(0, 1),
+                num_filter=nf_hyper_proj, kernel=(1, 2), pad=(0, 0), stride=(1, 2),
                 use_global_stats=use_global_stats)
         convh = relu_conv_bn(lh, prefix_name=hyper_name+'hori/',
             num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
@@ -233,12 +233,12 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         from_layers.append(convh)
 
         # vertical
-        strides.append(st)
+        strides.append((st, st*2))
         sizes.append([sz2, sz2 * sz_ratio])
-        ratios.append([1.0 / 2.5])
+        ratios.append([1.0/2.0, 1.0/3.0])
 
         lv = relu_conv_bn(l, prefix_name=hyper_name+'3x1/',
-                num_filter=nf_hyper_proj, kernel=(3, 1), pad=(1, 0),
+                num_filter=nf_hyper_proj, kernel=(2, 1), pad=(0, 0), stride=(2, 1),
                 use_global_stats=use_global_stats)
         convh = relu_conv_bn(lv, prefix_name=hyper_name+'vert/',
             num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),

@@ -106,10 +106,8 @@ if __name__ == '__main__':
     # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     # context list
-    ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',') if i.strip()]
+    ctx = [mx.gpu(int(i)) for i in args.gpus.split(',') if i.strip()]
     ctx = [mx.cpu()] if not ctx else ctx
-    # class names if applicable
-    # class_names = parse_class_names(args)
     # start training
     train_net(args.network, args.dataset, args.image_set, args.devkit_path,
               args.batch_size, args.data_shape, [args.mean_r, args.mean_g, args.mean_b],

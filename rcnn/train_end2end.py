@@ -194,7 +194,7 @@ def main():
     # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
     print('Called with argument:', args)
-    ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]
+    ctx = [mx.gpu(int(i)) for i in args.gpus.split(',')]
     train_net(args, ctx, args.pretrained, args.pretrained_epoch, args.prefix, args.begin_epoch, args.end_epoch,
               lr=args.lr, lr_step=args.lr_step)
 

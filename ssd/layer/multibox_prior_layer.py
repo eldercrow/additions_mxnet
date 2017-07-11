@@ -1,5 +1,6 @@
 import mxnet as mx
 import numpy as np
+from collections import Iterable
 from ast import literal_eval as make_tuple
 
 class MultiBoxPriorPython(mx.operator.CustomOp):
@@ -35,9 +36,13 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
             w = in_data[ii].shape[3]
             apc = len(s) * len(r)
 
+            stride = self.strides[ii]
+            if not isinstance(stride, Iterable):
+                stride = (stride, stride)
+
             # compute center positions
-            x = (np.arange(w) + 0.5) * self.strides[ii]
-            y = (np.arange(h) + 0.5) * self.strides[ii]
+            x = (np.arange(w) + 0.5) * stride[0]
+            y = (np.arange(h) + 0.5) * stride[1]
             xv, yv = np.meshgrid(x, y)
 
             # compute heights and widths
