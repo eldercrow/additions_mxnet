@@ -1,11 +1,7 @@
 import mxnet as mx
 import numpy as np
-from spotnet_voc import get_spotnet
-# from layer.label_mapping_layer import *
-# from layer.reweight_loss_layer import *
-# from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
+from spotnet_denseconn import get_spotnet
 from layer.multibox_target2_layer import MultiBoxTarget2, MultiBoxTargetProp2
-# from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
 from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
 from layer.anchor_target_layer import *
 
@@ -13,7 +9,7 @@ def get_symbol_train(num_classes, **kwargs):
     '''
     '''
     fix_bn = False
-    patch_size = 512
+    patch_size = 384
     per_cls_reg = False
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
@@ -50,8 +46,8 @@ def get_symbol_train(num_classes, **kwargs):
 
     # group output
     out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
-    # out = mx.symbol.Group([cls_loss_w, loc_loss_w, label_cls, label_reg, mx.sym.BlockGrad(cls_loss)])
     return out
+
 
 def get_symbol(num_classes, **kwargs):
     '''
@@ -59,7 +55,7 @@ def get_symbol(num_classes, **kwargs):
     # im_scale = mx.sym.Variable(name='im_scale')
 
     fix_bn = True
-    patch_size = 512
+    patch_size = 384
     per_cls_reg = False
     th_pos = 0.25
     th_nms = 1.0 / 3.0
@@ -83,16 +79,16 @@ def get_symbol(num_classes, **kwargs):
             name='multibox_detection', th_pos=th_pos, n_class=num_classes-1, th_nms=th_nms, max_detection=128)
     return tmp
 
-if __name__ == '__main__':
-    import os
-    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
-    net = get_symbol_train(2, n_group=7, patch_size=768)
-
-    mod = mx.mod.Module(net, data_names=['data'], label_names=['label'])
-    mod.bind(data_shapes=[('data', (2, 3, 768, 768))], label_shapes=[('label', (2, 5))])
-    mod.init_params()
-    args, auxs = mod.get_params()
-    for k, v in sorted(args.items()):
-        print k + ': ' + str(v.shape)
-    for k, v in sorted(auxs.items()):
-        print k + ': ' + str(v.shape)
+# if __name__ == '__main__':
+#     import os
+#     os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
+#     net = get_symbol_train(2, n_group=7, patch_size=768)
+#
+#     mod = mx.mod.Module(net, data_names=['data'], label_names=['label'])
+#     mod.bind(data_shapes=[('data', (2, 3, 768, 768))], label_shapes=[('label', (2, 5))])
+#     mod.init_params()
+#     args, auxs = mod.get_params()
+#     for k, v in sorted(args.items()):
+#         print k + ': ' + str(v.shape)
+#     for k, v in sorted(auxs.items()):
+#         print k + ': ' + str(v.shape)

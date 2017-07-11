@@ -6,96 +6,67 @@ from layer.multibox_prior_layer import MultiBoxPriorPython, MultiBoxPriorPythonP
 
 def relu_conv_bn(data, prefix_name='',
                  num_filter=0, kernel=(3, 3), pad=(0, 0), stride=(1, 1), use_crelu=False,
-                 use_global_stats=False, fix_gamma=False, no_bias=True,
-                 get_syms=False):
+                 use_global_stats=False, fix_gamma=False, no_bias=True):
     #
     assert prefix_name != ''
     conv_name = prefix_name + 'conv'
     bn_name = prefix_name + 'bn'
-    syms = {}
+
     relu_ = mx.sym.Activation(data, act_type='relu')
-    syms['relu'] = relu_
-
     conv_ = convolution(relu_, conv_name, num_filter, kernel, pad, stride, no_bias)
-
-    syms['conv'] = conv_
     if use_crelu:
         concat_name = prefix_name + 'concat'
         conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
-        syms['concat'] = conv_
 
     bn_ = batchnorm(conv_, bn_name, use_global_stats, fix_gamma)
-    syms['bn'] = bn_
-
-    if get_syms:
-        return bn_, syms
-    else:
-        return bn_
+    return bn_
 
 
 def inception_group(data,
                     prefix_group_name,
                     n_curr_ch,
                     num_filter_3x3,
+                    n_unit=1,
                     use_crelu=False,
-                    use_global_stats=False,
-                    get_syms=False):
+                    use_global_stats=False):
     """
     inception unit, only full padding is supported
     """
-    # save symbols anyway
-    syms = {}
+    res_ = []
 
-    prefix_name = prefix_group_name
-    incep_layers = []
-    bn_ = data
-    nch = n_curr_ch
-    num_filter_incep = 0
-    for ii in range(3):
-        bn_, s = relu_conv_bn(
-            bn_,
-            prefix_name=prefix_name + '3x3/{}/'.format(ii),
-            num_filter=num_filter_3x3[ii],
-            kernel=(3, 3),
-            pad=(1, 1),
-            use_crelu=use_crelu,
-            use_global_stats=use_global_stats,
-            get_syms=True)
-        syms['unit{}'.format(ii)] = s
-        incep_layers.append(bn_)
-        nch = num_filter_3x3[ii]
-        if use_crelu:
-            nch *= 2
-        num_filter_incep += nch
+    for n in range(n_unit):
+        bn_ = data
+        prefix_name = prefix_group_name + 'u{}/'.format(n)
+        incep_layers = []
+        num_filter_incep = 0
 
-    concat_ = mx.sym.concat(*incep_layers)
-    concat_, s = relu_conv_bn(concat_,
-            prefix_name=prefix_name + 'concat/',
-            num_filter=num_filter_incep,
-            kernel=(1, 1),
-            use_global_stats=use_global_stats,
-            get_syms=True)
-    syms['concat'] = s
+        for ii in range(3):
+            bn_ = relu_conv_bn(bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
+                num_filter=num_filter_3x3[ii], kernel=(3,3), pad=(1,1), use_crelu=use_crelu,
+                use_global_stats=use_global_stats)
+            incep_layers.append(bn_)
+            nch = num_filter_3x3[ii]
+            if use_crelu:
+                nch *= 2
+            num_filter_incep += nch
 
-    if num_filter_incep != n_curr_ch:
-        # data = mx.sym.Convolution(data, name=prefix_name + 'proj/conv',
-        #         num_filter=num_filter_incep, kernel=(1,1))
-        # syms['proj_data'] = data
-        data, s = relu_conv_bn(
-            data,
-            prefix_name=prefix_name + 'proj/',
-            num_filter=num_filter_incep,
-            kernel=(1, 1),
-            use_global_stats=use_global_stats,
-            get_syms=True)
-        syms['proj_data'] = s
+        concat_ = mx.sym.concat(*incep_layers)
+        concat_ = relu_conv_bn(concat_, prefix_name=prefix_name + 'concat/',
+                num_filter=num_filter_incep, kernel=(1,1), use_global_stats=use_global_stats)
 
-    res_ = concat_ + data
+        if num_filter_incep != n_curr_ch:
+            data = relu_conv_bn(data, prefix_name=prefix_name + 'proj/',
+                num_filter=num_filter_incep, kernel=(1,1), use_global_stats=use_global_stats)
 
-    if get_syms:
-        return res_, num_filter_incep, syms
-    else:
-        return res_, num_filter_incep
+        data = data + concat_
+        res_.append(data)
+        n_curr_ch = num_filter_incep
+
+    n_curr_ch = num_filter_incep * n_unit
+    res = relu_conv_bn(mx.sym.concat(*res_), prefix_name=prefix_name + 'res/',
+            num_filter=n_curr_ch, kernel=(1,1), use_global_stats=use_global_stats)
+
+    return res, n_curr_ch
 
 
 def upsample_feature(data,
@@ -131,70 +102,59 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     data = mx.sym.Variable(name='data')
 
     conv1 = convolution(data / 128.0, name='1/conv',
-        num_filter=12, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1)
+
     bn2 = relu_conv_bn(pool1, prefix_name='2/',
-        num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+        num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+        use_global_stats=use_global_stats)
+    pool2 = pool(bn2)
+
+    n_curr_ch = 64
+    nf_3x3 = (32, 16, 16)
+    bn3, n_curr_ch = inception_group(
+        pool2, '3/', n_curr_ch, n_unit=1,
+        num_filter_3x3=(32, 16, 16), use_crelu=True,
         use_global_stats=use_global_stats)
 
-    nf_3x3 = ((24, 12, 12), (36, 18, 18), (48, 24, 24))  # nch: 96, 144, 192
-    n_incep = (1, 1, 1)
+    nf_3x3 = ((48, 24, 24), (64, 32, 32))
 
     # basic groups, 12, 24, 48
-    group_i = bn2
+    group_i = bn3
     groups = []
-    n_curr_ch = 48
     for i in range(len(nf_3x3)):
         group_i = pool(group_i)
-        for j in range(n_incep[i]):
-            group_i, n_curr_ch = inception_group(
-                group_i,
-                'g{}/u{}/'.format(i, j),
-                n_curr_ch,
-                num_filter_3x3=nf_3x3[i],
-                use_crelu=True,
-                use_global_stats=use_global_stats,
-                get_syms=False)
+        group_i, n_curr_ch = inception_group(
+            group_i, 'g{}/'.format(i), n_curr_ch, n_unit=2,
+            num_filter_3x3=nf_3x3[i], use_global_stats=use_global_stats)
         groups.append(group_i)
 
     # 96 and more
-    nf_3x3 = (64, 32, 32)
-    curr_sz = 48
+    nf_3x3 = (32, 16, 16)
+    curr_sz = 64
     i = 3
     while curr_sz < patch_size:
         group_i = pool(group_i)
         if i == 3:
             pool5 = group_i
-        for j in range(n_incep[-1]):
-            group_i, n_curr_ch = inception_group(
-                group_i,
-                'g{}/u{}/'.format(i, j),
-                n_curr_ch,
-                num_filter_3x3=nf_3x3,
-                use_global_stats=use_global_stats,
-                get_syms=False)
+            nch_ctx = n_curr_ch
+        group_i, n_curr_ch = inception_group(
+            group_i, 'g{}/'.format(i), n_curr_ch, n_unit=2,
+            num_filter_3x3=nf_3x3, use_global_stats=use_global_stats)
         groups.append(group_i)
         curr_sz *= 2
         i += 1
 
     group_ctx, _ = inception_group(
-            pool5,
-            'g_ctx/u0/',
-            192,
-            num_filter_3x3=nf_3x3,
-            use_crelu=False,
-            use_global_stats=use_global_stats,
-            get_syms=False)
-
-    # we won't use the first group
-    groups = groups[1:]
+            pool5, 'g_ctx/', nch_ctx, n_unit=2,
+            num_filter_3x3=nf_3x3, use_global_stats=use_global_stats)
 
     # build context layers
     upscales = [[4, 2], [2]]
     nf_proj = 32
-    nf_upsamples = [[32, 64], [64]]
+    nf_upsamples = [[64, 64], [64]]
     ctx_layers = []
     for i, g in enumerate([group_ctx, groups[1]]):
         cl = []
@@ -215,7 +175,7 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     nf_hyper = 384
     nf_hyper_proj = 128
     # small scale: hyperfeature
-    hyper_names = ['hyper024/', 'hyper048/']
+    hyper_names = ['hyper032/', 'hyper064/']
     nf_base = [nf_hyper - np.sum(np.array(i)) for i in nf_upsamples]
     for i, g in enumerate(groups[:2]):
         # gather all the upper layers
@@ -226,37 +186,39 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         for j, c in enumerate(ctx_layers[i:]):
             ctxi.append(c[i])
         concat = mx.sym.concat(*(ctxi))
-        hyper = relu_conv_bn(concat, prefix_name=hyper_names[i]+'1x1/',
+        projh = relu_conv_bn(concat, prefix_name=hyper_names[i]+'1x1/',
             num_filter=nf_hyper_proj, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-        hyper = relu_conv_bn(hyper, prefix_name=hyper_names[i]+'3x3/',
-            num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
+        convh = relu_conv_bn(projh, prefix_name=hyper_names[i],
+            num_filter=nf_hyper, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-        from_layers.append(hyper)
+        from_layers.append(projh)
 
     # remaining layers, bigger than 48
     for i, g in enumerate(groups[2:]):
         k = i + 2
-        rf = int((2.0**k) * 24.0)
+        rf = int((2.0**k) * 32.0)
         prefix_name = 'hyper{}/'.format(rf)
         projh = relu_conv_bn(g, prefix_name='hyper{}/1x1/'.format(rf),
             num_filter=nf_hyper_proj, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-        convh = relu_conv_bn(projh, prefix_name='hyper{}/3x3/'.format(rf),
-            num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
+        convh = relu_conv_bn(projh, prefix_name='hyper{}/'.format(rf),
+            num_filter=nf_hyper, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
         from_layers.append(convh)
 
     n_from_layers = len(from_layers)
-    strides = [2**(i + 3) for i in range(n_from_layers)]
+    strides = []
     sizes = []
-    sz_ratio = np.power(2.0, 1.0 / 4.0)
+    sz_ratio = np.power(2.0, 1.0 / 2.0)
     for i in range(n_from_layers):
-        s = 24.0 * (2.0**i)
-        sizes.append([s * sz_ratio, s / sz_ratio])
-    ratios = [[1.0, 0.5, 2.0, 1.0 / 3.0, 3.0]] * len(sizes)
+        st = 2 ** (i + 3)
+        sz = st * 4.0
+        strides.append(st)
+        sizes.append([sz, sz * sz_ratio])
+    ratios = [[1.0, 2.0/3.0, 3.0/2.0, 4.0/9.0, 9.0/4.0]] * len(sizes)
     clip = False
 
-    preds, anchors = multibox_layer_python(from_layers, n_classes, 
+    preds, anchors = multibox_layer_python(from_layers, n_classes,
             sizes=sizes, ratios=ratios, strides=strides, per_cls_reg=per_cls_reg, clip=False)
     return preds, anchors

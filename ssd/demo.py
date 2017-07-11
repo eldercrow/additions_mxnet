@@ -153,7 +153,7 @@ if __name__ == '__main__':
         ctx = mx.cpu()
         print('Running on CPU...')
     else:
-        ctx = mx.gpu_naive(args.gpu_id)
+        ctx = mx.gpu(args.gpu_id)
     os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
 
     # parse image list

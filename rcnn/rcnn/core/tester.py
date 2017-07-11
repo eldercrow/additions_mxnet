@@ -1,4 +1,3 @@
-from __future__ import print_function
 import cPickle
 import os
 import time
@@ -6,6 +5,7 @@ import mxnet as mx
 import numpy as np
 
 from module import MutableModule
+from rcnn.logger import logger
 from rcnn.config import config
 from rcnn.io import image
 from rcnn.processing.bbox_transform import bbox_pred, clip_boxes
@@ -23,7 +23,7 @@ class Predictor(object):
         self._mod.init_params(arg_params=arg_params, aux_params=aux_params)
 
     def predict(self, data_batch):
-        self._mod.forward(data_batch, True)
+        self._mod.forward(data_batch)
         return dict(zip(self._mod.output_names, self._mod.get_outputs()))
 
 
@@ -79,9 +79,9 @@ def generate_proposals(predictor, test_data, imdb, vis=False, thresh=0.):
         if vis:
             vis_all_detection(data_dict['data'].asnumpy(), [dets], ['obj'], scale)
 
-        print('generating %d/%d' % (i + 1, imdb.num_images),
-              'proposal %d' % (dets.shape[0]),
-              'data %.4fs net %.4fs' % (t1, t2))
+        logger.info('generating %d/%d ' % (i + 1, imdb.num_images) +
+                    'proposal %d ' % (dets.shape[0]) +
+                    'data %.4fs net %.4fs' % (t1, t2))
         i += 1
 
     assert len(imdb_boxes) == imdb.num_images, 'calculations not complete'
@@ -100,14 +100,12 @@ def generate_proposals(predictor, test_data, imdb, vis=False, thresh=0.):
         with open(full_rpn_file, 'wb') as f:
             cPickle.dump(original_boxes, f, cPickle.HIGHEST_PROTOCOL)
 
-    print('wrote rpn proposals to {}'.format(rpn_file))
+    logger.info('wrote rpn proposals to %s' % rpn_file)
     return imdb_boxes
 
 
 def im_detect(predictor, data_batch, data_names, scale):
     output = predictor.predict(data_batch)
-    # import ipdb
-    # ipdb.set_trace()
 
     data_dict = dict(zip(data_names, data_batch.data))
     if config.TEST.HAS_RPN:
@@ -119,29 +117,6 @@ def im_detect(predictor, data_batch, data_names, scale):
     # save output
     scores = output['cls_prob_reshape_output'].asnumpy()[0]
     bbox_deltas = output['bbox_pred_reshape_output'].asnumpy()[0]
-
-    # pascal_voc_cls = ['__background__',  # always index 0
-    #                 'aeroplane', 'bicycle', 'bird', 'boat',
-    #                 'bottle', 'bus', 'car', 'cat', 'chair',
-    #                 'cow', 'diningtable', 'dog', 'horse',
-    #                 'motorbike', 'person', 'pottedplant',
-    #                 'sheep', 'sofa', 'train', 'tvmonitor']
-    # # pvtdb legend
-    # pvtdb_cls = ['__background__', 
-    #                 'bicycle', 'bird', 'bus', 'car', 'cat', 
-    #                 'dog', 'horse', 'motorbike', 'person', 
-    #                 'train', 'aeroplane', 'boat', 'bottle', 
-    #                 'chair', 'cow', 'diningtable', 'pottedplant', 
-    #                 'sheep', 'sofa', 'tvmonitor',]
-    # pidx = [pvtdb_cls.index(k) for k in pascal_voc_cls]
-    # pidx = np.array(pidx)
-    #
-    # import ipdb
-    # ipdb.set_trace()
-    # if config.has_key('PVTDB_LABEL') and config.PVTDB_LABEL:
-    #     scores = scores[:, pidx]
-    #     for i in range(4):
-    #         bbox_deltas[:, i::4] = bbox_deltas[:, (pidx*4+i)]
 
     # post processing
     pred_boxes = bbox_pred(rois, bbox_deltas)
@@ -214,7 +189,7 @@ def pred_eval(predictor, test_data, imdb, vis=False, thresh=1e-3):
 
         t3 = time.time() - t
         t = time.time()
-        print('testing {}/{} data {:.4f}s net {:.4f}s post {:.4f}s'.format(i, imdb.num_images, t1, t2, t3))
+        logger.info('testing %d/%d data %.4fs net %.4fs post %.4fs' % (i, imdb.num_images, t1, t2, t3))
         i += 1
 
     det_file = os.path.join(imdb.cache_path, imdb.name + '_detections.pkl')

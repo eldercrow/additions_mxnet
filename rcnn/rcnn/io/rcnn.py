@@ -28,7 +28,7 @@ def get_rcnn_testbatch(roidb):
     :return: data, label, im_info
     """
     assert len(roidb) == 1, 'Single batch only'
-    imgs, roidb = get_image(roidb)
+    imgs, roidb = get_image(roidb, True)
     im_array = imgs[0]
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
 
@@ -146,12 +146,13 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
 
     # indexes selected
     keep_indexes = np.append(fg_indexes, bg_indexes)
-
+    neg_idx = np.where(overlaps < config.TRAIN.FG_THRESH)[0]
+    neg_rois = rois[neg_idx]
     # pad more to ensure a fixed minibatch size
     while keep_indexes.shape[0] < rois_per_image:
-        gap = np.minimum(len(rois), rois_per_image - keep_indexes.shape[0])
-        gap_indexes = npr.choice(range(len(rois)), size=gap, replace=False)
-        keep_indexes = np.append(keep_indexes, gap_indexes)
+        gap = np.minimum(len(neg_rois), rois_per_image - keep_indexes.shape[0])
+        gap_indexes = npr.choice(range(len(neg_rois)), size=gap, replace=False)
+        keep_indexes = np.append(keep_indexes, neg_idx[gap_indexes])
 
     # select labels
     labels = labels[keep_indexes]

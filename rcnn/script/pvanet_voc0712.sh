@@ -10,17 +10,17 @@ export MXNET_CUDNN_AUTOTUNE_DEFAULT=0
 export PYTHONUNBUFFERED=1
 
 python train_end2end.py \
-  --network pvanet_twn \
+  --network pvanet \
   --gpu 1 \
-  --prefix model/pva911_twn_voc0712 \
+  --prefix model/pva100_voc0712 \
   --image_set 2007_trainval+2012_trainval \
   --frequent 500 \
-  --begin_epoch 17 \
+  --begin_epoch 18 \
   --end_epoch 100 \
   --lr 1e-04 \
   --lr_step 30,60,90 \
   --resume \
-  # --pretrained /home/hyunjoon/github/model_mxnet/pva911/pva911_21cls \
+  # --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100_21cls \
   # --pretrained_epoch 0
 # python test.py --network resnet --gpu 1
 
