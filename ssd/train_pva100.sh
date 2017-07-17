@@ -13,7 +13,7 @@ python train_imdb.py \
     --lr-steps 2,2,3,3,4,4,4 \
     --frequent 100 \
     --wd 1e-04 \
-    --pretrained /home/hyunjoon/github/model_mxnet/pva101/pva101 \
+    --pretrained ./model/pva101 \
     --epoch 0
     # --resume 24
-    --pretrained ./model/pva102_ssd_512 \
+    # --pretrained ./model/pva102_ssd_512 \

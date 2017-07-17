@@ -168,51 +168,39 @@ def pvanet_multibox(data, num_classes,
     concat = mx.sym.concat(downsample, inc3e, upsample)
 
     # upsampled hyperfeature
-    proj3 = conv_bn_relu(concat, group_name='proj3',
-            num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
+    projc = conv_bn_relu(concat, group_name='projc', 
+            num_filter=128, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
-    upsample3 = mx.sym.UpSampling(proj3, name='upsample3', scale=2,
-            sample_type='bilinear', num_filter=128, num_args=2)
-    concat3 = mx.sym.concat(conv3, upsample3)
-    projf = conv_bn_relu(concat3, group_name='projf_32',
-            num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
+    upc = conv_bn_relu(projc, group_name='upc', 
+            num_filter=128, kernel=(3,3), pad=(1,1), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
-    convf = conv_bn_relu(projf, group_name='convf_32',
-            num_filter=384, pad=(1,1), kernel=(3,3), stride=(1,1), no_bias=True,
+    upc = mx.sym.UpSampling(upc, scale=2, sample_type='bilinear', num_filter=128, num_args=2)
+    res3  = mx.sym.concat(conv3, upc)
+    res3 = conv_bn_relu(res3, group_name='hyper3',
+            num_filter=256, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
+    from_layers = [res3]
 
-    from_layers = [convf]
+    sz_ratio = power(2.0, 0.25)
+    rfs = [40, 80, 160, 320, 640]
+    strides = [r / 5 for r in rfs]
 
-    # TODO: feature size tuning
-    # For now I will just use 256.
-    # feature size would be (n, 256, 32, 32)
-    projf = conv_bn_relu(concat, group_name='projf_64',
-            num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
-            use_global_stats=use_global_stats, lr_mult=lr_mult)
-    convf = conv_bn_relu(projf, group_name='convf_64',
-            num_filter=384, pad=(1,1), kernel=(3,3), stride=(1,1), no_bias=True,
-            use_global_stats=use_global_stats, lr_mult=lr_mult)
-
-    from_layers.append(convf)
-    sz_ratio = power(2.0, 1.0 / 2.0)
-    sizes = [[32.0, 32.0 * sz_ratio]]
-    sizes.append([64.0, 64.0 * sz_ratio])
-    feat_strides = [8, 16, 32, 64, 128, 256, 512, 1024]
-    for fs in feat_strides[2:]:
-        sz = fs * 4.0
-        projf = conv_bn_relu(convf, group_name='projf_{}'.format(int(sz)),
-                num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=True,
+    convf = concat
+    for i, r in enumerate(rfs[1:], 1):
+        if i > 1:
+            convf = mx.sym.Pooling(convf, kernel=(2,2), stride=(2,2), pool_type='max')
+        projf = conv_bn_relu(convf, group_name='projf_{}'.format(r),
+                num_filter=128, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
-        convf = conv_bn_relu(projf, group_name='convf_{}'.format(int(sz)),
-                num_filter=384, pad=(1,1), kernel=(3,3), stride=(2,2), no_bias=True,
+        convf = conv_bn_relu(projf, group_name='convf_{}'.format(r),
+                num_filter=256, kernel=(3,3), pad=(1,1), stride=(1,1), no_bias=True,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         from_layers.append(convf)
-        sizes.append([sz, sz * sz_ratio,])
-        if sz >= patch_size:
-            break
-    ratios = [[1.0, 2.0 / 3.0, 3.0 / 2.0, 4.0 / 9.0, 9.0 / 4.0]] * len(from_layers)
-    feat_strides = feat_strides[:len(from_layers)]
+
+    ratios = [[1.0, 2.0/3.0, 3.0/2.0, 4.0/9.0, 9.0/4.0]] * len(from_layers)
+    sizes = [[r / sz_ratio, r * sz_ratio] for r in rfs[:-1]]
+    sizes.append([rfs[-1] / sz_ratio,])
 
     preds, anchors = multibox_layer_python(from_layers, num_classes,
-            sizes=sizes, ratios=ratios, strides=feat_strides, per_cls_reg=per_cls_reg, clip=False)
+            sizes=sizes, ratios=ratios, strides=strides, per_cls_reg=per_cls_reg, clip=False)
     return preds, anchors
