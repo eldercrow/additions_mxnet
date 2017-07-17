@@ -21,20 +21,7 @@ def _get_lr_scheduler(args, kv):
     steps = [epoch_size * (x-begin_epoch) for x in step_epochs if x-begin_epoch > 0]
     return (lr, mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=args.lr_factor))
 
-def _load_pretrained(args, rank=0):
-    if 'pretrained_epoch' not in args or args.pretrained_epoch is None:
-        return (None, None, None)
-    model_prefix = args.pretrained
-    if rank > 0 and os.path.exists("%s-%d-symbol.json" % (model_prefix, rank)):
-        model_prefix += "-%d" % (rank)
-    _, arg_params, aux_params = mx.model.load_checkpoint(
-        model_prefix, args.pretrained_epoch)
-    logging.info('Loaded pretrained model %s_%04d.params', model_prefix, args.pretrained_epoch)
-    return (None, arg_params, aux_params)
-
 def _load_model(args, rank=0):
-    if args.pretrained != '':
-        return _load_pretrained(args, rank)
     if 'load_epoch' not in args or args.load_epoch is None:
         return (None, None, None)
     assert args.model_prefix is not None
@@ -93,10 +80,6 @@ def add_fit_args(parser):
                         help='log network parameters every N iters if larger than 0')
     train.add_argument('--load-epoch', type=int,
                        help='load the model on an epoch using the model-load-prefix')
-    train.add_argument('--pretrained', type=str, default='',
-                       help='pretrained model prefix, overrides model-prefix when loading the model')
-    train.add_argument('--pretrained-epoch', type=int,
-                       help='load the model on an epoch using the pretrained-prefix')
     train.add_argument('--top-k', type=int, default=0,
                        help='report the top-k accuracy. 0 means no report.')
     train.add_argument('--test-io', type=int, default=0,
@@ -147,7 +130,7 @@ def fit(args, network, data_loader, **kwargs):
 
     # devices for training
     devs = mx.cpu() if args.gpus is None or args.gpus is '' else [
-        mx.gpu_naive(int(i)) for i in args.gpus.split(',')]
+        mx.gpu(int(i)) for i in args.gpus.split(',')]
 
     # learning rate
     lr, lr_scheduler = _get_lr_scheduler(args, kv)
@@ -164,7 +147,8 @@ def fit(args, network, data_loader, **kwargs):
                 'learning_rate': lr,
                 'momentum' : args.mom,
                 'wd' : args.wd,
-                'lr_scheduler': lr_scheduler}
+                'lr_scheduler': lr_scheduler,
+                'multi_precision': True}
     else:
         optimizer_params = {
                 'learning_rate': lr,

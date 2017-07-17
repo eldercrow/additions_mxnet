@@ -27,7 +27,7 @@ if __name__ == '__main__':
     data.set_data_aug_level(parser, 2)
     parser.set_defaults(
         # network
-        network        = 'inception-bn',
+        network        = 'resnet',
         num_layers     = 110,
         # data
         data_train     = train_fname,
@@ -48,9 +48,6 @@ if __name__ == '__main__':
     from importlib import import_module
     net = import_module('symbols.'+args.network)
     sym = net.get_symbol(**vars(args))
-
-    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
-    os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
 
     # train
     fit.fit(args, sym, data.get_rec_iter)

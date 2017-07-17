@@ -8,7 +8,7 @@ import mxnet as mx
 
 if __name__ == '__main__':
     # parse args
-    parser = argparse.ArgumentParser(description="train cifar10",
+    parser = argparse.ArgumentParser(description="train imagenet",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     fit.add_fit_args(parser)
     data.add_data_args(parser)
@@ -17,7 +17,7 @@ if __name__ == '__main__':
     data.set_data_aug_level(parser, 3)
     parser.set_defaults(
         # network
-        network          = 'resnet',
+        network          = 'spotnet_face_clone',
         num_layers       = 50,
         # data
         num_classes      = 1000,
