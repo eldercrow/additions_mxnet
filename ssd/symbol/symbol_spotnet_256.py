@@ -1,5 +1,5 @@
 import mxnet as mx
-from spotnet_voc import get_spotnet
+from spotnet_multibox import get_spotnet
 # from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
 # from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
 # from layer.multibox_target2_layer import *
@@ -16,7 +16,7 @@ def get_symbol_train(num_classes, **kwargs):
         patch_size = kwargs['patch_size']
     per_cls_reg = False
 
-    preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg, use_global_stats=fix_bn)
+    preds, anchors = get_spotnet(num_classes, use_global_stats=fix_bn, patch_size=patch_size)
     label = mx.sym.var(name='label')
 
     tmp = mx.symbol.Custom(*[preds, anchors, label], name='anchor_target', op_type='anchor_target',

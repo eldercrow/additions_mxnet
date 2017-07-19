@@ -35,51 +35,6 @@ def data_norm(data, name, nch, bias=None, eps=1e-05, get_syms=False):
         return data_
 
 
-def bn_relu_conv(data,
-                 prefix_name='',
-                 num_filter=0,
-                 kernel=(3, 3),
-                 pad=(0, 0),
-                 stride=(1, 1),
-                 num_group=1,
-                 use_crelu=False,
-                 use_global_stats=False,
-                 fix_gamma=False,
-                 no_bias=True,
-                 get_syms=False):
-    #
-    assert prefix_name != ''
-    conv_name = prefix_name + 'conv'
-    bn_name = prefix_name + 'bn'
-    syms = {}
-    bn_ = mx.sym.BatchNorm(
-        data,
-        use_global_stats=use_global_stats,
-        fix_gamma=fix_gamma,
-        name=bn_name)
-    syms['bn'] = bn_
-    relu_ = mx.sym.Activation(bn_, act_type='relu')
-    syms['relu'] = relu_
-    conv_ = mx.sym.Convolution(
-        relu_,
-        name=conv_name,
-        num_filter=num_filter,
-        kernel=kernel,
-        pad=pad,
-        stride=stride,
-        num_group=num_group,
-        no_bias=no_bias)
-    syms['conv'] = conv_
-    if use_crelu:
-        concat_name = prefix_name + 'concat'
-        conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
-        syms['concat'] = conv_
-    if get_syms:
-        return conv_, syms
-    else:
-        return conv_
-
-
 def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
     pool_ = mx.sym.Pooling(
         data=data,
@@ -91,7 +46,7 @@ def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
 
 
 def relu_conv_bn(data, prefix_name='',
-                 num_filter=0, kernel=(3, 3), pad=(0, 0), stride=(1, 1), use_crelu=False,
+                 num_filter=0, kernel=(3, 3), pad=(0, 0), stride=(1, 1), dilate=(1, 1),
                  use_global_stats=False, fix_gamma=False, no_bias=True,
                  get_syms=False):
     #
@@ -105,12 +60,7 @@ def relu_conv_bn(data, prefix_name='',
     conv_ = mx.sym.Convolution(relu_, name=conv_name,
         num_filter=num_filter, kernel=kernel, pad=pad, stride=stride,
         no_bias=no_bias)
-
     syms['conv'] = conv_
-    if use_crelu:
-        concat_name = prefix_name + 'concat'
-        conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
-        syms['concat'] = conv_
 
     bn_ = mx.sym.BatchNorm(conv_, name=bn_name, 
             use_global_stats=use_global_stats, fix_gamma=fix_gamma)
@@ -161,28 +111,12 @@ def clone_in(data, name, src_layer):
     return bn
 
 
-def clone_bn_relu_conv(data, prefix_name='', src_syms=None):
-    assert prefix_name != ''
-    conv_name = prefix_name + 'conv'
-    bn_name = prefix_name + 'bn'
-    bn = clone_bn(data, name=bn_name, src_layer=src_syms['bn'])
-    relu_ = mx.sym.Activation(bn, act_type='relu')
-    conv_ = clone_conv(relu_, name=conv_name, src_layer=src_syms['conv'])
-    if 'concat' in src_syms:
-        concat_name = prefix_name + 'concat'
-        conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
-    return conv_
-
-
 def clone_relu_conv_bn(data, prefix_name='', src_syms=None):
     assert prefix_name != ''
     conv_name = prefix_name + 'conv'
     bn_name = prefix_name + 'bn'
     relu_ = mx.sym.Activation(data, act_type='relu')
     conv_ = clone_conv(relu_, name=conv_name, src_layer=src_syms['conv'])
-    if 'concat' in src_syms:
-        concat_name = prefix_name + 'concat'
-        conv_ = mx.sym.concat(conv_, -conv_, name=concat_name)
     bn_ = clone_bn(conv_, name=bn_name, src_layer=src_syms['bn'])
     return bn_
 

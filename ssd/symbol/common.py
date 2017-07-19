@@ -2,14 +2,14 @@ import mxnet as mx
 import numpy as np
 from layer.multibox_prior_layer import *
 
-def convolution(data, name, num_filter, kernel, pad, stride=(1,1), no_bias=False, lr_mult=1.0):
+def convolution(data, name, num_filter, kernel, pad, stride=(1,1), dilate=(1,1), no_bias=False, lr_mult=1.0):
     ''' convolution with lr_mult and wd_mult '''
     w = mx.sym.var(name+'_weight', lr_mult=lr_mult, wd_mult=lr_mult)
     b = None
     if no_bias == False:
         b = mx.sym.var(name+'_bias', lr_mult=lr_mult*2.0, wd_mult=0.0)
     conv = mx.sym.Convolution(data, weight=w, bias=b, name=name, num_filter=num_filter,
-            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
+            kernel=kernel, pad=pad, stride=stride, dilate=dilate, no_bias=no_bias)
     return conv
 
 
