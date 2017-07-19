@@ -38,14 +38,14 @@ config.NUM_CLASSES = len(CLASSES)
 config.TEST.HAS_RPN = True
 
 config.IMAGE_STRIDE = 32
-config.SCALES = [(608, 1024)]
+config.SCALES = [(608, 1280)]
 # config.ANCHOR_SCALES = (2, 3, 5, 9, 16, 32)
 # config.ANCHOR_RATIOS = (0.333, 0.5, 0.667, 1, 1.5, 2, 3)
 config.ANCHOR_SCALES = (3, 6, 9, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
 # config.TEST.RPN_NMS_THRESH = 0.4
-# config.TEST.BBOX_STDS = (0.1, 0.1, 0.2, 0.2)
+config.TEST.BBOX_STDS = (0.1, 0.1, 0.2, 0.2)
 # config.PVTDB_LABEL = True
 
 SHORT_SIDE = config.SCALES[0][0]
@@ -56,7 +56,7 @@ LABEL_NAMES = ['cls_prob_label']
 DATA_SHAPES = [('data', (1, 3, LONG_SIDE, SHORT_SIDE)), ('im_info', (1, 3))]
 LABEL_SHAPES = None
 # visualization
-CONF_THRESH = 0.7
+CONF_THRESH = 0.5
 NMS_THRESH = 0.3
 nms = py_nms_wrapper(NMS_THRESH)
 
@@ -98,7 +98,9 @@ def generate_batch(im):
     data_names: names in data_batch
     im_scale: float number
     """
-    im_array, im_scale = resize(im, SHORT_SIDE, LONG_SIDE, stride=32)
+    import ipdb
+    ipdb.set_trace()
+    im_array, im_scale = resize(im, SHORT_SIDE, LONG_SIDE, stride=config.IMAGE_STRIDE)
     im_array = transform(im_array, PIXEL_MEANS)
     im_info = np.array([[im_array.shape[2], im_array.shape[3], im_scale]], dtype=np.float32)
     data = [mx.nd.array(im_array), mx.nd.array(im_info)]
@@ -119,6 +121,9 @@ def demo_net(predictor, image_name, vis=False):
     im = cv2.imread(image_name)
     data_batch, data_names, im_scale = generate_batch(im)
     scores, boxes, data_dict = im_detect(predictor, data_batch, data_names, im_scale)
+
+    import ipdb
+    ipdb.set_trace()
 
     all_boxes = [[] for _ in CLASSES]
     for cls in CLASSES:

@@ -83,36 +83,35 @@ def get_symbol(num_classes=1000, image_shape=(3, 224, 224), **kwargs):
         image_shape = make_tuple(image_shape)
 
     conv1 = mx.sym.Convolution(data / 128.0, name='1/conv',
-            num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+            num_filter=12, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = mx.sym.BatchNorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1) # 112
 
     bn2 = relu_conv_bn(pool1, prefix_name='2/',
-            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
 
-    curr_sz = 4 * rf_ratio
+    curr_sz = 3 * rf_ratio
 
-    n_curr_ch = 64
-    nf_3x3 = [(16, 16, 16), (24, 24, 24), (32, 32, 32)] # 56 28 14
-    nf_1x1 = [128, 192, 256]
+    n_curr_ch = 48
+    nf_3x3 = [(12, 16, 24), (20, 24, 32), (28, 32, 40)] # 56 28 14
+    nf_1x1 = [96, 144, 192]
     strides = [4, 8, 16]
 
     curr_sz *= 8
-    while curr_sz <= max(image_shape) / 2:
+    while curr_sz <= max(image_shape):
         curr_sz *= 2
         strides.append(strides[-1] * 2)
 
     n_group = len(strides)
-    nf_3x3_clone = (24, 24, 24) # (32, 16, 16)
-    nf_1x1_clone = 128
+    nf_3x3_clone = (12, 16, 24) # (32, 16, 16)
+    nf_1x1_clone = 96
 
     ''' basic groups
     '''
     group_i = bn2
     groups = []
-    n_curr_ch = 64
     for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
         group_i = pool(group_i)
         group_i, n_curr_ch = inception_group(group_i, 'g{}/'.format(i), n_curr_ch,

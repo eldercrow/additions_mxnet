@@ -15,7 +15,7 @@ python train_end2end.py \
   --prefix model/pva100_voc0712 \
   --image_set 2007_trainval+2012_trainval \
   --frequent 500 \
-  --begin_epoch 18 \
+  --begin_epoch 42 \
   --end_epoch 100 \
   --lr 1e-04 \
   --lr_step 30,60,90 \

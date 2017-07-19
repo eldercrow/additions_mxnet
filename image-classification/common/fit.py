@@ -115,6 +115,8 @@ def fit(args, network, data_loader, **kwargs):
 
         return
 
+    # import ipdb
+    # ipdb.set_trace()
 
     # load model
     if 'arg_params' in kwargs and 'aux_params' in kwargs:
@@ -161,8 +163,7 @@ def fit(args, network, data_loader, **kwargs):
         # AlexNet will not converge using Xavier
         initializer = mx.init.Normal()
     else:
-        initializer = mx.init.Xavier(
-            rnd_type='gaussian', factor_type="in", magnitude=2)
+        initializer = mx.init.Xavier(rnd_type='gaussian', factor_type="in", magnitude=2.34)
     # initializer   = mx.init.Xavier(factor_type="in", magnitude=2.34),
 
     # evaluation metrices
