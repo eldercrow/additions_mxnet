@@ -11,12 +11,12 @@ else
 fi
 
 python demo.py \
-  --network pva102_ssd_512 \
+  --network pva102_ssd_384 \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix model/pva102_ssd_512 \
+  --prefix model/pva102_ssd_384 \
   --epoch 1000 \
-  --max-data-shapes 960 960 \
+  --max-data-shapes 384 384 \
   --thresh $TH_POS \
   --gpu 0

@@ -39,54 +39,59 @@ def inception_group(data,
                     n_curr_ch,
                     num_filter_3x3,
                     num_filter_1x1=0,
+                    n_unit=1,
                     use_global_stats=False,
                     get_syms=False):
     """
     inception unit, only full padding is supported
     """
     # save symbols anyway
-    syms = {}
+    syms = []
 
     if num_filter_1x1 == 0:
         num_filter_1x1 = num_filter_3x3 * 8
 
-    prefix_name = prefix_group_name
+    for n in range(n_unit):
+        prefix_name = prefix_group_name + 'u{}/'.format(n)
+        sym_n = {}
 
-    bn_, s = relu_conv_bn(data, prefix_name=prefix_name+'init/',
-            num_filter=num_filter_3x3, kernel=(1,1), pad=(0,0),
-            use_global_stats=use_global_stats, get_syms=True)
-    syms['init'] = bn_
+        bn_, s = relu_conv_bn(data, prefix_name=prefix_name+'init/',
+                num_filter=num_filter_3x3, kernel=(1,1), pad=(0,0),
+                use_global_stats=use_global_stats, get_syms=True)
+        sym_n['init'] = bn_
 
-    incep_layers = [bn_]
-    concat_ = bn_
-    for ii in range(3):
-        bn_, s = relu_conv_bn(
-            concat_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
-            num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1),
-            use_global_stats=use_global_stats, get_syms=True)
-        syms['unit{}'.format(ii)] = s
+        incep_layers = [bn_]
+        concat_ = bn_
+        for ii in range(3):
+            bn_, s = relu_conv_bn(
+                concat_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
+                num_filter=num_filter_3x3, kernel=(3,3), pad=(1,1),
+                use_global_stats=use_global_stats, get_syms=True)
+            sym_n['unit{}'.format(ii)] = s
 
-        incep_layers.append(bn_)
-        concat_ = mx.sym.concat(*incep_layers)
+            incep_layers.append(bn_)
+            concat_ = mx.sym.concat(*incep_layers)
 
-    proj_, s = relu_conv_bn(concat_,
-            prefix_name=prefix_name + '1x1/',
-            num_filter=num_filter_1x1, kernel=(1,1),
-            use_global_stats=use_global_stats, get_syms=True)
-    syms['concat'] = s
+        proj_, s = relu_conv_bn(concat_,
+                prefix_name=prefix_name + '1x1/',
+                num_filter=num_filter_1x1, kernel=(1,1),
+                use_global_stats=use_global_stats, get_syms=True)
+        sym_n['concat'] = s
 
-    if num_filter_1x1 != n_curr_ch:
-        data, s = relu_conv_bn(data, prefix_name=prefix_name + 'proj/',
-            num_filter=num_filter_1x1, kernel=(1,1),
-            use_global_stats=use_global_stats, get_syms=True)
-        syms['proj_data'] = s
+        if num_filter_1x1 != n_curr_ch:
+            data, s = relu_conv_bn(data, prefix_name=prefix_name + 'proj/',
+                num_filter=num_filter_1x1, kernel=(1,1),
+                use_global_stats=use_global_stats, get_syms=True)
+            sym_n['proj_data'] = s
 
-    res_ = proj_ + data
+        data = proj_ + data
+        n_curr_ch = num_filter_1x1
+        syms.append(sym_n)
 
     if get_syms:
-        return res_, num_filter_1x1, syms
+        return data, num_filter_1x1, syms
     else:
-        return res_, num_filter_1x1
+        return data, num_filter_1x1
 
 
 def upsample_feature(data,
@@ -128,14 +133,14 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
     n_curr_ch = 64
 
     bn3, n_curr_ch = inception_group(pool2, '3/', n_curr_ch,
-            num_filter_3x3=16, num_filter_1x1=128, use_global_stats=use_global_stats)
+            num_filter_3x3=32, num_filter_1x1=128, use_global_stats=use_global_stats)
 
-    nf_3x3 = [24, 32]
-    nf_1x1 = [i * 8 for i in nf_3x3]
+    nf_3x3 = [48, 64]
+    nf_1x1 = [192, 256]
     curr_sz = (2**5) * rf_ratio
     while curr_sz <= patch_size:
-        nf_3x3.append(24)
-        nf_1x1.append(24*8)
+        nf_3x3.append(48)
+        nf_1x1.append(192)
         curr_sz *= 2
 
     group_i = bn3
@@ -146,18 +151,18 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
             pool_ctx = group_i
             nch_ctx = n_curr_ch
         group_i, n_curr_ch = inception_group(group_i, 'g{}/'.format(i), n_curr_ch,
-                num_filter_3x3=nf_3x3[i], num_filter_1x1=nf_1x1[i],
+                num_filter_3x3=nf_3x3[i], num_filter_1x1=nf_1x1[i], n_unit=1,
                 use_global_stats=use_global_stats)
         groups.append(group_i)
 
     group_ctx, _ = inception_group(pool_ctx, 'g_ctx/', nch_ctx,
-            num_filter_3x3=16, num_filter_1x1=128,
+            num_filter_3x3=32, num_filter_1x1=128, n_unit=1,
             use_global_stats=use_global_stats)
 
     # build context layers
     upscales = ([4, 2], [2])
     nf_upsamples = ([32, 32], [32])
-    nf_proj = 32
+    nf_proj = 64
     up_layers = (group_ctx, groups[1])
     ctx_layers = []
     for i, (s, u) in enumerate(zip(upscales, nf_upsamples)):
@@ -170,9 +175,9 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
         ctx_layers.append(cl)
 
     # build multi scale feature layers
-    hyper_layers = []
-    nf_hyper = 256
+    nf_hyper = 384
     nf_hyper_proj = 128
+    hyper_layers = []
     # small scale: hyperfeature
     nf_base = [nf_hyper_proj - np.sum(np.array(i)) for i in nf_upsamples]
     for i, g in enumerate(groups[:2]):
@@ -183,13 +188,12 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
             num_filter=nf_base[i], kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
         ctxi = [g] + ctx_layers[i]
-        concat = mx.sym.concat(*(ctxi))
-        projh = relu_conv_bn(concat, prefix_name=hyper_name+'1x1/',
+        ctxi = mx.sym.concat(*ctxi)
+        projh = relu_conv_bn(ctxi, prefix_name=hyper_name+'1x1/',
             num_filter=nf_hyper_proj, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
         hyper_layers.append(projh)
 
-    # remaining layers, bigger than 48
     for i, g in enumerate(groups[2:], 2):
         rf = int(2.0**i * 8 * rf_ratio)
         hyper_name = 'hyper{0:03d}/'.format(rf)
@@ -198,52 +202,28 @@ def get_spotnet(n_classes, patch_size, per_cls_reg, use_global_stats):
             use_global_stats=use_global_stats)
         hyper_layers.append(projh)
 
+    # feature layers
     from_layers = []
     strides = []
     sizes = []
     ratios = []
     sz_ratio = np.power(2.0, 1.0 / 2.0)
-    for i, l in enumerate(hyper_layers, 3):
-        st = 2 ** i
-        sz = float(st * rf_ratio)
-        hyper_name = 'hyper{0:03d}/'.format(int(sz))
-        sz2 = sz #* np.sqrt(2.0)
+    for i, (h, g) in enumerate(zip(groups, hyper_layers)):
+        st = 2 ** (i + 3)
+        rf = st * rf_ratio
 
-        # square
         strides.append(st)
-        sizes.append([sz, sz * sz_ratio])
-        ratios.append([1.0,])
+        sizes.append([float(rf), float(rf * sz_ratio)])
+        ratios.append([1.0, 2.0/3.0, 3.0/2.0, 4.0/9.0, 9.0/4.0])
 
-        convh = relu_conv_bn(l, prefix_name=hyper_name+'sq/',
+        hyper_name = 'hyper{0:03d}/'.format(rf)
+        resh = relu_conv_bn(g, prefix_name=hyper_name+'res/',
+            num_filter=nf_hyper, kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+        convh = relu_conv_bn(h, prefix_name=hyper_name,
             num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
-        from_layers.append(convh)
-
-        # horizontal
-        strides.append((st*2, st))
-        sizes.append([sz2, sz2 * sz_ratio])
-        ratios.append([2.0, 3.0])
-
-        lh = relu_conv_bn(l, prefix_name=hyper_name+'1x3/',
-                num_filter=nf_hyper_proj, kernel=(1, 2), pad=(0, 0), stride=(1, 2),
-                use_global_stats=use_global_stats)
-        convh = relu_conv_bn(lh, prefix_name=hyper_name+'hori/',
-            num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-        from_layers.append(convh)
-
-        # vertical
-        strides.append((st, st*2))
-        sizes.append([sz2, sz2 * sz_ratio])
-        ratios.append([1.0/2.0, 1.0/3.0])
-
-        lv = relu_conv_bn(l, prefix_name=hyper_name+'3x1/',
-                num_filter=nf_hyper_proj, kernel=(2, 1), pad=(0, 0), stride=(2, 1),
-                use_global_stats=use_global_stats)
-        convh = relu_conv_bn(lv, prefix_name=hyper_name+'vert/',
-            num_filter=nf_hyper, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-        from_layers.append(convh)
+        from_layers.append(convh + resh)
 
     preds, anchors = multibox_layer_python(from_layers, n_classes,
             sizes=sizes, ratios=ratios, strides=strides, per_cls_reg=per_cls_reg, clip=False)

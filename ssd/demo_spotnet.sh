@@ -17,7 +17,7 @@ python demo.py \
   --ext .jpg \
   --prefix model/spotnet_denseconn_384 \
   --epoch 1000 \
-  --max-data-shapes 960 960 \
+  --max-data-shapes 384 384 \
   --thresh $TH_POS \
   --gpu 1
   # --cpu
