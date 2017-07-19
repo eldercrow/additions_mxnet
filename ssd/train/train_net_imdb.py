@@ -219,8 +219,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
 
     # init iterator
     if dataset.find('_patch') < 0:
-        min_gt_scale = min_obj_size / float(data_shape[1])
         patch_size = data_shape[1]
+        min_gt_scale = min_obj_size / float(patch_size)
         rand_scaler = RandScaler(scale_exp=cfg.train['aug_scale_exp'],
                                  min_gt_scale=min_gt_scale, #cfg.train['min_aug_gt_scale'],
                                  max_trials=cfg.train['max_aug_trials'],

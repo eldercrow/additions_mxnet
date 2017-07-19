@@ -1,6 +1,6 @@
 import mxnet as mx
 import numpy as np
-from spotnet_denseconn import get_spotnet
+from spotnet_multibox import get_spotnet
 from layer.multibox_target2_layer import MultiBoxTarget2, MultiBoxTargetProp2
 from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
 from layer.anchor_target_layer import *
@@ -14,14 +14,14 @@ def get_symbol_train(num_classes, **kwargs):
     if 'patch_size' in kwargs:
         patch_size = kwargs['patch_size']
 
-    preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg, use_global_stats=fix_bn)
+    preds, anchors = get_spotnet(num_classes, use_global_stats=fix_bn, patch_size=patch_size)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes) # (n_batch, n_anc, n_cls)
     probs_cls = mx.sym.SoftmaxActivation(mx.sym.transpose(preds_cls, (0, 2, 1)), mode='channel')
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
     label = mx.sym.var(name='label')
 
-    box_ratios = (1.0, 2.0, 1.0/2.0)
+    box_ratios = (1.0, 2.0/3.0, 3.0/2.0, 4.0/9.0, 9.0/4.0)
     tmp_in = [preds_cls, preds_reg, anchors, label, probs_cls]
     tmp = mx.symbol.Custom(*tmp_in, op_type='multibox_target2', name='multibox_target2',
             n_class=num_classes, img_wh=(patch_size, patch_size), variances=(0.1, 0.1, 0.2, 0.2),

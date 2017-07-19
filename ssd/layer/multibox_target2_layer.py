@@ -212,8 +212,8 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             gt_cls = int(label[0])
             # import ipdb
             # ipdb.set_trace()
-            lsq = _fit_box_ratio(label[1:], self.box_ratios)
-            iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)
+            # lsq = _fit_box_ratio(label[1:], self.box_ratios)
+            iou = _compute_iou(label[1:], self.anchors_t, self.area_anchors_t)
 
             # skip already occupied ones
             iou_mask = iou > max_iou

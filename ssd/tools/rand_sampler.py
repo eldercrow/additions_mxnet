@@ -64,8 +64,8 @@ class RandScaler(RandSampler):
         assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
         self.min_gt_scale = min_gt_scale
         # for sanity check
-        self.min_gt_overlap = 0.6
-        self.min_gt_ignore = 0.25
+        self.min_gt_overlap = 0.6667
+        self.min_gt_ignore = 0.5
         self.patch_size = patch_size
 
     def sample(self, label, img_shape):
@@ -87,7 +87,7 @@ class RandScaler(RandSampler):
         gt[:, 1::2] *= img_shape[1]
         gt[:, 2::2] *= img_shape[0]
         samples = []
-        base_scale = self.patch_size / float(np.maximum(img_shape[0], img_shape[1]))
+        base_scale = self.patch_size / float(np.sqrt(img_shape[0] * img_shape[1]))
         for trial in range(self.max_trials):
             scale = base_scale * np.power(2.0, np.random.uniform(-self.scale_exp, self.scale_exp))
             asp = np.sqrt(1.0 + np.random.uniform(-0.1, 0.1))
