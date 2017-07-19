@@ -11,13 +11,13 @@ else
 fi
 
 python demo.py \
-  --network spotnet_384 \
+  --network spotnet_512 \
   --images $1 \
   --dir image \
   --ext .jpg \
-  --prefix model/spotnet_denseconn_384 \
+  --prefix model/spotnet_multibox_512 \
   --epoch 1000 \
-  --max-data-shapes 384 384 \
+  --max-data-shapes 512 512 \
   --thresh $TH_POS \
   --gpu 1
   # --cpu

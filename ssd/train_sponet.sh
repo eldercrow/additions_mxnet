@@ -22,7 +22,7 @@ python train_imdb.py \
     --prefix model/spotnet_multibox \
     --freeze '' \
     --batch-size 24 \
-    --data-shape 384 \
+    --data-shape 512 \
     --val-image-set '' \
     --lr 1e-03 \
     --lr-factor 0.316227766 \
