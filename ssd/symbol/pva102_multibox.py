@@ -168,22 +168,22 @@ def pvanet_multibox(data, num_classes,
     concat = mx.sym.concat(downsample, inc3e, upsample)
 
     # upsampled hyperfeature
-    projc = conv_bn_relu(concat, group_name='projc', 
-            num_filter=128, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
+    projc = conv_bn_relu(concat, group_name='projc',
+            num_filter=64, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
-    upc = conv_bn_relu(projc, group_name='upc', 
+    upc = conv_bn_relu(projc, group_name='upc',
             num_filter=128, kernel=(3,3), pad=(1,1), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
     upc = mx.sym.UpSampling(upc, scale=2, sample_type='bilinear', num_filter=128, num_args=2)
     res3  = mx.sym.concat(conv3, upc)
     res3 = conv_bn_relu(res3, group_name='hyper3',
-            num_filter=256, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
+            num_filter=384, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
             use_global_stats=use_global_stats, lr_mult=lr_mult)
     from_layers = [res3]
 
-    sz_ratio = power(2.0, 0.25)
-    rfs = [40, 80, 160, 320, 640]
-    strides = [r / 5 for r in rfs]
+    sz_ratio = power(2.0, 0.5)
+    rfs = [32, 64, 128, 256]
+    strides = [r / 4 for r in rfs]
 
     convf = concat
     for i, r in enumerate(rfs[1:], 1):
@@ -193,13 +193,12 @@ def pvanet_multibox(data, num_classes,
                 num_filter=128, kernel=(1,1), pad=(0,0), stride=(1,1), no_bias=True,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         convf = conv_bn_relu(projf, group_name='convf_{}'.format(r),
-                num_filter=256, kernel=(3,3), pad=(1,1), stride=(1,1), no_bias=True,
+                num_filter=384, kernel=(3,3), pad=(1,1), stride=(1,1), no_bias=True,
                 use_global_stats=use_global_stats, lr_mult=lr_mult)
         from_layers.append(convf)
 
     ratios = [[1.0, 2.0/3.0, 3.0/2.0, 4.0/9.0, 9.0/4.0]] * len(from_layers)
-    sizes = [[r / sz_ratio, r * sz_ratio] for r in rfs[:-1]]
-    sizes.append([rfs[-1] / sz_ratio,])
+    sizes = [[r, r * sz_ratio] for r in rfs]
 
     preds, anchors = multibox_layer_python(from_layers, num_classes,
             sizes=sizes, ratios=ratios, strides=strides, per_cls_reg=per_cls_reg, clip=False)

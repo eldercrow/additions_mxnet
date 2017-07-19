@@ -111,7 +111,7 @@ class RandScaler(RandSampler):
                 overlap = _compute_overlap(bb[1:], bbox)
                 if overlap < self.min_gt_ignore:
                     continue
-                new_size = max((bb[4] - bb[2]) * scale_y, (bb[3] - bb[1]) * scale_x) / float(self.patch_size)
+                new_size = max((bb[4] - bb[2]) / patch_sz_y, (bb[3] - bb[1]) / patch_sz_x)
                 if new_size < (self.min_gt_scale * 0.707):
                     continue
                 # ignore check

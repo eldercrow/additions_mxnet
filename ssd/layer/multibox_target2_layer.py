@@ -223,8 +223,13 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             # skip oob boxes
             iou_mask = np.logical_and(iou_mask, self.oob_mask == False)
 
-            # positive samples
+            # positive and regression samples
             pidx = np.where(np.logical_and(iou_mask, iou > self.th_iou))[0]
+            ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
+            ridx = np.setdiff1d(ridx, pidx)
+
+            if pidx.size > 5:
+                pidx = np.random.choice(pidx, 5, replace=False)
             cls_target[pidx] = gt_cls
             rt, rm = _compute_loc_target(label[1:], self.anchors[pidx, :], self.variances)
             if self.per_cls_reg:
@@ -232,9 +237,6 @@ class MultiBoxTarget2(mx.operator.CustomOp):
             reg_target[pidx, :] = rt
             reg_mask[pidx, :] = rm
 
-            # regression samples
-            ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
-            ridx = np.setdiff1d(ridx, pidx)
             if not self.per_cls_reg:
                 ridx = ridx[max_cids[ridx] == gt_cls]
             if ridx.size > pidx.size * self.reg_sample_ratio:
@@ -360,7 +362,7 @@ def _expand_target(loc_target, cid, n_cls):
 @mx.operator.register("multibox_target2")
 class MultiBoxTargetProp2(mx.operator.CustomOpProp):
     def __init__(self, n_class, img_wh,
-            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0/2.0, max_pos_sample=512,
+            th_iou=0.5, th_iou_neg=1.0/3.0, th_nms_neg=1.0/3.0, max_pos_sample=512,
             reg_sample_ratio=2.0, hard_neg_ratio=3.0, ignore_label=-1, box_ratios=(1.0,),
             variances=(0.1, 0.1, 0.2, 0.2), per_cls_reg=False, normalization=False):
         #
