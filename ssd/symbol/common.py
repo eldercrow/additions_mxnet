@@ -272,3 +272,43 @@ def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides, per_
         sizes=sizes, ratios=ratios, strides=strides, clip=int(clip))
     preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
     return [preds, anchors]
+
+
+def multibox_layer_shared_python(from_layers, num_classes, nf_hyper, sizes, ratios, strides, clip=False):
+    '''
+    '''
+    # parameter check
+    assert len(from_layers) > 0, "from_layers must not be empty list"
+    assert num_classes > 1, "num_classes {} must be larger than 1".format(num_classes)
+    assert len(ratios) == len(from_layers), "ratios and from_layers must have same length"
+    assert len(sizes) == len(from_layers), "sizes and from_layers must have same length"
+
+    assert len(set(sizes)) == 1, "All the sizes across layers should be identical."
+    assert len(set(ratios)) == 1, "All the ratios across layers should be identical."
+
+    num_reg = 4
+    num_anchors = len(sizes[0]) * len(ratios[0])
+    num_loc_pred = num_anchors * num_reg
+    num_cls_pred = num_anchors * num_classes
+    num_filter = num_loc_pred + num_cls_pred
+
+    conv_w = mx.sym.var(name='predall/conv_weight', shape=(nf_hyper, num_filter, 3, 3))
+    conv_b = mx.sym.var(name='predall/conv_bias', shape=(nf_hyper, num_filter,))
+
+    pred_layers = []
+    for from_layer in from_layers:
+        pred_conv = mx.sym.Convolution(from_layer, name='{}_pred/conv'.format(from_name), 
+                weight=conv_w, bias=conv_b, kernel=(3, 3), pad=(1, 1))
+        pred_conv = mx.sym.transpose(pred_conv, axes=(0, 2, 3, 1))  # (n h w ac), a=num_anchors
+        pred_conv = mx.sym.reshape(pred_conv, shape=(0, -1, num_classes + num_reg))
+        pred_layers.append(pred_conv)
+
+    fall = mx.sym.concat(*features, dim=2)
+    pred_relu = mx.sym.Activation(fall, act_type='relu')
+    pred_conv = convolution(pred_relu, name='predall/conv',
+            num_filter=num_filter, kernel=(3, 3), pad=(1, 1))
+
+    anchors = mx.sym.Custom(*from_layers, op_type='multibox_prior_python',
+        sizes=sizes, ratios=ratios, strides=strides, clip=int(clip))
+    preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
+    return [preds, anchors]

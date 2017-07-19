@@ -208,6 +208,6 @@ def get_spotnet(n_classes, use_global_stats, patch_size=512):
     sizes_in = [(s / sz_ratio, s * sz_ratio) for s in sizes]
     clip = False
 
-    preds, anchors = multibox_layer_python(from_layers, n_classes,
-            sizes=sizes_in, ratios=ratios, strides=strides, per_cls_reg=False, clip=clip)
+    preds, anchors = multibox_layer_shared_python(from_layers, n_classes, nf_hyper=nf_hyper,
+            sizes=sizes_in, ratios=ratios, strides=strides, clip=clip)
     return preds, anchors
