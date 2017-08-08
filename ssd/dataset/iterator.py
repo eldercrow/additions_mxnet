@@ -1,8 +1,7 @@
 import mxnet as mx
 import numpy as np
 import cv2
-from tools.rand_sampler import RandScaler
-from tools.crop_roi_patch import crop_roi_patch
+from tools.rand_sampler import RandSampler
 
 class DetRecordIter(mx.io.DataIter):
     """
@@ -150,7 +149,13 @@ class DetIter(mx.io.DataIter):
             data_shape = (data_shape, data_shape)
         self._data_shape = data_shape
         self._mean_pixels = mx.nd.array(mean_pixels).reshape((3,1,1))
-        self._rand_samplers = rand_samplers
+        if not rand_samplers:
+            self._rand_samplers = []
+        else:
+            if not isinstance(rand_samplers, list):
+                rand_samplers = [rand_samplers]
+            assert isinstance(rand_samplers[0], RandSampler), "Invalid rand sampler"
+            self._rand_samplers = rand_samplers
         self.is_train = is_train
         self._rand_mirror = rand_mirror
         self._shuffle = shuffle
@@ -230,8 +235,7 @@ class DetIter(mx.io.DataIter):
                 batch_label.append(label)
         self._data = {'data': batch_data}
         if self.is_train:
-            batch_label = np.array(batch_label)
-            self._label = {'label': mx.nd.array(batch_label)}
+            self._label = {'label': mx.nd.array(np.array(batch_label))}
         else:
             self._label = {'label': None}
 
@@ -242,7 +246,7 @@ class DetIter(mx.io.DataIter):
         if self.is_train and self._rand_samplers:
             rand_crops = []
             for rs in self._rand_samplers:
-                rand_crops += rs.sample(label, (data.shape[0], data.shape[1]))
+                rand_crops += rs.sample(label)
             num_rand_crops = len(rand_crops)
             # randomly pick up one as input data
             if num_rand_crops > 0:
@@ -254,18 +258,17 @@ class DetIter(mx.io.DataIter):
                 ymin = int(crop[1] * height)
                 xmax = int(crop[2] * width)
                 ymax = int(crop[3] * height)
-                data = crop_roi_patch(data.asnumpy(), (xmin, ymin, xmax, ymax))
-                # if xmin >= 0 and ymin >= 0 and xmax <= width and ymax <= height:
-                #     data = mx.img.fixed_crop(data, xmin, ymin, xmax-xmin, ymax-ymin)
-                # else:
-                #     # padding mode
-                #     new_width = xmax - xmin
-                #     new_height = ymax - ymin
-                #     offset_x = 0 - xmin
-                #     offset_y = 0 - ymin
-                #     data_bak = data
-                #     data = mx.nd.full((new_height, new_width, 3), 128, dtype='uint8')
-                #     data[offset_y:offset_y+height, offset_x:offset_x + width, :] = data_bak
+                if xmin >= 0 and ymin >= 0 and xmax <= width and ymax <= height:
+                    data = mx.img.fixed_crop(data, xmin, ymin, xmax-xmin, ymax-ymin)
+                else:
+                    # padding mode
+                    new_width = xmax - xmin
+                    new_height = ymax - ymin
+                    offset_x = 0 - xmin
+                    offset_y = 0 - ymin
+                    data_bak = data
+                    data = mx.nd.full((new_height, new_width, 3), 128, dtype='uint8')
+                    data[offset_y:offset_y+height, offset_x:offset_x + width, :] = data_bak
                 label = rand_crops[index][1]
         if self.is_train:
             interp_methods = [cv2.INTER_LINEAR, cv2.INTER_CUBIC, cv2.INTER_AREA, \
@@ -274,16 +277,13 @@ class DetIter(mx.io.DataIter):
             interp_methods = [cv2.INTER_LINEAR]
         interp_method = interp_methods[int(np.random.uniform(0, 1) * len(interp_methods))]
         data = mx.img.imresize(data, self._data_shape[1], self._data_shape[0], interp_method)
-        if self.is_train: 
-            valid_mask = np.where(np.any(label != -1, axis=1))[0]
-            if self._rand_mirror:
-                if np.random.uniform(0, 1) > 0.5:
-                    data = mx.nd.flip(data, axis=1)
-                    tmp = 1.0 - label[valid_mask, 1]
-                    label[valid_mask, 1] = 1.0 - label[valid_mask, 3]
-                    label[valid_mask, 3] = tmp
-            label[valid_mask, 1::2] *= data.shape[1]
-            label[valid_mask, 2::2] *= data.shape[0]
+        if self.is_train and self._rand_mirror:
+            if np.random.uniform(0, 1) > 0.5:
+                data = mx.nd.flip(data, axis=1)
+                valid_mask = np.where(label[:, 0] > -1)[0]
+                tmp = 1.0 - label[valid_mask, 1]
+                label[valid_mask, 1] = 1.0 - label[valid_mask, 3]
+                label[valid_mask, 3] = tmp
         data = mx.nd.transpose(data, (2,0,1))
         data = data.astype('float32')
         data = data - self._mean_pixels

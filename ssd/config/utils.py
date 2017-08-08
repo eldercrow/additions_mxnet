@@ -75,8 +75,6 @@ def zip_namedtuple(nt_list):
 def config_as_dict(cfg):
     """ convert raw configuration to unified dictionary """
     ret = cfg.__dict__.copy()
-    del ret['rand_scaler']
-    ret = merge_dict(ret, cfg.rand_scaler._asdict())
     # random cropping params
     del ret['rand_crop_samplers']
     assert isinstance(cfg.rand_crop_samplers, list)

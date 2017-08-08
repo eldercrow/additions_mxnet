@@ -5,7 +5,6 @@ from imdb import Imdb
 import xml.etree.ElementTree as ET
 from evaluate.eval_voc import voc_eval
 import cv2
-import cPickle
 
 
 class PascalVoc(Imdb):
@@ -25,9 +24,8 @@ class PascalVoc(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170628_1'  # for caching
-
-    def __init__(self, image_set, year, devkit_path, shuffle=False, is_train=False):
+    def __init__(self, image_set, year, devkit_path, shuffle=False, is_train=False,
+            names='pascal_voc.names'):
         super(PascalVoc, self).__init__('voc_' + year + '_' + image_set)
         self.image_set = image_set
         self.year = year
@@ -36,48 +34,17 @@ class PascalVoc(Imdb):
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ['__background__',
-                        'aeroplane', 'bicycle', 'bird', 'boat',
-                        'bottle', 'bus', 'car', 'cat', 'chair',
-                        'cow', 'diningtable', 'dog', 'horse',
-                        'motorbike', 'person', 'pottedplant',
-                        'sheep', 'sofa', 'train', 'tvmonitor']
+        self.classes = self._load_class_names(names,
+            os.path.join(os.path.dirname(__file__), 'names'))
 
         self.config = {'use_difficult': True,
                        'comp_id': 'comp4',}
 
         self.num_classes = len(self.classes)
-        # try to load cached data
-        cached = self._load_from_cache()
-        if cached is None:  # no cached data, load from DB (and save)
-            fn_cache = os.path.join(self.cache_path,
-                                    self.name + '_' + self.IDX_VER + '.pkl')
-            self.image_set_index = self._load_image_set_index(shuffle)
-            self.num_images = len(self.image_set_index)
-            self.labels, self.max_objects = self._load_image_labels()
-            # if self.is_train:
-            #     self.labels, self.max_objects = self._load_image_labels()
-            self._save_to_cache()
-        else:
-            self.image_set_index = cached['image_set_index']
-            self.num_images = len(self.image_set_index)
-            if self.is_train:
-                if 'labels' in cached:
-                    self.labels = cached['labels']
-                else:
-                    self.labels, self.max_objects = self._load_image_labels()
-                    self._save_to_cache()
-        if shuffle:
-            ridx = np.random.permutation(np.arange(self.num_images))
-            image_set_index = [self.image_set_index[i] for i in ridx]
-            labels = [self.labels[i] for i in ridx]
-            self.image_set_index, self.labels = image_set_index, labels
+        self.image_set_index = self._load_image_set_index(shuffle)
+        self.num_images = len(self.image_set_index)
         if self.is_train:
-            self.pad_labels()
-        # self.image_set_index = self._load_image_set_index(shuffle)
-        # self.num_images = len(self.image_set_index)
-        # if self.is_train:
-        #     self.labels = self._load_image_labels()
+            self.labels = self._load_image_labels()
 
     @property
     def cache_path(self):
@@ -92,42 +59,6 @@ class PascalVoc(Imdb):
         if not os.path.exists(cache_path):
             os.mkdir(cache_path)
         return cache_path
-
-    def _load_from_cache(self):
-        fn_cache = os.path.join(self.cache_path,
-                                self.name + '_' + self.IDX_VER + '.pkl')
-        cached = {}
-        if os.path.exists(fn_cache):
-            try:
-                with open(fn_cache, 'rb') as fh:
-                    header = cPickle.load(fh)
-                    assert header['ver'] == self.IDX_VER, "Version mismatch, re-index DB."
-                    self.max_objects = header['max_objects']
-                    iidx = cPickle.load(fh)
-                    cached['image_set_index'] = iidx['image_set_index']
-                    if self.is_train:
-                        labels = cPickle.load(fh)
-                        cached['labels'] = labels['labels']
-            except:
-                # print 'Exception in load_from_cache.'
-                return None
-        return None if not cached else cached
-
-    def _save_to_cache(self):
-        fn_cache = os.path.join(self.cache_path,
-                                self.name + '_' + self.IDX_VER + '.pkl')
-        with open(fn_cache, 'wb') as fh:
-            cPickle.dump({
-                'ver': self.IDX_VER,
-                'max_objects': self.max_objects
-            }, fh, cPickle.HIGHEST_PROTOCOL)
-            cPickle.dump({
-                'image_set_index': self.image_set_index
-            }, fh, cPickle.HIGHEST_PROTOCOL)
-            if self.is_train:
-                cPickle.dump({
-                    'labels': self.labels
-                }, fh, cPickle.HIGHEST_PROTOCOL)
 
     def _load_image_set_index(self, shuffle):
         """
@@ -208,7 +139,6 @@ class PascalVoc(Imdb):
         labels packed in [num_images x max_num_objects x 5] tensor
         """
         temp = []
-        max_objects = 0
 
         # load ground-truth from xml annotations
         for idx in self.image_set_index:
@@ -234,24 +164,8 @@ class PascalVoc(Imdb):
                 xmax = float(xml_box.find('xmax').text) / width
                 ymax = float(xml_box.find('ymax').text) / height
                 label.append([cls_id, xmin, ymin, xmax, ymax, difficult])
-            if len(label) > max_objects:
-                max_objects = len(label)
             temp.append(np.array(label))
-
-        assert max_objects > 0, "No objects found for any of the images"
-        return temp, max_objects
-
-
-    def pad_labels(self):
-        """ labels: list of ndarrays """
-        self.padding = self.max_objects
-        for (i, label) in enumerate(self.labels):
-            padded = np.tile(np.full((6, ), -1, dtype=np.float32), (self.padding, 1))
-            padded[:label.shape[0], :] = label
-            self.labels[i] = padded
-            assert self.labels[i].shape[0] == self.max_objects
-        # self.labels = np.array(self.labels)
-
+        return temp
 
     def evaluate_detections(self, detections):
         """
@@ -277,13 +191,6 @@ class PascalVoc(Imdb):
 
         self.write_pascal_results(detections)
         self.do_python_eval()
-
-    def get_result_pkl_template(self):
-        res_file_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year, 'Main')
-        filename = 'det_' + self.image_set + '_all.pkl'
-        path = os.path.join(res_file_folder, filename)
-        return path
-
 
     def get_result_file_template(self):
         """
@@ -312,8 +219,6 @@ class PascalVoc(Imdb):
         None
         """
         for cls_ind, cls in enumerate(self.classes):
-            if cls_ind == 0:
-                continue
             print('Writing {} VOC results file'.format(cls))
             filename = self.get_result_file_template().format(cls)
             with open(filename, 'wt') as f:
@@ -327,12 +232,8 @@ class PascalVoc(Imdb):
                         if (int(dets[k, 0]) == cls_ind):
                             f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
                                     format(index, dets[k, 1],
-                                           int(dets[k, 2]) + 1, int(dets[k, 3]) + 1,
-                                           int(dets[k, 4]) + 1, int(dets[k, 5]) + 1))
-                            # f.write('{:s} {:.3f} {:.1f} {:.1f} {:.1f} {:.1f}\n'.
-                            #         format(index, dets[k, 1],
-                            #                int(dets[k, 2] * w) + 1, int(dets[k, 3] * h) + 1,
-                            #                int(dets[k, 4] * w) + 1, int(dets[k, 5] * h) + 1))
+                                           int(dets[k, 2] * w) + 1, int(dets[k, 3] * h) + 1,
+                                           int(dets[k, 4] * w) + 1, int(dets[k, 5] * h) + 1))
 
     def do_python_eval(self):
         """
@@ -350,8 +251,6 @@ class PascalVoc(Imdb):
         use_07_metric = True if int(self.year) < 2010 else False
         print('VOC07 metric? ' + ('Y' if use_07_metric else 'No'))
         for cls_ind, cls in enumerate(self.classes):
-            if cls_ind == 0:
-                continue
             filename = self.get_result_file_template().format(cls)
             rec, prec, ap = voc_eval(filename, annopath, imageset_file, cls, cache_dir,
                                      ovthresh=0.5, use_07_metric=use_07_metric)

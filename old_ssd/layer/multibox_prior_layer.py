@@ -51,8 +51,8 @@ class MultiBoxPriorPython(mx.operator.CustomOp):
             for i in s:
                 for j in r:
                     j2 = np.sqrt(float(j))
-                    wh[k, 0] = i * j2 / 2.0 # width
-                    wh[k, 1] = i / j2 / 2.0 # height
+                    wh[k, 0] = (i * j2) * 0.5 # width
+                    wh[k, 1] = (i / j2) * 0.5 # height
                     k += 1
 
             # build anchors

@@ -103,7 +103,8 @@ class TestIter(mx.io.DataIter):
         """
         ww = data.shape[1]
         hh = data.shape[0]
-        sf = np.maximum(1.0, self._min_size / np.minimum(ww, hh))
+        # sf = np.maximum(1.0, self._min_size / np.minimum(ww, hh))
+        sf = self._min_size / np.minimum(ww, hh)
         ww *= sf
         hh *= sf
         # first resize image w.r.t max image size
@@ -126,7 +127,6 @@ class TestIter(mx.io.DataIter):
         padded = np.reshape(self._mean_pixels.asnumpy(), (1, 1, 3))
         padded = np.tile(padded, (sy, sx, 1))
         padded[:(data.shape[0]), :(data.shape[1]), :] = data
-        # data = mx.img.imresize(data, int(sx), int(sy)).asnumpy() # ignore slight aspect ratio break
         data = np.transpose(padded, (2, 0, 1)).astype(float)
         data = data - self._mean_pixels.asnumpy()
         return mx.nd.array(data), mx.nd.array((sf_y, sf_x))

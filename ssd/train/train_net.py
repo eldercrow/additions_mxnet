@@ -6,11 +6,10 @@ import os
 import importlib
 import re
 from dataset.iterator import DetRecordIter
-from dataset.dataset_loader import load_pascal
 from train.metric import MultiBoxMetric
 from evaluate.eval_metric import MApMetric, VOC07MApMetric
 from config.config import cfg
-
+from symbol.symbol_factory import get_symbol_train
 
 def convert_pretrained(name, args):
     """
@@ -27,13 +26,6 @@ def convert_pretrained(name, args):
     ---------
     processed arguments as dict
     """
-    if 'vgg16_reduced' in name:
-        args['conv6_bias'] = args.pop('fc6_bias')
-        args['conv6_weight'] = args.pop('fc6_weight')
-        args['conv7_bias'] = args.pop('fc7_bias')
-        args['conv7_weight'] = args.pop('fc7_weight')
-        del args['fc8_weight']
-        del args['fc8_bias']
     return args
 
 def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
@@ -73,6 +65,8 @@ def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
         if lr != learning_rate:
             logging.getLogger().info("Adjusted learning rate to {} for epoch {}".format(lr, begin_epoch))
         steps = [epoch_size * (x - begin_epoch) for x in iter_refactor if x > begin_epoch]
+        if not steps:
+            return (lr, None)
         lr_scheduler = mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=lr_refactor_ratio)
         return (lr, lr_scheduler)
 
@@ -167,7 +161,7 @@ def train_net(net, train_path, num_classes, batch_size,
     if isinstance(data_shape, int):
         data_shape = (3, data_shape, data_shape)
     assert len(data_shape) == 3 and data_shape[0] == 3
-    prefix += '_' + str(data_shape[1])
+    prefix += '_' + net + '_' + str(data_shape[1])
 
     if isinstance(mean_pixels, (int, float)):
         mean_pixels = [mean_pixels, mean_pixels, mean_pixels]
@@ -183,10 +177,8 @@ def train_net(net, train_path, num_classes, batch_size,
         val_iter = None
 
     # load symbol
-    sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
-    symbol_module = importlib.import_module("symbol_" + net)
-    net = symbol_module.get_symbol_train(num_classes, nms_thresh=nms_thresh,
-        force_suppress=force_suppress, nms_topk=nms_topk)
+    net = get_symbol_train(net, data_shape[1], num_classes=num_classes,
+        nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
 
     # define layers with fixed weight/bias
     if freeze_layer_pattern.strip():
@@ -240,7 +232,7 @@ def train_net(net, train_path, num_classes, batch_size,
                       'wd':weight_decay,
                       'lr_scheduler':lr_scheduler,
                       'clip_gradient':None,
-                      'rescale_grad': 1.0}
+                      'rescale_grad': 1.0 / len(ctx) if len(ctx) > 0 else 1.0 }
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
 
     # run fit net, every n epochs we run evaluation network to get mAP

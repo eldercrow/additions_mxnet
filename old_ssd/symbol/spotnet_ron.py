@@ -163,7 +163,7 @@ def mcrelu_group(data, prefix_name,
         return conv
 
 
-def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides,
+def multibox_layer_python(from_layers, from_layers_rpn, num_classes, sizes, ratios, strides,
                           per_cls_reg=False, clip=False):
     ''' multibox layer '''
     # parameter check
@@ -173,6 +173,7 @@ def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides,
     assert len(sizes) == len(from_layers), "sizes and from_layers must have same length"
 
     pred_layers = []
+    rpn_layers = []
     anchor_layers = []
 
     num_reg = 4 * num_classes if per_cls_reg else 4
@@ -180,9 +181,7 @@ def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides,
     for k, from_layer in enumerate(from_layers):
         from_name = from_layer.name
         num_anchors = len(sizes[k]) * len(ratios[k])
-        num_loc_pred = num_anchors * num_reg
-        num_cls_pred = num_anchors * num_classes
-        num_filter = num_loc_pred + num_cls_pred
+        num_filter = (num_classes + num_reg) * num_anchors
 
         pred_relu = mx.sym.LeakyReLU(from_layer, act_type='leaky')
         # pred_relu = mx.sym.Activation(from_layer, act_type='softrelu')
@@ -192,10 +191,24 @@ def multibox_layer_python(from_layers, num_classes, sizes, ratios, strides,
         pred_conv = mx.sym.reshape(pred_conv, shape=(0, -1, num_classes + num_reg))
         pred_layers.append(pred_conv)
 
+    for k, from_layer in enumerate(from_layers_rpn):
+        from_name = from_layer.name
+        num_anchors = len(sizes[k]) * len(ratios[k])
+        num_rpn_pred = num_anchors * 2
+
+        rpn_relu = mx.sym.LeakyReLU(from_layer, act_type='leaky')
+        # pred_relu = mx.sym.Activation(from_layer, act_type='softrelu')
+        rpn_conv = convolution(rpn_relu, name='{}_rpn/conv'.format(from_name),
+                num_filter=num_rpn_pred, kernel=(3, 3), pad=(1, 1))
+        rpn_conv = mx.sym.transpose(rpn_conv, axes=(0, 2, 3, 1))  # (n h w ac), a=num_anchors
+        rpn_conv = mx.sym.reshape(rpn_conv, shape=(0, -1, 2))
+        rpn_layers.append(rpn_conv)
+
     anchors = mx.sym.Custom(*from_layers, op_type='multibox_prior_python',
             sizes=sizes, ratios=ratios, strides=strides, clip=int(clip))
     preds = mx.sym.concat(*pred_layers, num_args=len(pred_layers), dim=1)
-    return [preds, anchors]
+    rpns = mx.sym.concat(*rpn_layers, num_args=len(rpn_layers), dim=1)
+    return [preds, anchors, rpns]
 
 
 def upsample_feature(data,
@@ -235,31 +248,32 @@ def get_spotnet(n_classes, use_global_stats, patch_size=480, per_cls_reg=False):
     rf_ratio = 3
 
     conv1 = convolution(data / 128.0, name='1/conv',
-        num_filter=12, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1)
 
-    bn2 = relu_conv_bn(pool1, prefix_name='2/',
-        num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
-        use_global_stats=use_global_stats)
+    n_curr_ch = 32
+
+    bn2, n_curr_ch = inception_group(pool1, '2/', n_curr_ch,
+            num_filter_3x3=(16, 16), num_filter_1x1=64, use_crelu=True,
+            use_global_stats=use_global_stats)
     pool2 = pool(bn2)
 
-    n_curr_ch = 64
     bn3, n_curr_ch = inception_group(pool2, '3/', n_curr_ch,
-            num_filter_3x3=(32, 32), num_filter_1x1=128, use_crelu=True,
+            num_filter_3x3=(64, 32, 32), num_filter_1x1=128,
             use_global_stats=use_global_stats)
 
     curr_sz = 8 * rf_ratio
 
-    nf_3x3 = [(64, 64, 64), (64, 64, 64, 64), (64, 64, 64, 64)]
+    nf_3x3 = [(96, 48, 48), (128, 64, 64), (128, 64, 64)]
     nf_1x1 = [192, 256, 256]
     strides = [8, 16, 32]
 
     curr_sz *= 8
     while curr_sz <= patch_size:
-        nf_3x3.append((48, 48, 48, 48))
-        nf_1x1.append(192)
+        nf_3x3.append((64, 32, 32))
+        nf_1x1.append(128)
         curr_sz *= 2
         strides.append(strides[-1] * 2)
 
@@ -280,7 +294,7 @@ def get_spotnet(n_classes, use_global_stats, patch_size=480, per_cls_reg=False):
     # build context layers
     upscales = [[4, 2], [2]]
     nf_upsamples = [[64, 64], [64]]
-    nf_proj = 64
+    nf_proj = 32
     up_layers = (groups[2], groups[1])
     ctx_layers = []
     for i, (s, u) in enumerate(zip(upscales, nf_upsamples)):
@@ -295,10 +309,11 @@ def get_spotnet(n_classes, use_global_stats, patch_size=480, per_cls_reg=False):
 
     # build multi scale feature layers
     from_layers = []
-    nf_hyper = 1024
-    nf_hyper_proj = 256
+    from_layers_rpn = []
+    nf_hyper = 384
+    nf_hyper_proj = 192
     # small scale: hyperfeature
-    nf_base = [128, 192]
+    nf_base = [64, 128]
     for i, g in enumerate(groups):
         rf = int(sizes[i])
         hyper_name = 'hyper{0:03d}/'.format(rf)
@@ -314,24 +329,25 @@ def get_spotnet(n_classes, use_global_stats, patch_size=480, per_cls_reg=False):
         hyperf = relu_conv_bn(g, prefix_name=hyper_name+'1x1/',
                 num_filter=nf_hyper_proj, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
-        nf3 = nf_hyper_proj / 8 if i == 0 else nf_hyper_proj / 4
-        nf1 = nf_hyper / 2 if i == 0 else nf_hyper
+        nf3 = nf_hyper_proj / 2
+        nf1 = nf_hyper
         fc1 = mcrelu_group(hyperf, prefix_name=fc1_name,
                 num_filter_proj=0, num_filter_3x3=nf3, num_filter_1x1=nf1,
                 use_global_stats=use_global_stats)
-        fc2 = mcrelu_group(fc1, prefix_name=fc2_name,
-                num_filter_proj=0, num_filter_3x3=nf3, num_filter_1x1=nf1,
-                use_global_stats=use_global_stats)
+        # fc2 = mcrelu_group(fc1, prefix_name=fc2_name,
+        #         num_filter_proj=0, num_filter_3x3=nf3, num_filter_1x1=nf1,
+        #         use_global_stats=use_global_stats)
         hyperp = relu_conv_bn(hyperf, prefix_name=hyper_name+'res/',
                 num_filter=nf1, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
-        from_layers.append(fc2 + hyperp)
+        from_layers.append(mx.sym.broadcast_add(fc1, hyperp, name=hyper_name))
+        from_layers_rpn.append(hyperf)
 
     clip = False
 
     sz_ratio = np.power(2.0, 0.25)
     sizes_in = [[s / sz_ratio, s * sz_ratio] for s in sizes]
-    sizes_in[0] = [s * sz_ratio,]
-    preds, anchors = multibox_layer_python(from_layers, n_classes,
+    sizes_in[0] = [sizes[0] * sz_ratio,]
+    preds, anchors, rpns = multibox_layer_python(from_layers, from_layers_rpn, n_classes,
             sizes=sizes_in, ratios=ratios, strides=strides, per_cls_reg=per_cls_reg, clip=False)
-    return preds, anchors
+    return preds, anchors, rpns

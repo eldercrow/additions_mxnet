@@ -1,10 +1,6 @@
 import mxnet as mx
-from spotnet_multibox import get_spotnet
-# from layer.multibox_target_layer import MultiBoxTarget, MultiBoxTargetProp
-# from layer.multibox_detection_layer import MultiBoxDetection, MultiBoxDetectionProp
-# from layer.multibox_target2_layer import *
-# from layer.softmax_loss_layer import SoftmaxLoss, SoftmaxLossProp
-from layer.anchor_target_layer import *
+from spotnet_ron import get_spotnet
+from layer.anchor_target_ron_layer import *
 
 
 def get_symbol_train(num_classes, **kwargs):
@@ -16,18 +12,20 @@ def get_symbol_train(num_classes, **kwargs):
         patch_size = kwargs['patch_size']
     per_cls_reg = False
 
-    preds, anchors = get_spotnet(num_classes, use_global_stats=fix_bn, patch_size=patch_size)
+    preds, anchors, rpns = get_spotnet(num_classes, use_global_stats=fix_bn, patch_size=patch_size)
     label = mx.sym.var(name='label')
 
-    tmp = mx.symbol.Custom(*[preds, anchors, label], name='anchor_target', op_type='anchor_target',
+    tmp = mx.symbol.Custom(*[preds, rpns, anchors, label], name='anchor_target', op_type='anchor_target_ron',
             n_class=num_classes, per_cls_reg=per_cls_reg)
-    pred_target = tmp[0]
+    sample_pred = tmp[0]
     target_cls = tmp[1]
     target_reg = tmp[2]
     mask_reg = tmp[3]
+    sample_rpn = tmp[4]
+    target_rpn = tmp[5]
 
-    pred_cls = mx.sym.slice_axis(pred_target, axis=1, begin=0, end=num_classes)
-    pred_reg = mx.sym.slice_axis(pred_target, axis=1, begin=num_classes, end=None)
+    pred_cls = mx.sym.slice_axis(sample_pred, axis=1, begin=0, end=num_classes)
+    pred_reg = mx.sym.slice_axis(sample_pred, axis=1, begin=num_classes, end=None)
 
     # classification
     cls_loss = mx.symbol.SoftmaxOutput(data=pred_cls, label=target_cls, \
@@ -40,9 +38,14 @@ def get_symbol_train(num_classes, **kwargs):
     loc_loss = mx.symbol.MakeLoss(loc_loss, grad_scale=0.2, \
         normalization='null', name="loc_loss")
 
+    rpn_loss = mx.symbol.SoftmaxOutput(data=sample_rpn, label=target_rpn, \
+        ignore_label=-1, use_ignore=True, grad_scale=1.0, 
+        normalization='null', name="rpn_loss", out_grad=False)
+
     label_cls = mx.sym.BlockGrad(target_cls, name='label_cls')
     label_reg = mx.sym.BlockGrad(mask_reg, name='label_reg')
+    label_rpn = mx.sym.BlockGrad(target_rpn, name='label_rpn')
 
     # group output
-    out = mx.symbol.Group([cls_loss, loc_loss, label_cls, label_reg])
+    out = mx.symbol.Group([cls_loss, loc_loss, rpn_loss, label_cls, label_reg, label_rpn])
     return out

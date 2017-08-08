@@ -24,7 +24,7 @@ def get_symbol_train(num_classes, **kwargs):
     tmp_in = [preds_cls, preds_reg, anchors, label, probs_cls]
     tmp = mx.symbol.Custom(*tmp_in, op_type='multibox_target2', name='multibox_target2',
             n_class=num_classes, img_wh=(patch_size, patch_size), variances=(0.1, 0.1, 0.2, 0.2),
-            per_cls_reg=per_cls_reg, normalization=True)
+            per_cls_reg=per_cls_reg, normalization=False)
     sample_cls = tmp[0]
     sample_reg = tmp[1]
     target_cls = tmp[2]
@@ -38,7 +38,7 @@ def get_symbol_train(num_classes, **kwargs):
     # regression
     loc_diff = (sample_reg - target_reg) * mask_reg
     loc_loss = mx.symbol.smooth_l1(name="loc_loss_", data=loc_diff, scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss, name='loc_loss', grad_scale=0.2)
+    loc_loss = mx.symbol.MakeLoss(loc_loss, name='loc_loss', grad_scale=0.15)
 
     # for metric
     label_cls = mx.sym.BlockGrad(target_cls, name='label_cls')
@@ -55,7 +55,7 @@ def get_symbol(num_classes, **kwargs):
     # im_scale = mx.sym.Variable(name='im_scale')
 
     fix_bn = True
-    patch_size = 384
+    patch_size = 480
     per_cls_reg = False
     th_pos = 0.25
     th_nms = 1.0 / 3.0
@@ -67,7 +67,7 @@ def get_symbol(num_classes, **kwargs):
     if 'nms' in kwargs:
         th_nms = kwargs['nms']
 
-    preds, anchors = get_spotnet(num_classes, patch_size, per_cls_reg=per_cls_reg, use_global_stats=fix_bn)
+    preds, anchors = get_spotnet(num_classes, patch_size=patch_size, use_global_stats=fix_bn)
     preds_cls = mx.sym.slice_axis(preds, axis=2, begin=0, end=num_classes)
     preds_reg = mx.sym.slice_axis(preds, axis=2, begin=num_classes, end=None)
 
