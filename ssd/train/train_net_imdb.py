@@ -5,30 +5,17 @@ import sys
 import os
 import importlib
 import re
-from dataset.iterator import DetRecordIter
-from train.metric import MultiBoxMetric
-from evaluate.eval_metric import MApMetric, VOC07MApMetric
+from dataset.iterator import DetIter
+# from dataset.patch_iterator import PatchIter
+from dataset.dataset_loader import load_pascal #, load_pascal_patch
+from train.metric import MultiBoxMetric #, FacePatchMetric, RONMetric
+from tools.rand_sampler import RandScaler
+# import tools.load_model as load_model
 from plateau_lr import PlateauScheduler
 from plateau_module import PlateauModule
 from config.config import cfg
 from symbol.symbol_factory import get_symbol_train
 
-def convert_pretrained(name, args):
-    """
-    Special operations need to be made due to name inconsistance, etc
-
-    Parameters:
-    ---------
-    name : str
-        pretrained model name
-    args : dict
-        loaded arguments
-
-    Returns:
-    ---------
-    processed arguments as dict
-    """
-    return args
 
 def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
                      num_example, batch_size, begin_epoch):
@@ -67,23 +54,17 @@ def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
         if lr != learning_rate:
             logging.getLogger().info("Adjusted learning rate to {} for epoch {}".format(lr, begin_epoch))
         steps = [epoch_size * (x - begin_epoch) for x in iter_refactor if x > begin_epoch]
-        if not steps:
-            return (lr, None)
         lr_scheduler = mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=lr_refactor_ratio)
         return (lr, lr_scheduler)
 
-def train_net(net, train_path, num_classes, batch_size,
-              data_shape, mean_pixels, resume, finetune, pretrained, epoch,
-              prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
-              momentum, weight_decay, lr_refactor_step, lr_refactor_ratio,
-              freeze_layer_pattern='',
-              num_example=10000, label_pad_width=350,
-              nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
-              use_difficult=False, class_names=None,
-              optimizer_name='sgd',
-              voc07_metric=False, nms_topk=400, force_suppress=False,
-              train_list="", val_path="", val_list="", iter_monitor=0,
-              monitor_pattern=".*", log_file=None):
+def train_net(net, dataset, image_set, devkit_path, batch_size,
+              data_shape, mean_pixels, resume, finetune, from_scratch, pretrained, epoch,
+              prefix, ctx, begin_epoch, end_epoch, frequent, 
+              optimizer_name='adam', learning_rate=1e-03, momentum=0.9, weight_decay=5e-04,
+              lr_refactor_step=(3,4,5,6), lr_refactor_ratio=0.1,
+              year='', freeze_layer_pattern='',
+              min_obj_size=32.0, use_difficult=False,
+              iter_monitor=0, monitor_pattern=".*", log_file=None):
     """
     Wrapper for training phase.
 
@@ -91,10 +72,12 @@ def train_net(net, train_path, num_classes, batch_size,
     ----------
     net : str
         symbol name for the network structure
-    train_path : str
-        record file path for training
-    num_classes : int
-        number of object classes, not including background
+    dataset : str
+        pascal_voc, imagenet...
+    image_set : str
+        train, trainval...
+    devkit_path : str
+        root directory of dataset
     batch_size : int
         training batch-size
     data_shape : int or tuple
@@ -129,22 +112,10 @@ def train_net(net, train_path, num_classes, batch_size,
         multiplier for reducing learning rate
     lr_refactor_step : comma separated integers
         at which epoch to rescale learning rate, e.g. '30, 60, 90'
+    year : str
+        2007, 2012 or combinations splitted by comma
     freeze_layer_pattern : str
         regex pattern for layers need to be fixed
-    num_example : int
-        number of training images
-    label_pad_width : int
-        force padding training and validation labels to sync their label widths
-    nms_thresh : float
-        non-maximum suppression threshold for validation
-    force_nms : boolean
-        suppress overlaped objects from different classes
-    train_list : str
-        list file path for training, this will replace the embeded labels in record
-    val_path : str
-        record file path for validation
-    val_list : str
-        list file path for validation, this will replace the embeded labels in record
     iter_monitor : int
         monitor internal stats in networks if > 0, specified by monitor_pattern
     monitor_pattern : str
@@ -164,24 +135,43 @@ def train_net(net, train_path, num_classes, batch_size,
     if isinstance(data_shape, int):
         data_shape = (3, data_shape, data_shape)
     assert len(data_shape) == 3 and data_shape[0] == 3
-    prefix += '_' + net + '_' + str(data_shape[1])
+    prefix += '_' + str(data_shape[1])
 
     if isinstance(mean_pixels, (int, float)):
         mean_pixels = [mean_pixels, mean_pixels, mean_pixels]
     assert len(mean_pixels) == 3, "must provide all RGB mean values"
 
-    train_iter = DetRecordIter(train_path, batch_size, data_shape, mean_pixels=mean_pixels,
-        label_pad_width=label_pad_width, path_imglist=train_list, **cfg.train)
-
-    if val_path:
-        val_iter = DetRecordIter(val_path, batch_size, data_shape, mean_pixels=mean_pixels,
-            label_pad_width=label_pad_width, path_imglist=val_list, **cfg.valid)
+    # load dataset
+    if dataset == 'pascal_voc':
+        imdb = load_pascal(image_set, year, devkit_path, cfg.train['shuffle'])
+        val_imdb = None
+    # elif dataset == 'pascal_voc_patch':
+    #     imdb = load_pascal_patch(image_set, year, devkit_path, shuffle=cfg.train['init_shuffle'],
+    #             patch_shape=data_shape[1])
+    #     val_imdb = None
     else:
-        val_iter = None
+        raise NotImplementedError("Dataset " + dataset + " not supported")
+
+    # init iterator
+    patch_size = data_shape[1]
+    min_gt_scale = min_obj_size / float(patch_size)
+    rand_scaler = RandScaler(min_gt_scale=min_gt_scale, patch_size=patch_size)
+    train_iter = DetIter(imdb, batch_size, data_shape[1], rand_scaler,
+                         mean_pixels, cfg.train['rand_mirror_prob'] > 0,
+                         cfg.train['shuffle'], cfg.train['seed'],
+                         is_train=True)
+    val_iter = None
+    # else:
+    #     train_iter = PatchIter(imdb, batch_size, data_shape[1], mean_pixels, is_train=True)
+    #     val_iter = None
 
     # load symbol
-    net = get_symbol_train(net, data_shape[1], num_classes=num_classes,
-        nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
+    net = get_symbol_train(net, data_shape[1], num_classes=imdb.num_classes,
+        nms_thresh=0.45, force_suppress=False, nms_topk=400)
+    # # load symbol
+    # sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
+    # symbol_module = importlib.import_module("symbol_" + net)
+    # net = symbol_module.get_symbol_train(imdb.num_classes)
 
     # define layers with fixed weight/bias
     if freeze_layer_pattern.strip():
@@ -197,28 +187,16 @@ def train_net(net, train_path, num_classes, batch_size,
             .format(ctx_str, resume))
         _, args, auxs = mx.model.load_checkpoint(prefix, resume)
         begin_epoch = resume
-    elif finetune > 0:
-        logger.info("Start finetuning with {} from epoch {}"
-            .format(ctx_str, finetune))
-        _, args, auxs = mx.model.load_checkpoint(prefix, finetune)
-        begin_epoch = finetune
-        # the prediction convolution layers name starts with relu, so it's fine
-        fixed_param_names = [name for name in net.list_arguments() \
-            if name.startswith('conv')]
     elif pretrained:
         try:
             logger.info("Start training with {} from pretrained model {}"
                 .format(ctx_str, pretrained))
             _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
-            args = convert_pretrained(pretrained, args)
         except:
             logger.info("Failed to load the pretrained model. Fall back to from scratch.")
             args = None
             auxs = None
             fixed_param_names = None
-        # logger.info("Start training with {} from pretrained model {}"
-        #     .format(ctx_str, pretrained))
-        # _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
     else:
         logger.info("Experimental: start training from scratch with {}"
             .format(ctx_str))
@@ -233,39 +211,57 @@ def train_net(net, train_path, num_classes, batch_size,
     # init training module
     mod = PlateauModule(net, label_names=('label',), logger=logger, context=ctx,
                         fixed_param_names=fixed_param_names)
-    # # init training module
-    # mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
-    #                     fixed_param_names=fixed_param_names)
+
+    # set parameter, display some info
+    if resume <= 0 and finetune <= 0:
+        mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
+        mod.init_params(initializer=mx.init.Xavier())
+        args0, auxs0 = mod.get_params()
+        arg_params = args0.copy()
+        aux_params = auxs0.copy()
+
+        for k, v in sorted(arg_params.items()):
+            print k, v.shape
+
+        if args is not None:
+            for k in args0:
+                if k in args and args0[k].shape == args[k].shape:
+                    arg_params[k] = args[k]
+                else:
+                    logger.info('Warning: param {} is inited from scratch.'.format(k))
+        if auxs is not None:
+            for k in auxs0:
+                if k in auxs and auxs0[k].shape == auxs[k].shape:
+                    aux_params[k] = auxs[k]
+                else:
+                    logger.info('Warning: param {} is inited from scratch.'.format(k))
+        # arg_params, aux_params = convert_spotnet(arg_params, aux_params)
+        mod.set_params(arg_params=arg_params, aux_params=aux_params)
 
     # fit parameters
-    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
+    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=False)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
-    eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': 0.2}
+    # eval_weights = {'Loss': 1.0, 'SmoothL1': 0.2, 'Acc': 0.0, 'Recall': 0.0}
+    eval_weights = None #{'Loss': 1.0, 'SmoothL1': 0.2, 'Acc': 0.0, 'Recall': 0.0}
     plateau_lr = PlateauScheduler( \
             patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
-    # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
-    #     lr_refactor_ratio, num_example, batch_size, begin_epoch)
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
-                      'clip_gradient': 4.0,
-                      'rescale_grad': 1.0 / len(ctx) if len(ctx) > 0 else 1.0 }
+                      'clip_gradient': 10.0,
+                      'rescale_grad': 1.0}
     if optimizer_name == 'sgd':
         optimizer_params['momentum'] = momentum
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
 
-
-    # run fit net, every n epochs we run evaluation network to get mAP
-    if voc07_metric:
-        valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=3)
-    else:
-        valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=3)
+    eval_metric = MultiBoxMetric()
+    valid_metric = None
 
     mod.fit(train_iter,
-            plateau_lr, plateau_metric=MultiBoxMetric(), fn_curr_model=prefix+'-1000.params',
+            plateau_lr, plateau_metric=None, fn_curr_model=prefix+'-1000.params',
             plateau_backtrace=False,
             eval_data=val_iter,
-            eval_metric=MultiBoxMetric(),
-            validation_metric=valid_metric,
+            eval_metric=eval_metric,
+            validation_metric=None,
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,
             optimizer=optimizer_name,

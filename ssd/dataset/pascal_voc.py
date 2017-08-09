@@ -5,6 +5,7 @@ from imdb import Imdb
 import xml.etree.ElementTree as ET
 from evaluate.eval_voc import voc_eval
 import cv2
+import cPickle
 
 
 class PascalVoc(Imdb):
@@ -24,6 +25,8 @@ class PascalVoc(Imdb):
     is_train : boolean
         if true, will load annotations
     """
+    IDX_VER = '170811_1'
+
     def __init__(self, image_set, year, devkit_path, shuffle=False, is_train=False,
             names='pascal_voc.names'):
         super(PascalVoc, self).__init__('voc_' + year + '_' + image_set)
@@ -41,10 +44,33 @@ class PascalVoc(Imdb):
                        'comp_id': 'comp4',}
 
         self.num_classes = len(self.classes)
-        self.image_set_index = self._load_image_set_index(shuffle)
-        self.num_images = len(self.image_set_index)
+
+        # try to load cached data
+        cached = self._load_from_cache()
+        if cached is None:  # no cached data, load from DB (and save)
+            fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
+            self.image_set_index = self._load_image_set_index(shuffle)
+            self.num_images = len(self.image_set_index)
+            self.labels, self.max_objects = self._load_image_labels()
+            # if self.is_train:
+            #     self.labels, self.max_objects = self._load_image_labels()
+            self._save_to_cache()
+        else:
+            self.image_set_index = cached['image_set_index']
+            self.num_images = len(self.image_set_index)
+            if self.is_train:
+                if 'labels' in cached:
+                    self.labels = cached['labels']
+                else:
+                    self.labels, self.max_objects = self._load_image_labels()
+                    self._save_to_cache()
+        if shuffle:
+            ridx = np.random.permutation(np.arange(self.num_images))
+            image_set_index = [self.image_set_index[i] for i in ridx]
+            labels = [self.labels[i] for i in ridx]
+            self.image_set_index, self.labels = image_set_index, labels
         if self.is_train:
-            self.labels = self._load_image_labels()
+            self.pad_labels()
 
     @property
     def cache_path(self):
@@ -60,7 +86,43 @@ class PascalVoc(Imdb):
             os.mkdir(cache_path)
         return cache_path
 
-    def _load_image_set_index(self, shuffle):
+    def _load_from_cache(self):
+        fn_cache = os.path.join(self.cache_path,
+                                self.name + '_' + self.IDX_VER + '.pkl')
+        cached = {}
+        if os.path.exists(fn_cache):
+            try:
+                with open(fn_cache, 'rb') as fh:
+                    header = cPickle.load(fh)
+                    assert header['ver'] == self.IDX_VER, "Version mismatch, re-index DB."
+                    self.max_objects = header['max_objects']
+                    iidx = cPickle.load(fh)
+                    cached['image_set_index'] = iidx['image_set_index']
+                    if self.is_train:
+                        labels = cPickle.load(fh)
+                        cached['labels'] = labels['labels']
+            except:
+                # print 'Exception in load_from_cache.'
+                return None
+        return None if not cached else cached
+
+    def _save_to_cache(self):
+        fn_cache = os.path.join(self.cache_path,
+                                self.name + '_' + self.IDX_VER + '.pkl')
+        with open(fn_cache, 'wb') as fh:
+            cPickle.dump({
+                'ver': self.IDX_VER,
+                'max_objects': self.max_objects
+            }, fh, cPickle.HIGHEST_PROTOCOL)
+            cPickle.dump({
+                'image_set_index': self.image_set_index
+            }, fh, cPickle.HIGHEST_PROTOCOL)
+            if self.is_train:
+                cPickle.dump({
+                    'labels': self.labels
+                }, fh, cPickle.HIGHEST_PROTOCOL)
+
+    def _load_image_set_index(self, shuffle=False):
         """
         find out which indexes correspond to given image set (train or val)
 
@@ -136,9 +198,10 @@ class PascalVoc(Imdb):
 
         Returns:
         ----------
-        labels packed in [num_images x max_num_objects x 5] tensor
+        labels packed in [num_images x max_num_objects x 6] tensor
         """
         temp = []
+        max_objects = 0
 
         # load ground-truth from xml annotations
         for idx in self.image_set_index:
@@ -164,8 +227,21 @@ class PascalVoc(Imdb):
                 xmax = float(xml_box.find('xmax').text) / width
                 ymax = float(xml_box.find('ymax').text) / height
                 label.append([cls_id, xmin, ymin, xmax, ymax, difficult])
+            if len(label) > max_objects:
+                max_objects = len(label)
             temp.append(np.array(label))
-        return temp
+
+        assert max_objects > 0, "No objects found for any of the images"
+        return temp, max_objects
+
+    def pad_labels(self):
+        """ labels: list of ndarrays """
+        self.padding = self.max_objects
+        for (i, label) in enumerate(self.labels):
+            padded = np.tile(np.full((6, ), -1, dtype=np.float32), (self.padding, 1))
+            padded[:label.shape[0], :] = label
+            self.labels[i] = padded
+            assert self.labels[i].shape[0] == self.max_objects
 
     def evaluate_detections(self, detections):
         """

@@ -65,6 +65,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     use_python_layer = True
 
     label = mx.sym.Variable('label')
+    kwargs['use_global_stats'] = False
     body = import_module(network).get_symbol(num_classes, **kwargs)
     layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
         min_filter=min_filter)
@@ -92,7 +93,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         normalization='valid', name="cls_loss")
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1., \
+    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=0.2, \
         normalization='valid', name="loc_loss")
 
     # monitoring training status

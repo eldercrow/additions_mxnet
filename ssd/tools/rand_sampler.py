@@ -268,3 +268,116 @@ class RandPadder(RandSampler):
             samples.append((rand_box, label))
             count += 1
         return samples
+
+
+class RandScaler(RandSampler):
+    """
+    Random scaling and cropping original images with various settings
+
+    Parameters:
+    ----------
+    min_scale : float
+        minimum scale, (0, 1]
+    max_scale : float
+        maximum scale, [1, inf), must larger than min_scale
+    min_gt_scale : float
+        minimum ground-truth scale to be satisfied after padding,
+        either width or height, [0, 1]
+    max_trials : int
+        maximum trials, if exceed this number, give up anyway
+    max_sample : int
+        maximum random crop samples to be generated
+    """
+    def __init__(self, patch_size, min_gt_scale=.01, max_trials=50, max_sample=1):
+        super(RandScaler, self).__init__(max_trials, max_sample)
+        '''
+        Experimental. Some parameters are hardcoded.
+        '''
+        assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
+        self.min_gt_scale = min_gt_scale
+        self.patch_size = patch_size
+
+        self.min_scale = 0.5
+        self.max_scale = 1.5
+        self.aspect = 0.15
+        # for sanity check
+        self.min_gt_overlap = 0.6667
+        self.min_gt_ignore = 0.3333
+
+    def sample(self, label, img_hw):
+        """
+        generate random padding boxes according to parameters
+        if satifactory padding generated, apply to ground-truth as well
+
+        Parameters:
+        ----------
+        label : numpy.array (n x 5 matrix)
+            ground-truths
+
+        Returns:
+        ----------
+        list of (crop_box, label) tuples, if failed, return empty list []
+        """
+        valid_mask = np.where(np.all(label == -1, axis=1) == False)[0]
+        gt = label[valid_mask, :]
+        gt[:, 1::2] *= img_hw[1]
+        gt[:, 2::2] *= img_hw[0]
+        samples = []
+        base_scale = self.patch_size / float(np.minimum(img_hw[0], img_hw[1]))
+        # base_scale = self.patch_size / float(np.sqrt(img_hw[0] * img_hw[1]))
+        for trial in range(self.max_trials):
+            scale = np.random.uniform(self.min_scale, self.max_scale)
+            asp = np.sqrt(1.0 + np.random.uniform(-self.aspect, self.aspect))
+            scale_x = scale * asp
+            scale_y = scale / asp
+            patch_sz_x = np.round(self.patch_size / scale_x)
+            patch_sz_y = np.round(self.patch_size / scale_y)
+            dx = img_hw[1] - patch_sz_x
+            dy = img_hw[0] - patch_sz_y
+            if dx != 0:
+                dx = np.random.randint(low=np.minimum(dx, 0), high=np.maximum(dx, 0))
+            if dy != 0:
+                dy = np.random.randint(low=np.minimum(dy, 0), high=np.maximum(dy, 0))
+            bbox = [dx, dy, dx+patch_sz_x, dy+patch_sz_y]
+
+            new_gt_boxes = []
+            for i, bb in enumerate(gt):
+                # some sanity check
+                overlap = _compute_overlap(bb[1:], bbox)
+                if overlap < self.min_gt_ignore:
+                    continue
+                new_size = max((bb[4] - bb[2]) / patch_sz_y, (bb[3] - bb[1]) / patch_sz_x)
+                if new_size < (self.min_gt_scale * 0.707):
+                    continue
+                # ignore check
+                if new_size < self.min_gt_scale or overlap < self.min_gt_overlap:
+                    l = -1
+                else:
+                    l = bb[0]
+                new_gt_boxes.append([l, bb[1]-dx, bb[2]-dy, bb[3]-dx, bb[4]-dy])
+
+            new_gt_boxes = np.reshape(np.array(new_gt_boxes), (-1, 5))
+            if len(new_gt_boxes) == 0 and trial < self.max_trials - 1:
+                continue
+            new_gt_boxes[:, 1::2] /= float(patch_sz_x)
+            new_gt_boxes[:, 2::2] /= float(patch_sz_y)
+            label = np.lib.pad(new_gt_boxes,
+                ((0, label.shape[0]-new_gt_boxes.shape[0]), (0,0)), \
+                'constant', constant_values=(-1, -1))
+            samples.append((bbox, label))
+            break
+        return samples[0]
+
+
+def _compute_overlap(roi, img_roi):
+    #
+    ox = _compute_overlap_1d(roi[0], roi[2], img_roi[0], img_roi[2])
+    oy = _compute_overlap_1d(roi[1], roi[3], img_roi[1], img_roi[3])
+    return ox * oy
+
+
+def _compute_overlap_1d(p0, p1, q0, q1):
+    ''' p0, p1, q0, q1: size of (n_rows, ) '''
+    I = np.maximum(0.0, np.minimum(p1, q1) - np.maximum(p0, q0))
+    U = np.maximum(1e-08, p1 - p0)
+    return np.minimum(1.0, I / U)

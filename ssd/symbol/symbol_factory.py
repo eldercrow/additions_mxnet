@@ -1,6 +1,7 @@
 """Presets for various network configurations"""
 import logging
 import symbol_builder
+import numpy as np
 
 def get_config(network, data_shape, **kwargs):
     """Configuration factory for various networks
@@ -76,6 +77,21 @@ def get_config(network, data_shape, **kwargs):
         sizes = [[.1, .141], [.2,.272], [.37, .447], [.54, .619], [.71, .79], [.88, .961]]
         ratios = [[1,2,.5], [1,2,.5,3,1./3], [1,2,.5,3,1./3], [1,2,.5,3,1./3], \
             [1,2,.5], [1,2,.5]]
+        normalizations = -1
+        steps = []
+        return locals()
+    elif network == 'hypernet':
+        network = 'hypernet'
+        from_layers = ['hyper{}'.format(i) for i in range(6)]
+        num_filters = [-1] * 6
+        strides = [-1] * 6
+        pads = [-1] * 6
+        r1 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
+        r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
+        ratios = [r1, r2, r2, r2, r1, r1]
+        del r1, r2, i
+        sizes = [[1.0/12, 1.0/16], [1.0/6, 1.0/8], [1.0/4, 1.0/3], \
+                 [2.0/3, 1.0/2], [5.0/6, 7.0/8], [11.0/12, 15.0/16]]
         normalizations = -1
         steps = []
         return locals()

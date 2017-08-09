@@ -11,10 +11,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
     """
     Python implementation of MultiBoxTarget layer.
     """
-    def __init__(self,
-            th_iou=0.5, th_iou_neg=1.0/3.0, th_nms_neg=1.0/2.0,
-            reg_sample_ratio=2.0, hard_neg_ratio=3.0,
-            variances=(0.1, 0.1, 0.2, 0.2)):
+    def __init__(self, th_iou, th_iou_neg, th_nms_neg,
+            reg_sample_ratio, hard_neg_ratio, variances):
         #
         super(MultiBoxTarget, self).__init__()
         self.th_iou = th_iou
@@ -129,11 +127,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
             target_reg[pidx, :] = rt
             mask_reg[pidx, :] = rm
 
-            ridx = ridx[max_cids[ridx] == gt_cls]
-            ridx = ridx[target_cls[ridx] == -1]
-            n_reg_sample = len(pidx) * self.reg_sample_ratio
-            if len(ridx) > n_reg_sample:
-                ridx = np.random.choice(ridx, n_reg_sample, replace=False)
+            # ridx = ridx[max_cids[ridx] == gt_cls]
+            # ridx = ridx[target_cls[ridx] == -1]
+            # n_reg_sample = len(pidx) * self.reg_sample_ratio
+            # if len(ridx) > n_reg_sample:
+            #     ridx = np.random.choice(ridx, n_reg_sample, replace=False)
             target_cls[ridx] = -1
             rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
             target_reg[ridx, :] = rt
@@ -144,6 +142,9 @@ class MultiBoxTarget(mx.operator.CustomOp):
     def _forward_batch_neg(self, bg_probs, max_iou, target_cls):
         # first remove positive samples from mining
         n_neg_sample = int(np.sum(target_cls > 0)) * self.hard_neg_ratio
+        if n_neg_sample == 0:
+            logging.info("No negative sample, will put one at least.")
+        n_neg_sample = np.maximum(n_neg_sample, 1)
         rmask = np.logical_or(max_iou > self.th_iou_neg, target_cls > 0)
         ridx = np.where(rmask)[0]
         bg_probs[ridx] = -1.0

@@ -19,6 +19,7 @@ class ConcatDB(Imdb):
         self.imdbs = imdbs
         self._check_classes()
         self.image_set_index = self._load_image_set_index(shuffle)
+        self.pad_labels()
 
     def _check_classes(self):
         """
@@ -72,6 +73,16 @@ class ConcatDB(Imdb):
                 pos -= v.num_images
             else:
                 return (k, pos)
+
+    def pad_labels(self):
+        max_objects = 0
+        for imdb in self.imdbs:
+            if imdb.max_objects > max_objects:
+                max_objects = imdb.max_objects
+        for imdb in self.imdbs:
+            imdb.max_objects = max_objects
+            imdb.pad_labels()
+        self.max_objects = max_objects
 
     def image_path_from_index(self, index):
         """
