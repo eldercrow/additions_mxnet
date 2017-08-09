@@ -12,6 +12,8 @@ class ReweightLoss(mx.operator.CustomOp):
         self.gamma = gamma
         self.normalize = normalize
 
+        self.eps = 1e-08
+
     def forward(self, is_train, req, in_data, out_data, aux):
         '''
         Just pass the data.
@@ -24,10 +26,11 @@ class ReweightLoss(mx.operator.CustomOp):
         For now we use gamma == 2 case, JUST FOR TEST.
         '''
         p = mx.nd.pick(in_data[0], in_data[1], axis=1, keepdims=True)
-        u = 1 - p - (p * mx.nd.log(p))
+        u = 1 - p - (p * mx.nd.log(mx.nd.maximum(p, self.eps)))
         g = self.alpha * (1 - p) * u
         if self.normalize:
             g /= mx.nd.sum(in_data[1] > 0).asscalar()
+        g *= (in_data[1] >= 0)
 
         self.assign(in_grad[0], req[0], out_grad[0] * g)
         self.assign(in_grad[1], req[1], 0)
