@@ -14,7 +14,7 @@ def get_symbol(num_classes=1000, **kwargs):
         num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
-    pool1 = pool(bn1)
+    pool1 = bn1
 
     n_curr_ch = 32
 
