@@ -4,9 +4,10 @@ import numpy as np
 
 class MultiBoxMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, eps=1e-8):
+    def __init__(self, eps=1e-8, use_focal_loss=False):
         super(MultiBoxMetric, self).__init__('MultiBox')
         self.eps = eps
+        self.use_focal_loss = use_focal_loss
         self.num = 2
         self.name = ['CrossEntropy', 'SmoothL1']
         self.reset()
@@ -31,14 +32,17 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         loc_loss = preds[1].asnumpy()
         cls_label = preds[2].asnumpy()
         loc_label = preds[3].asnumpy()
-        valid_count = np.sum(cls_label >= 0)
+        valid_count = np.sum(cls_label > 0) if self.use_focal_loss else np.sum(cls_label >= 0)
         # overall accuracy & object accuracy
         label = cls_label.flatten()
         mask = np.where(label >= 0)[0]
         indices = np.int64(label[mask])
         prob = cls_prob.transpose((0, 2, 1)).reshape((-1, cls_prob.shape[1]))
         prob = prob[mask, indices]
-        self.sum_metric[0] += (-np.log(prob + self.eps)).sum()
+        loss = -np.log(prob + self.eps)
+        if self.use_focal_loss:
+            loss *= np.power(1 - prob, 2.0) * 0.25
+        self.sum_metric[0] += loss.sum()
         self.num_inst[0] += valid_count
         # smoothl1loss
         self.sum_metric[1] += np.sum(loc_loss)

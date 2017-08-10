@@ -254,6 +254,8 @@ def train_net(net, train_path, num_classes, batch_size,
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
 
 
+    plateau_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
+    eval_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
     # run fit net, every n epochs we run evaluation network to get mAP
     if voc07_metric:
         valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
@@ -261,10 +263,11 @@ def train_net(net, train_path, num_classes, batch_size,
         valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
 
     mod.fit(train_iter,
-            plateau_lr, plateau_metric=MultiBoxMetric(), fn_curr_model=prefix+'-1000.params',
+            plateau_lr, plateau_metric=plateau_metric,
+            fn_curr_model=prefix+'-1000.params',
             plateau_backtrace=False,
             eval_data=val_iter,
-            eval_metric=MultiBoxMetric(),
+            eval_metric=eval_metric,
             validation_metric=valid_metric,
             batch_end_callback=batch_end_callback,
             epoch_end_callback=epoch_end_callback,

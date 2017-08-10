@@ -3,6 +3,7 @@ from common import multi_layer_feature, multibox_layer
 from layer.multibox_target_layer import *
 from layer.dummy_layer import *
 from layer.reweight_loss_layer import *
+from config.config import cfg
 
 
 def import_module(module_name):
@@ -65,7 +66,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     """
     use_python_layer = True
-    use_focal_loss = True
+    use_focal_loss = cfg.train['use_focal_loss']
 
     label = mx.sym.Variable('label')
     kwargs['use_global_stats'] = False
