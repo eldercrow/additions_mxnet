@@ -1,6 +1,8 @@
 import mxnet as mx
 from common import multi_layer_feature, multibox_layer
 from layer.multibox_target_layer import *
+from layer.dummy_layer import *
+from layer.reweight_loss_layer import *
 
 
 def import_module(module_name):
@@ -63,6 +65,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     """
     use_python_layer = True
+    use_focal_loss = True
 
     label = mx.sym.Variable('label')
     kwargs['use_global_stats'] = False
@@ -75,36 +78,46 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
 
     if use_python_layer:
+        neg_ratio = -1 if use_focal_loss else 3
         cls_probs = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
         tmp = mx.sym.Custom(*[anchor_boxes, label, cls_probs], name='multibox_target', 
-                op_type='multibox_target')
+                op_type='multibox_target', hard_neg_ratio=neg_ratio)
     else:
+        neg_ratio = -1 if use_focal_loss else 3
         tmp = mx.contrib.symbol.MultiBoxTarget(
             *[anchor_boxes, label, cls_preds], overlap_threshold=.5, \
-            ignore_label=-1, negative_mining_ratio=3, minimum_negative_samples=0, \
+            ignore_label=-1, negative_mining_ratio=neg_ratio, minimum_negative_samples=0, \
             negative_mining_thresh=.5, variances=(0.1, 0.1, 0.2, 0.2),
             name="multibox_target")
     loc_target = tmp[0]
     loc_target_mask = tmp[1]
     cls_target = tmp[2]
 
-    cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
-        ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
-        normalization='valid', name="cls_loss")
+    if use_focal_loss:
+        cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
+            ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
+            normalization='null', name="cls_prob", out_grad=True)
+        cls_loss = mx.sym.Custom(cls_loss, cls_target, op_type='reweight_loss', name='focal_loss')
+        cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
+    else:
+        cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
+            ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
+            normalization='valid', name="cls_loss")
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=0.2, \
+    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
         normalization='valid', name="loc_loss")
 
     # monitoring training status
-    cls_label = mx.symbol.MakeLoss(data=cls_target, grad_scale=0, name="cls_label")
+    cls_label = mx.sym.BlockGrad(cls_target, name="cls_label")
+    loc_label = mx.sym.BlockGrad(loc_target_mask, name='loc_label')
     det = mx.contrib.symbol.MultiBoxDetection(*[cls_loss, loc_preds, anchor_boxes], \
         name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
         variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk)
     det = mx.symbol.MakeLoss(data=det, grad_scale=0, name="det_out")
 
     # group output
-    out = mx.symbol.Group([cls_loss, loc_loss, cls_label, det])
+    out = mx.symbol.Group([cls_loss, loc_loss, cls_label, loc_label, det])
     return out
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,

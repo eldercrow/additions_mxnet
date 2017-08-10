@@ -7,5 +7,5 @@ python train.py \
     --pretrained none \
     --epoch 1000 \
     --lr 0.002 \
-    --frequent 100 \
-    --gpus 0,1
+    --frequent 20 \
+    --gpus 0

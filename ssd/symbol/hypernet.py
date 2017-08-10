@@ -11,27 +11,26 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=12, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1)
 
-    n_curr_ch = 24
+    n_curr_ch = 32
 
     bn2, n_curr_ch = inception_group(pool1, '2/', n_curr_ch,
-            num_filter_3x3=(16, 16), num_filter_1x1=64, use_crelu=True,
+            num_filter_3x3=(32, 32), num_filter_1x1=64,
             use_global_stats=use_global_stats)
     pool2 = pool(bn2)
 
     bn3, n_curr_ch = inception_group(pool2, '3/', n_curr_ch,
-            num_filter_3x3=(48, 24, 24), num_filter_1x1=96,
+            num_filter_3x3=(64, 32, 32), num_filter_1x1=96,
             use_global_stats=use_global_stats)
 
-    # 96, 48, 24, 12, 6, 3, 1
     feat_sz = [56, 28, 14, 7, 3, 1]
-    nf_3x3 = [(64, 32, 32), (96, 48, 48), (128, 64, 64), (64, 64), (128,), ()]
-    nf_1x1 = [128, 192, 256, 128, 128, 128]
-    nf_init = [64, 96, 128, 64, 64, 64]
+    nf_3x3 = [(96, 48, 48), (128, 64, 64), (128, 64, 64), (64, 64), (128,), ()]
+    nf_1x1 = [192, 256, 256, 128, 128, 128]
+    nf_init = [96, 128, 128, 64, 64, 64]
 
     group_i = bn3
     groups = []
@@ -47,7 +46,7 @@ def get_symbol(num_classes=1000, **kwargs):
 
     upgroups = []
     upscales = (2, 2, 2, 3, 3)
-    nf_up = (128, 64, 64, 64, 64)
+    nf_up = (64, 64, 64, 64, 64)
     for i, (g, s, u) in enumerate(zip(groups[1:], upscales, nf_up)):
         u = upsample_feature(g, 'gu{}{}/'.format(i+1, i), scale=s,
                 num_filter_proj=64, num_filter_upsample=u,
@@ -71,19 +70,24 @@ def get_symbol(num_classes=1000, **kwargs):
         d = relu_conv_bn(g, 'gd{}/'.format(i), 
                 num_filter=64, kernel=(3,3), pad=pad, stride=(2,2),
                 use_global_stats=use_global_stats)
-        # if i == 4:
-        #     d = mx.sym.Crop(d, h_w=(3, 3))
         dgroups.append(d)
 
     hgroups = []
-    nf_hyper = (384, 384, 256, 256, 256, 256)
-    for i, (g, u, d, nf) in enumerate(zip(groups, upgroups, dgroups, nf_hyper)):
+    nf_hyper = (512, 512, 384, 384, 384, 384)
+    nf_hyper_proj = (128, 128, 96, 96, 96, 96)
+    for i, (g, u, d, nf, nf_p) in enumerate(zip(groups, upgroups, dgroups, nf_hyper, nf_hyper_proj)):
         h = [g] + u + [d]
         c = mx.sym.concat(*h)
-        h = relu_conv_bn(c, 'hyper{}/'.format(i),
+        hc = relu_conv_bn(c, 'hyperc{}/'.format(i),
                 num_filter=nf, kernel=(1,1), pad=(0,0),
                 use_global_stats=use_global_stats)
-        hyper = mx.sym.Activation(h, name='hyper{}'.format(i), act_type='relu')
+        hp = relu_conv_bn(hc, 'hyperp{}/'.format(i),
+                num_filter=nf_p, kernel=(3,3), pad=(1,1),
+                use_global_stats=use_global_stats)
+        h = relu_conv_bn(hp, 'hyper{}/'.format(i),
+                num_filter=nf, kernel=(1,1), pad=(0,0),
+                use_global_stats=use_global_stats)
+        hyper = mx.sym.Activation(hc+h, name='hyper{}'.format(i), act_type='relu')
         hgroups.append(hyper)
 
     pooled = []

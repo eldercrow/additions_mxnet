@@ -18,6 +18,8 @@ class DummyLayer(mx.operator.CustomOp):
         '''
         Pass the gradient.
         '''
+        import ipdb
+        ipdb.set_trace()
         self.assign(in_grad[0], req[0], out_grad[0])
 
 

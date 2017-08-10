@@ -240,7 +240,7 @@ def train_net(net, train_path, num_classes, batch_size,
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
-    eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': 0.2}
+    eval_weights = None #{'CrossEntropy': 1.0, 'SmoothL1': 0.2}
     plateau_lr = PlateauScheduler( \
             patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
     # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
@@ -256,9 +256,9 @@ def train_net(net, train_path, num_classes, batch_size,
 
     # run fit net, every n epochs we run evaluation network to get mAP
     if voc07_metric:
-        valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=3)
+        valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
     else:
-        valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=3)
+        valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
 
     mod.fit(train_iter,
             plateau_lr, plateau_metric=MultiBoxMetric(), fn_curr_model=prefix+'-1000.params',

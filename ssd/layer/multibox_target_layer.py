@@ -129,9 +129,9 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
             # ridx = ridx[max_cids[ridx] == gt_cls]
             # ridx = ridx[target_cls[ridx] == -1]
-            # n_reg_sample = len(pidx) * self.reg_sample_ratio
-            # if len(ridx) > n_reg_sample:
-            #     ridx = np.random.choice(ridx, n_reg_sample, replace=False)
+            n_reg_sample = len(pidx) * self.reg_sample_ratio
+            if len(ridx) > n_reg_sample:
+                ridx = np.random.choice(ridx, n_reg_sample, replace=False)
             target_cls[ridx] = -1
             rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
             target_reg[ridx, :] = rt
@@ -140,14 +140,25 @@ class MultiBoxTarget(mx.operator.CustomOp):
         return target_cls, target_reg, mask_reg, max_iou
 
     def _forward_batch_neg(self, bg_probs, max_iou, target_cls):
+        '''
+        '''
+        # mask for negative sampling region
+        rmask = np.logical_or(max_iou > self.th_iou_neg, target_cls > 0)
+
+        # no hard negative sampling case
+        if self.hard_neg_ratio <= 0:
+            target_cls[rmask == False] = 0
+            return target_cls
+
         # first remove positive samples from mining
+        ridx = np.where(rmask)[0]
+        bg_probs[ridx] = -1.0
+
+        # number of hard samples
         n_neg_sample = int(np.sum(target_cls > 0)) * self.hard_neg_ratio
         if n_neg_sample == 0:
             logging.info("No negative sample, will put one at least.")
         n_neg_sample = np.maximum(n_neg_sample, 1)
-        rmask = np.logical_or(max_iou > self.th_iou_neg, target_cls > 0)
-        ridx = np.where(rmask)[0]
-        bg_probs[ridx] = -1.0
 
         neg_probs = []
         neg_anchor_locs = []

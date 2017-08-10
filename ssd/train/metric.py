@@ -30,6 +30,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         cls_prob = preds[0].asnumpy()
         loc_loss = preds[1].asnumpy()
         cls_label = preds[2].asnumpy()
+        loc_label = preds[3].asnumpy()
         valid_count = np.sum(cls_label >= 0)
         # overall accuracy & object accuracy
         label = cls_label.flatten()
@@ -41,7 +42,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         self.num_inst[0] += valid_count
         # smoothl1loss
         self.sum_metric[1] += np.sum(loc_loss)
-        self.num_inst[1] += valid_count
+        self.num_inst[1] += np.sum(loc_label)
 
     def get(self):
         """Get the current evaluation result.

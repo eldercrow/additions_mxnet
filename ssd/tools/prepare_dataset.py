@@ -106,8 +106,9 @@ if __name__ == '__main__':
     print("List file {} generated...".format(args.target))
 
     subprocess.check_call(["python",
-        os.path.join(curr_path, "../../../tools/im2rec.py"),
+        os.path.join("/home/hyunjoon/github/incubator-mxnet/tools/im2rec.py"),
+        # os.path.join(curr_path, "../../../tools/im2rec.py"),
         os.path.abspath(args.target), os.path.abspath(args.root_path),
-        "--shuffle", str(int(args.shuffle)), "--pack-label", "1"])
+        "--shuffle", str(int(args.shuffle)), "--pack-label", "1", '--num-thread', '4'])
 
     print("Record file {} generated...".format(args.target.split('.')[0] + '.rec'))
