@@ -2,10 +2,10 @@ python train.py \
     --network hypernet \
     --batch-size 16 \
     --data-shape 448 \
-    --optimizer-name nadam \
+    --optimizer-name sgd \
     --freeze '' \
     --pretrained none \
     --epoch 1000 \
-    --lr 0.001 \
-    --frequent 20 \
-    --gpus 0
+    --lr 2e-03 \
+    --frequent 100 \
+    --gpus 0,1

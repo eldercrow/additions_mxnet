@@ -52,7 +52,7 @@ def relu_conv_bn(data, prefix_name, num_filter,
     relu_ = mx.sym.Activation(data, act_type='relu')
     syms['relu'] = relu_
 
-    conv_ = convolution(relu_, conv_name, num_filter, 
+    conv_ = convolution(relu_, conv_name, num_filter,
             kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
     syms['conv'] = conv_
 
@@ -67,6 +67,51 @@ def relu_conv_bn(data, prefix_name, num_filter,
         return bn_, syms
     else:
         return bn_
+
+
+def conv_group(data,
+               prefix_name,
+               n_curr_ch,
+               num_filter_3x3,
+               num_filter_1x1=0,
+               num_filter_init=0,
+               use_crelu=False,
+               use_global_stats=False):
+    '''
+    '''
+    n_prev_ch = n_curr_ch
+
+    if num_filter_init > 0:
+        bn_ = relu_conv_bn(data, prefix_name=prefix_name+'init/',
+                num_filter=num_filter_init, kernel=(1,1), pad=(0,0),
+                use_global_stats=use_global_stats)
+        n_curr_ch = num_filter_init
+    else:
+        bn_ = data
+
+    for ii, nf3 in enumerate(num_filter_3x3):
+        bn_ = relu_conv_bn(
+            bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
+            num_filter=nf3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu,
+            use_global_stats=use_global_stats)
+        n_curr_ch = nf3 * 2 if use_crelu else nf3
+
+    if num_filter_1x1 > 0:
+        proj_ = relu_conv_bn(bn_,
+                prefix_name=prefix_name + '1x1/',
+                num_filter=num_filter_1x1, kernel=(1,1),
+                use_global_stats=use_global_stats)
+        n_curr_ch = num_filter_1x1
+    else:
+        proj_ = bn_
+
+    if n_prev_ch != n_curr_ch:
+        data = relu_conv_bn(data, prefix_name=prefix_name + 'proj/',
+            num_filter=n_curr_ch, kernel=(1,1),
+            use_global_stats=use_global_stats)
+
+    res_ = proj_ + data
+    return res_, n_curr_ch
 
 
 def inception_group(data,

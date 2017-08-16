@@ -38,6 +38,7 @@ class ReweightLoss(mx.operator.CustomOp):
         v = 1 - p if self.gamma == 2.0 else mx.nd.power(1 - p, self.gamma - 1.0)
         g = self.alpha * v * u
         g *= (mx.nd.reshape(in_data[1], (n_batch, 1, -1)) >= 0)
+
         if self.normalize:
             g /= mx.nd.sum(in_data[1] > 0).asscalar()
 

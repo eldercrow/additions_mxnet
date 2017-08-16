@@ -29,6 +29,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.area_anchors_t = None
 
         self.th_anc_overlap = 0.6
+        self.th_small = 1.0 / 25.0
 
     def forward(self, is_train, req, in_data, out_data, aux):
         """
@@ -111,6 +112,9 @@ class MultiBoxTarget(mx.operator.CustomOp):
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
+            gt_sz = np.maximum(label[3]-label[1], label[4]-label[2])
+            if gt_sz < self.th_small and np.max(iou) < 0.1:
+                continue
             # skip oob boxes
             iou_mask = np.logical_and(iou_mask, self.oob_mask == False)
 
@@ -155,9 +159,9 @@ class MultiBoxTarget(mx.operator.CustomOp):
         bg_probs[ridx] = -1.0
 
         # number of hard samples
-        n_neg_sample = int(np.sum(target_cls > 0)) * self.hard_neg_ratio
-        if n_neg_sample == 0:
-            logging.info("No negative sample, will put one at least.")
+        n_neg_sample = int(np.sum(target_cls > 0) * self.hard_neg_ratio)
+        # if n_neg_sample == 0:
+        #     logging.info("No negative sample, will put one at least.")
         n_neg_sample = np.maximum(n_neg_sample, 1)
 
         neg_probs = []
@@ -172,12 +176,13 @@ class MultiBoxTarget(mx.operator.CustomOp):
                 continue
 
             target_cls[ii] = 0
-            # apply nms
-            if len(self.nidx_neg[ii]) == 0:
-                self.nidx_neg[ii] = _compute_nms_cands( \
-                        self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms_neg)
-            nidx = self.nidx_neg[ii]
-            bg_probs[nidx] = -1
+            if self.th_nms_neg < 1.0:
+                # apply nms
+                if len(self.nidx_neg[ii]) == 0:
+                    self.nidx_neg[ii] = _compute_nms_cands( \
+                            self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms_neg)
+                nidx = self.nidx_neg[ii]
+                bg_probs[nidx] = -1
             k += 1
             if k >= n_neg_sample:
                 break
@@ -243,7 +248,7 @@ def _compute_loc_target(gt_bb, bb, variances):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self,
-            th_iou=0.5, th_iou_neg=1.0/3.0, th_nms_neg=1.0/2.0,
+            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0,
             reg_sample_ratio=2.0, hard_neg_ratio=3.0,
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
@@ -252,7 +257,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         self.th_iou_neg = float(th_iou_neg)
         self.th_nms_neg = float(th_nms_neg)
         self.reg_sample_ratio = int(reg_sample_ratio)
-        self.hard_neg_ratio = int(hard_neg_ratio)
+        self.hard_neg_ratio = float(hard_neg_ratio)
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.reshape(np.array(variances), (1, -1))

@@ -18,19 +18,19 @@ def get_symbol(num_classes=1000, **kwargs):
 
     n_curr_ch = 32
 
-    bn2, n_curr_ch = inception_group(pool1, '2/', n_curr_ch,
-            num_filter_3x3=(32, 32), num_filter_1x1=64,
+    bn2, n_curr_ch = conv_group(pool1, '2/', n_curr_ch,
+            num_filter_3x3=(24, 48), use_crelu=True,
             use_global_stats=use_global_stats)
     pool2 = pool(bn2)
 
-    bn3, n_curr_ch = inception_group(pool2, '3/', n_curr_ch,
-            num_filter_3x3=(64, 32, 32), num_filter_1x1=96,
+    bn3, n_curr_ch = conv_group(pool2, '3/', n_curr_ch,
+            num_filter_3x3=(48, 96, 192),
             use_global_stats=use_global_stats)
 
-    feat_sz = [56, 28, 14, 7, 3, 1]
-    nf_3x3 = [(96, 48, 48), (128, 64, 64), (128, 64, 64), (64, 64), (128,), ()]
-    nf_1x1 = [192, 256, 256, 128, 128, 128]
-    nf_init = [96, 128, 128, 64, 64, 64]
+    # feat_sz = [56, 28, 14, 7, 3, 1]
+    nf_3x3 = [(64, 128, 256), (96, 192, 384), (96, 192, 384), (128, 256), (256,), ()]
+    nf_1x1 = [0, 0, 0, 0, 0, 256]
+    nf_init = [64, 96, 96, 128, 128, 128]
 
     group_i = bn3
     groups = []
@@ -39,14 +39,14 @@ def get_symbol(num_classes=1000, **kwargs):
             group_i = pool(group_i, kernel=(3, 3))
         else:
             group_i = pool(group_i)
-        group_i, n_curr_ch = inception_group(group_i, 'g{}/'.format(i), n_curr_ch,
+        group_i, n_curr_ch = conv_group(group_i, 'g{}/'.format(i), n_curr_ch,
                 num_filter_3x3=nf3, num_filter_1x1=nf1, num_filter_init=nfi,
                 use_global_stats=use_global_stats)
         groups.append(group_i)
 
     upgroups = []
     upscales = (2, 2, 2, 3, 3)
-    nf_up = (64, 64, 64, 64, 64)
+    nf_up = (64, 128, 128, 128, 128)
     for i, (g, s, u) in enumerate(zip(groups[1:], upscales, nf_up)):
         u = upsample_feature(g, 'gu{}{}/'.format(i+1, i), scale=s,
                 num_filter_proj=64, num_filter_upsample=u,
@@ -56,7 +56,7 @@ def get_symbol(num_classes=1000, **kwargs):
         upgroups.append([u])
     upgroups[0].append( \
             upsample_feature(groups[2], 'gu20/', scale=4,
-                num_filter_proj=64, num_filter_upsample=64,
+                num_filter_proj=64, num_filter_upsample=128,
                 use_global_stats=use_global_stats))
     upgroups.append([])
 
@@ -67,14 +67,14 @@ def get_symbol(num_classes=1000, **kwargs):
             pad = (0, 0)
         else:
             pad = (1, 1)
-        d = relu_conv_bn(g, 'gd{}/'.format(i), 
+        d = relu_conv_bn(g, 'gd{}/'.format(i),
                 num_filter=64, kernel=(3,3), pad=pad, stride=(2,2),
                 use_global_stats=use_global_stats)
         dgroups.append(d)
 
     hgroups = []
-    nf_hyper = (512, 512, 384, 384, 384, 384)
-    nf_hyper_proj = (128, 128, 96, 96, 96, 96)
+    nf_hyper = (512, 768, 768, 512, 512, 384)
+    nf_hyper_proj = (192, 256, 256, 192, 192, 128)
     for i, (g, u, d, nf, nf_p) in enumerate(zip(groups, upgroups, dgroups, nf_hyper, nf_hyper_proj)):
         h = [g] + u + [d]
         c = mx.sym.concat(*h)

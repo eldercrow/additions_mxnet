@@ -26,7 +26,7 @@ class PlateauModule(Module):
             eval_batch_end_callback=None, initializer=mx.init.Uniform(0.01),
             arg_params=None, aux_params=None, allow_missing=False,
             force_rebind=False, force_init=False, begin_epoch=0, num_epoch=None,
-            validation_metric=None, monitor=None):
+            validation_metric=None, validation_period=1, monitor=None):
         ''' 
         overrides fit() in base_module.
         '''
@@ -109,7 +109,7 @@ class PlateauModule(Module):
 
             #----------------------------------------
             # evaluation on validation set
-            if eval_data:
+            if eval_data and epoch % validation_period == 0:
                 res = self.score(eval_data, validation_metric,
                                  score_end_callback=eval_end_callback,
                                  batch_end_callback=eval_batch_end_callback, epoch=epoch)

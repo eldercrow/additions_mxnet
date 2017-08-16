@@ -104,6 +104,8 @@ class RandCropper(RandSampler):
             valid_mask = np.where(label[:, 0] > -1)[0]
             gt = label[valid_mask, :]
             ious = self._check_satisfy(rand_box, gt)
+            import ipdb
+            ipdb.set_trace()
             if ious is not None:
                 # transform gt labels after crop, discard bad ones
                 l, t, r, b = rand_box

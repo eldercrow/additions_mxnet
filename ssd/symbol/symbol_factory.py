@@ -90,8 +90,10 @@ def get_config(network, data_shape, **kwargs):
         r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
         ratios = [r1, r2, r2, r2, r1, r1]
         del r1, r2, i
-        sizes = [[1.0/12, 1.0/16], [1.0/6, 1.0/8], [1.0/4, 1.0/3], \
-                 [2.0/3, 1.0/2], [5.0/6, 7.0/8], [11.0/12, 15.0/16]]
+        sizes = [[32, 24], [64, 48], [128, 96], \
+                 [256, 192], [448-64, 448-48], [448-32, 448]]
+        sizes = np.array(sizes) / 448.0
+        sizes = sizes.tolist()
         normalizations = -1
         steps = []
         return locals()
