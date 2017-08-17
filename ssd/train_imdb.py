@@ -13,7 +13,7 @@ def parse_args():
                         default='trainval', type=str)
     parser.add_argument('--year', dest='year', help='can be 2007, 2012',
                         default='2007,2012', type=str)
-    parser.add_argument('--devkit-path', dest='devkit_path', help='VOCdevkit path',
+    parser.add_argument('--devkit-path', dest='devkit_path', help='VOCdevkit or Wider path',
                         default=os.path.join(os.getcwd(), 'data', 'VOCdevkit'), type=str)
     parser.add_argument('--network', dest='network', type=str, default='hypernet',
                         help='which network to use')
@@ -41,6 +41,8 @@ def parse_args():
                         default=20, type=int)
     parser.add_argument('--data-shape', dest='data_shape', type=int, default=768,
                         help='set image shape')
+    parser.add_argument('--force-resize', dest='force_resize', type=bool, default=True,
+                        help='resize image to patch size')
     parser.add_argument('--optimizer-name', dest='optimizer_name', type=str, default='adam',
                         help='optimizer name')
     parser.add_argument('--lr', dest='learning_rate', type=float, default=0.001,
@@ -89,6 +91,7 @@ if __name__ == '__main__':
               args.frequent,
               args.optimizer_name, args.learning_rate, args.momentum, args.weight_decay,
               args.lr_refactor_step, args.lr_refactor_ratio,
+              force_resize=args.force_resize,
               year=args.year,
               freeze_layer_pattern=args.freeze_pattern,
               iter_monitor=args.monitor,

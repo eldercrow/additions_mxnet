@@ -7,7 +7,7 @@ import importlib
 import re
 from dataset.iterator import DetIter
 # from dataset.patch_iterator import PatchIter
-from dataset.dataset_loader import load_pascal #, load_pascal_patch
+from dataset.dataset_loader import load_pascal, load_wider #, load_pascal_patch
 from train.metric import MultiBoxMetric #, FacePatchMetric, RONMetric
 from tools.rand_sampler import RandScaler
 # import tools.load_model as load_model
@@ -56,6 +56,32 @@ def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
         steps = [epoch_size * (x - begin_epoch) for x in iter_refactor if x > begin_epoch]
         lr_scheduler = mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=lr_refactor_ratio)
         return (lr, lr_scheduler)
+
+
+def set_mod_params(mod, args, auxs, logger):
+    mod.init_params(initializer=mx.init.Xavier())
+    args0, auxs0 = mod.get_params()
+    arg_params = args0.copy()
+    aux_params = auxs0.copy()
+
+    for k, v in sorted(arg_params.items()):
+        print k, v.shape
+
+    if args is not None:
+        for k in args0:
+            if k in args and args0[k].shape == args[k].shape:
+                arg_params[k] = args[k]
+            else:
+                logger.info('Warning: param {} is inited from scratch.'.format(k))
+    if auxs is not None:
+        for k in auxs0:
+            if k in auxs and auxs0[k].shape == auxs[k].shape:
+                aux_params[k] = auxs[k]
+            else:
+                logger.info('Warning: param {} is inited from scratch.'.format(k))
+    mod.set_params(arg_params=arg_params, aux_params=aux_params)
+    return mod
+
 
 def train_net(net, dataset, image_set, devkit_path, batch_size,
               data_shape, mean_pixels, resume, finetune, from_scratch, pretrained, epoch,
@@ -144,13 +170,11 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     # load dataset
     if dataset == 'pascal_voc':
         imdb = load_pascal(image_set, year, devkit_path, cfg.train['shuffle'])
-        val_imdb = None
-    # elif dataset == 'pascal_voc_patch':
-    #     imdb = load_pascal_patch(image_set, year, devkit_path, shuffle=cfg.train['init_shuffle'],
-    #             patch_shape=data_shape[1])
-    #     val_imdb = None
+    elif dataset == 'wider':
+        imdb = load_wider(image_set, devkit_path, cfg.train['shuffle'])
     else:
         raise NotImplementedError("Dataset " + dataset + " not supported")
+    val_imdb = None
 
     # init iterator
     patch_size = data_shape[1]
@@ -161,17 +185,10 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                          cfg.train['shuffle'], cfg.train['seed'],
                          is_train=True)
     val_iter = None
-    # else:
-    #     train_iter = PatchIter(imdb, batch_size, data_shape[1], mean_pixels, is_train=True)
-    #     val_iter = None
 
     # load symbol
-    net = get_symbol_train(net, data_shape[1], num_classes=imdb.num_classes,
-        nms_thresh=0.45, force_suppress=False, nms_topk=400)
-    # # load symbol
-    # sys.path.append(os.path.join(cfg.ROOT_DIR, 'symbol'))
-    # symbol_module = importlib.import_module("symbol_" + net)
-    # net = symbol_module.get_symbol_train(imdb.num_classes)
+    net = get_symbol_train(net, data_shape[1], num_classes=imdb.num_classes)
+        # nms_thresh=0.45, force_suppress=False, nms_topk=400)
 
     # define layers with fixed weight/bias
     if freeze_layer_pattern.strip():
@@ -212,31 +229,9 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     mod = PlateauModule(net, label_names=('label',), logger=logger, context=ctx,
                         fixed_param_names=fixed_param_names)
 
-    # set parameter, display some info
-    if resume <= 0 and finetune <= 0:
-        mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
-        mod.init_params(initializer=mx.init.Xavier())
-        args0, auxs0 = mod.get_params()
-        arg_params = args0.copy()
-        aux_params = auxs0.copy()
-
-        for k, v in sorted(arg_params.items()):
-            print k, v.shape
-
-        if args is not None:
-            for k in args0:
-                if k in args and args0[k].shape == args[k].shape:
-                    arg_params[k] = args[k]
-                else:
-                    logger.info('Warning: param {} is inited from scratch.'.format(k))
-        if auxs is not None:
-            for k in auxs0:
-                if k in auxs and auxs0[k].shape == auxs[k].shape:
-                    aux_params[k] = auxs[k]
-                else:
-                    logger.info('Warning: param {} is inited from scratch.'.format(k))
-        # arg_params, aux_params = convert_spotnet(arg_params, aux_params)
-        mod.set_params(arg_params=arg_params, aux_params=aux_params)
+    # robust parameter setting
+    mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
+    mod = set_mod_params(mod, args, auxs, logger)
 
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=False)

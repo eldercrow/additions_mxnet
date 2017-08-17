@@ -81,7 +81,7 @@ def get_config(network, data_shape, **kwargs):
         steps = []
         return locals()
     elif network == 'hypernet':
-        network = 'hypernet'
+        # network = 'hypernet'
         from_layers = ['hyper{}'.format(i) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
@@ -91,14 +91,14 @@ def get_config(network, data_shape, **kwargs):
         ratios = [r1, r2, r2, r2, r1, r1]
         del r1, r2, i
         sizes = [[32, 24], [64, 48], [128, 96], \
-                 [256, 192], [448-64, 448-48], [448-32, 448]]
-        sizes = np.array(sizes) / 448.0
+                 [256, 192], [data_shape-64, data_shape-48], [data_shape-32, data_shape]]
+        sizes = np.array(sizes) / float(data_shape)
         sizes = sizes.tolist()
         normalizations = -1
         steps = []
         return locals()
     elif network == 'pva101':
-        network = 'pva101'
+        # network = 'pva101'
         from_layers = ['hyper3', 'hyper4', '', '', '', '']
         num_filters = [-1, -1, 512, 256, 256, 256]
         strides = [-1, -1, 2, 2, 2, 2]
@@ -108,11 +108,29 @@ def get_config(network, data_shape, **kwargs):
         ratios = [r1, r2, r2, r2, r1, r1]
         del r1, r2
         sizes = [[32, 24], [64, 48], [128, 96], \
-                 [256, 192], [384-64, 384-48], [384-32, 384]]
-        sizes = np.array(sizes) / 384.0
+                 [256, 192], [data_shape-64, data_shape-48], [data_shape-32, data_shape]]
+        sizes = np.array(sizes) / float(data_shape)
         sizes = sizes.tolist()
         normalizations = -1
         steps = []
+        return locals()
+    elif network == 'facenet':
+        # network = 'facenet'
+        sz_list = []
+        sz0 = 12
+        sz_ratio = np.power(2.0, 0.25)
+        while sz0 <= data_shape:
+            sz_list.append(sz0)
+            sz0 *= 2
+        from_layers = ['hyper{}'.format(s) for s in sz_list]
+        num_filters = [-1] * len(from_layers)
+        strides = [-1] * len(from_layers)
+        pads = [-1] * len(from_layers)
+        ratios = [0.8] * len(from_layers)
+        sizes = [[s / sz_ratio, s * sz_ratio] for s in sz_list]
+        normalizations = -1
+        steps = []
+        del sz_list, sz0, sz_ratio
         return locals()
     else:
         msg = 'No configuration found for %s with data_shape %d' % (network, data_shape)

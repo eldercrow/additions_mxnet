@@ -1,0 +1,16 @@
+python train_imdb.py \
+    --dataset wider \
+    --image-set train \
+    --devkit-path ./data/wider \
+    --network facenet \
+    --batch-size 6 \
+    --data-shape 768 \
+    --force-resize 0 \
+    --min-obj-size 4 \
+    --freeze '' \
+    --optimizer-name nadam \
+    --from-scratch 1 \
+    --lr 1e-03 \
+    --lr-steps 3,4,5,6 \
+    --frequent 100 \
+    --gpus 0,1

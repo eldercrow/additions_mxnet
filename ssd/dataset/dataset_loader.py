@@ -2,6 +2,7 @@ import tools.find_mxnet
 import mxnet as mx
 from pascal_voc import PascalVoc
 # from pascal_voc_patch import PascalVocPatch
+from wider import Wider
 from concat_db import ConcatDB
 # from concat_patch_db import ConcatPatchDB
 
@@ -44,6 +45,10 @@ def load_pascal(image_set, year, devkit_path, shuffle=False):
         return ConcatDB(imdbs, shuffle)
     else:
         return imdbs[0]
+
+
+def load_wider(image_set, devkit_path, shuffle=False):
+    return Wider(image_set, devkit_path, shuffle, is_train=True)
 
 
 # def load_pascal_patch(image_set, year, devkit_path, patch_shape, shuffle=True):

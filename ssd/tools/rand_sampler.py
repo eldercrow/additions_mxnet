@@ -290,7 +290,7 @@ class RandScaler(RandSampler):
     max_sample : int
         maximum random crop samples to be generated
     """
-    def __init__(self, patch_size, min_gt_scale=.01, max_trials=50, max_sample=1):
+    def __init__(self, patch_size, min_gt_scale=.01, max_trials=50, max_sample=1, force_resize=False):
         super(RandScaler, self).__init__(max_trials, max_sample)
         '''
         Experimental. Some parameters are hardcoded.
@@ -298,10 +298,11 @@ class RandScaler(RandSampler):
         assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
         self.min_gt_scale = min_gt_scale
         self.patch_size = patch_size
+        self.force_resize = force_resize
 
         self.min_scale = 0.5
         self.max_scale = 1.5
-        self.aspect = 0.15
+        self.aspect_exp = 1.0 if self.force_resize else 0.1
         # for sanity check
         self.min_gt_overlap = 0.6667
         self.min_gt_ignore = 0.3333
@@ -325,13 +326,21 @@ class RandScaler(RandSampler):
         gt[:, 1::2] *= img_hw[1]
         gt[:, 2::2] *= img_hw[0]
         samples = []
-        base_scale = self.patch_size / float(np.minimum(img_hw[0], img_hw[1]))
-        # base_scale = self.patch_size / float(np.sqrt(img_hw[0] * img_hw[1]))
+
+        scale_x = 1.0
+        scale_y = 1.0
+        if self.force_resize:
+            scale_x = self.patch_size / float(img_hw[1])
+            scale_y = self.patch_size / float(img_hw[0])
+
         for trial in range(self.max_trials):
-            scale = np.random.uniform(self.min_scale, self.max_scale)
-            asp = np.sqrt(1.0 + np.random.uniform(-self.aspect, self.aspect))
-            scale_x = scale * asp
-            scale_y = scale / asp
+            sf = np.random.uniform(self.min_scale, self.max_scale)
+            scale_x *= sf
+            scale_y *= sf
+            asp = np.power(2.0, np.random.uniform(-self.aspect_exp, self.aspect_exp))
+            asp = np.sqrt(asp)
+            scale_x *= asp
+            scale_y /= asp
             patch_sz_x = np.round(self.patch_size / scale_x)
             patch_sz_y = np.round(self.patch_size / scale_y)
             dx = img_hw[1] - patch_sz_x
