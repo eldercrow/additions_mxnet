@@ -177,6 +177,15 @@ def fit(args, network, data_loader, **kwargs):
         cbs = kwargs['batch_end_callback']
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
 
+    # for debug
+    internals = network.get_internals()
+    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
+    shape_dict = dict(zip(internals.list_outputs(), out_shapes))
+    for k, v in sorted(shape_dict.items()):
+        print k, v
+    # import ipdb
+    # ipdb.set_trace()
+
     # run
     model.fit(train,
         begin_epoch        = args.load_epoch if args.load_epoch else 0,

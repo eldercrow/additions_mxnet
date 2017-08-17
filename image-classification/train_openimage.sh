@@ -1,11 +1,12 @@
 #!/usr/bin/bash
 
 python train_openimage.py \
-    --data-train /media/hyunjoon/dataset/openimage/rec/train_openimage.rec \
-    --network pva101 \
-    --optimizer adam \
-    --gpus 0 \
+    --data-train /home/hyunjoon/dataset/openimage/rec_classification/train_openimage.rec \
+    --network hypernet \
+    --batch-size 192 \
+    --optimizer nadam \
+    --gpus 0,1 \
     --lr 1e-03 \
     --disp 200 \
-    --load-epoch 1 \
-    --model-prefix ./model/pva101_pretrained
+    --model-prefix ./model/hypernet_openimage
+    # --load-epoch 1 \

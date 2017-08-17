@@ -72,6 +72,30 @@ def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
         lr_scheduler = mx.lr_scheduler.MultiFactorScheduler(step=steps, factor=lr_refactor_ratio)
         return (lr, lr_scheduler)
 
+def set_mod_params(mod, args, auxs, logger):
+    mod.init_params(initializer=mx.init.Xavier())
+    args0, auxs0 = mod.get_params()
+    arg_params = args0.copy()
+    aux_params = auxs0.copy()
+
+    for k, v in sorted(arg_params.items()):
+        print k, v.shape
+
+    if args is not None:
+        for k in args0:
+            if k in args and args0[k].shape == args[k].shape:
+                arg_params[k] = args[k]
+            else:
+                logger.info('Warning: param {} is inited from scratch.'.format(k))
+    if auxs is not None:
+        for k in auxs0:
+            if k in auxs and auxs0[k].shape == auxs[k].shape:
+                aux_params[k] = auxs[k]
+            else:
+                logger.info('Warning: param {} is inited from scratch.'.format(k))
+    mod.set_params(arg_params=arg_params, aux_params=aux_params)
+    return mod
+
 def train_net(net, train_path, num_classes, batch_size,
               data_shape, mean_pixels, resume, finetune, pretrained, epoch,
               prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
@@ -236,6 +260,10 @@ def train_net(net, train_path, num_classes, batch_size,
     # # init training module
     # mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
     #                     fixed_param_names=fixed_param_names)
+
+    # robust parameter setting
+    mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
+    mod = set_mod_params(mod, args, auxs, logger)
 
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)

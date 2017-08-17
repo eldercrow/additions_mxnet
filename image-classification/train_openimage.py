@@ -17,17 +17,17 @@ if __name__ == '__main__':
     data.set_data_aug_level(parser, 3)
     parser.set_defaults(
         # network
-        network          = 'pva101',
+        network          = 'hypernet',
         # num_layers       = 50,
         # data
-        num_classes      = 1062,
-        num_examples     = 2375723,
+        num_classes      = 1208,
+        num_examples     = 2680155,
         image_shape      = '3,224,224',
         min_random_scale = 1, # if input image has min size k, suggest to use
                               # 256.0/x, e.g. 0.533 for 480
         # train
-        num_epochs       = 80,
-        lr_step_epochs   = '30,60',
+        num_epochs       = 100,
+        lr_step_epochs   = '40,80',
     )
     args = parser.parse_args()
 

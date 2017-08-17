@@ -81,7 +81,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
         cls_probs = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
-        tmp = mx.sym.Custom(*[anchor_boxes, label, cls_probs], name='multibox_target', 
+        tmp = mx.sym.Custom(*[anchor_boxes, label, cls_probs], name='multibox_target',
                 op_type='multibox_target', hard_neg_ratio=neg_ratio)
     else:
         neg_ratio = -1 if use_focal_loss else 3

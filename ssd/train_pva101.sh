@@ -1,0 +1,12 @@
+python train.py \
+    --network pva101 \
+    --batch-size 16 \
+    --data-shape 384 \
+    --optimizer-name sgd \
+    --freeze '' \
+    --pretrained /home/hyunjoon/github/model_mxnet/pva101/pva101 \
+    --epoch 0 \
+    --lr 1e-03 \
+    --lr-steps 3,4,5,6 \
+    --frequent 50 \
+    --gpus 1
