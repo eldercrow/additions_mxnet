@@ -11,7 +11,7 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
+        num_filter=16, kernel=(3, 3), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = bn1
@@ -19,18 +19,18 @@ def get_symbol(num_classes=1000, **kwargs):
     n_curr_ch = 32
 
     bn2, n_curr_ch = conv_group(pool1, '2/', n_curr_ch,
-            num_filter_3x3=(24, 48), use_crelu=True,
+            num_filter_3x3=(32, 32), use_crelu=True,
             use_global_stats=use_global_stats)
     pool2 = pool(bn2)
 
     bn3, n_curr_ch = conv_group(pool2, '3/', n_curr_ch,
-            num_filter_3x3=(48, 96, 192),
+            num_filter_3x3=(32, 64, 128),
             use_global_stats=use_global_stats)
 
     # feat_sz = [56, 28, 14, 7, 3, 1]
-    nf_3x3 = [(64, 128, 256), (96, 192, 384), (96, 192, 384), (128, 256), (256,), ()]
+    nf_3x3 = [(48, 96, 192), (64, 128, 256), (96, 192, 384), (128, 256), (256,), ()]
     nf_1x1 = [0, 0, 0, 0, 0, 256]
-    nf_init = [64, 96, 96, 128, 128, 128]
+    nf_init = [0, 0, 0, 128, 256, 128]
 
     group_i = bn3
     groups = []
@@ -46,35 +46,36 @@ def get_symbol(num_classes=1000, **kwargs):
 
     upgroups = []
     upscales = (2, 2, 2, 3, 3)
-    nf_up = (64, 128, 128, 128, 128)
+    nf_up = (128, 128, 64, 64, 64)
     for i, (g, s, u) in enumerate(zip(groups[1:], upscales, nf_up)):
         u = upsample_feature(g, 'gu{}{}/'.format(i+1, i), scale=s,
-                num_filter_proj=64, num_filter_upsample=u,
+                num_filter_proj=u, num_filter_upsample=u,
                 use_global_stats=use_global_stats)
         if i == 3:
             u = mx.sym.Crop(u, h_w=(7, 7), center_crop=True)
         upgroups.append([u])
     upgroups[0].append( \
             upsample_feature(groups[2], 'gu20/', scale=4,
-                num_filter_proj=64, num_filter_upsample=128,
+                num_filter_proj=128, num_filter_upsample=64,
                 use_global_stats=use_global_stats))
     upgroups.append([])
 
     dgroups = []
     lhs = [bn3] + groups[:-1]
-    for i, g in enumerate(lhs):
+    nf_down = (128, 128, 64, 192, 192, 256)
+    for i, (g, nf) in enumerate(zip(lhs, nf_down)):
         if i > 3:
             pad = (0, 0)
         else:
             pad = (1, 1)
         d = relu_conv_bn(g, 'gd{}/'.format(i),
-                num_filter=64, kernel=(3,3), pad=pad, stride=(2,2),
+                num_filter=nf, kernel=(3,3), pad=pad, stride=(2,2),
                 use_global_stats=use_global_stats)
         dgroups.append(d)
 
     hgroups = []
-    nf_hyper = (512, 768, 768, 512, 512, 384)
-    nf_hyper_proj = (192, 256, 256, 192, 192, 128)
+    nf_hyper = (512, 512, 512, 512, 512, 512)
+    nf_hyper_proj = (128, 128, 128, 128, 128, 128)
     for i, (g, u, d, nf, nf_p) in enumerate(zip(groups, upgroups, dgroups, nf_hyper, nf_hyper_proj)):
         h = [g] + u + [d]
         c = mx.sym.concat(*h)

@@ -1,11 +1,12 @@
 python train.py \
     --network hypernet \
-    --batch-size 16 \
+    --batch-size 32 \
     --data-shape 448 \
     --optimizer-name sgd \
     --freeze '' \
-    --pretrained none \
+    --pretrained ./model/ssd_hypernet_448 \
     --epoch 1000 \
     --lr 2e-03 \
-    --frequent 100 \
+    --lr-steps 3,4,5,6 \
+    --frequent 50 \
     --gpus 0,1
