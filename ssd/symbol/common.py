@@ -135,7 +135,7 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[]):
+                    clip=False, interm_layer=0, steps=[], mimic_fc=True, use_global_stats=True):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
     generate multiple object detection targets by customized layers
@@ -239,6 +239,23 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
         num_anchors = len(size) -1 + len(ratio)
 
+        # import ipdb
+        # ipdb.set_trace()
+        if mimic_fc == True:
+            if not from_layer.attr('num_filter'):
+                _, out_shapes, _ = from_layer.infer_shape_partial(data=(32, 3, 384, 384))
+                num_hidden = out_shapes[0][1]
+            else:
+                num_hidden = int(from_layer.attr('num_filter'))
+            print 'nf for {} = {}'.format(from_name, num_hidden)
+            fc = from_layer
+            for i in range(2):
+                fc = mx.sym.Convolution(fc, name='{}_fc{}'.format(from_name, i),
+                        num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
+                fc = mx.sym.BatchNorm(fc, name='{}_fc{}/bn'.format(from_name, i),
+                        use_global_stats=use_global_stats, fix_gamma=False)
+                fc = mx.sym.Activation(fc, act_type='relu')
+            from_layer = fc
         # create location prediction layer
         num_loc_pred = num_anchors * 4
         bias = mx.symbol.Variable(name="{}_loc_pred_conv_bias".format(from_name),

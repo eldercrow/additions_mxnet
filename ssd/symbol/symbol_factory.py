@@ -100,7 +100,7 @@ def get_config(network, data_shape, **kwargs):
     elif network == 'pva101':
         # network = 'pva101'
         from_layers = ['hyper3', 'hyper4', '', '', '', '']
-        num_filters = [-1, -1, 512, 256, 256, 256]
+        num_filters = [-1, -1, 512, 512, 256, 256]
         strides = [-1, -1, 2, 2, 2, 2]
         pads = [-1, -1, 1, 1, 1, 1]
         r1 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0)]

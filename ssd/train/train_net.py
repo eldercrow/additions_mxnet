@@ -78,8 +78,8 @@ def set_mod_params(mod, args, auxs, logger):
     arg_params = args0.copy()
     aux_params = auxs0.copy()
 
-    for k, v in sorted(arg_params.items()):
-        print k, v.shape
+    # for k, v in sorted(arg_params.items()):
+    #     print k, v.shape
 
     if args is not None:
         for k in args0:
