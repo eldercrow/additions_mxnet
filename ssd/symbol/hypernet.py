@@ -28,9 +28,9 @@ def get_symbol(num_classes=1000, **kwargs):
             use_global_stats=use_global_stats)
 
     # feat_sz = [56, 28, 14, 7, 3, 1]
-    nf_3x3 = [(48, 96, 192), (64, 128, 256), (96, 192, 384), (128, 256), (256,), ()]
-    nf_1x1 = [0, 0, 0, 0, 0, 256]
-    nf_init = [0, 0, 0, 128, 256, 128]
+    nf_3x3 = [(64, 128, 256), (128, 256, 512), (192, 384, 768), (256, 512), (512,), ()]
+    nf_1x1 = [0, 0, 0, 0, 0, 512]
+    nf_init = [0, 0, 0, 128, 256, 512]
 
     group_i = bn3
     groups = []
@@ -56,7 +56,7 @@ def get_symbol(num_classes=1000, **kwargs):
         upgroups.append([u])
     upgroups[0].append( \
             upsample_feature(groups[2], 'gu20/', scale=4,
-                num_filter_proj=128, num_filter_upsample=64,
+                num_filter_proj=128, num_filter_upsample=128,
                 use_global_stats=use_global_stats))
     upgroups.append([])
 
@@ -83,7 +83,7 @@ def get_symbol(num_classes=1000, **kwargs):
                 num_filter=nf, kernel=(1,1), pad=(0,0),
                 use_global_stats=use_global_stats)
         hp = relu_conv_bn(hc, 'hyperp{}/'.format(i),
-                num_filter=nf_p, kernel=(3,3), pad=(1,1),
+                num_filter=nf, kernel=(1,1), pad=(0,0),
                 use_global_stats=use_global_stats)
         h = relu_conv_bn(hp, 'hyper{}/'.format(i),
                 num_filter=nf, kernel=(1,1), pad=(0,0),
