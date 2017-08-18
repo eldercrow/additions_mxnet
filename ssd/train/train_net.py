@@ -240,9 +240,6 @@ def train_net(net, train_path, num_classes, batch_size,
             args = None
             auxs = None
             fixed_param_names = None
-        # logger.info("Start training with {} from pretrained model {}"
-        #     .format(ctx_str, pretrained))
-        # _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
     else:
         logger.info("Experimental: start training from scratch with {}"
             .format(ctx_str))
@@ -255,11 +252,12 @@ def train_net(net, train_path, num_classes, batch_size,
         logger.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
     # init training module
-    mod = PlateauModule(net, label_names=('label',), logger=logger, context=ctx,
-                        fixed_param_names=fixed_param_names)
-    # # init training module
-    # mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
-    #                     fixed_param_names=fixed_param_names)
+    if cfg.train['use_focal_loss']: # focal loss does not go well with plateau
+        mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
+                fixed_param_names=fixed_param_names)
+    else:
+        mod = PlateauModule(net, label_names=('label',), logger=logger, context=ctx,
+                fixed_param_names=fixed_param_names)
 
     # robust parameter setting
     mod.bind(data_shapes=train_iter.provide_data, label_shapes=train_iter.provide_label)
@@ -268,21 +266,23 @@ def train_net(net, train_path, num_classes, batch_size,
     # fit parameters
     batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
-    eval_weights = None #{'CrossEntropy': 1.0, 'SmoothL1': 0.2}
-    plateau_lr = PlateauScheduler( \
-            patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
-    # learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
-    #     lr_refactor_ratio, num_example, batch_size, begin_epoch)
+    monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     optimizer_params={'learning_rate': learning_rate,
                       'wd': weight_decay,
                       'clip_gradient': 4.0,
                       'rescale_grad': 1.0 / len(ctx) if len(ctx) > 0 else 1.0 }
     if optimizer_name == 'sgd':
         optimizer_params['momentum'] = momentum
-    monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
 
+    if cfg.train['use_focal_loss']:
+        learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
+                lr_refactor_ratio, num_example, batch_size, begin_epoch)
+    else:
+        eval_weights = None #{'CrossEntropy': 1.0, 'SmoothL1': 0.2}
+        plateau_lr = PlateauScheduler( \
+                patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
+        plateau_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
 
-    plateau_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
     eval_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
     # run fit net, every n epochs we run evaluation network to get mAP
     if voc07_metric:
@@ -290,37 +290,39 @@ def train_net(net, train_path, num_classes, batch_size,
     else:
         valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
 
-    # mod.fit(train_iter,
-    #         eval_data=val_iter,
-    #         eval_metric=eval_metric,
-    #         validation_metric=valid_metric,
-    #         batch_end_callback=batch_end_callback,
-    #         epoch_end_callback=epoch_end_callback,
-    #         optimizer=optimizer_name,
-    #         optimizer_params=optimizer_params,
-    #         begin_epoch=begin_epoch,
-    #         num_epoch=end_epoch,
-    #         initializer=mx.init.Xavier(),
-    #         arg_params=args,
-    #         aux_params=auxs,
-    #         allow_missing=True,
-    #         monitor=monitor)
-    mod.fit(train_iter,
-            plateau_lr, plateau_metric=plateau_metric,
-            fn_curr_model=prefix+'-1000.params',
-            plateau_backtrace=False,
-            eval_data=val_iter,
-            eval_metric=eval_metric,
-            validation_metric=valid_metric,
-            validation_period=5,
-            batch_end_callback=batch_end_callback,
-            epoch_end_callback=epoch_end_callback,
-            optimizer=optimizer_name,
-            optimizer_params=optimizer_params,
-            begin_epoch=begin_epoch,
-            num_epoch=end_epoch,
-            initializer=mx.init.Xavier(),
-            arg_params=args,
-            aux_params=auxs,
-            allow_missing=True,
-            monitor=monitor)
+    if cfg.train['use_focal_loss']:
+        mod.fit(train_iter,
+                eval_data=val_iter,
+                eval_metric=eval_metric,
+                validation_metric=valid_metric,
+                batch_end_callback=batch_end_callback,
+                epoch_end_callback=epoch_end_callback,
+                optimizer=optimizer_name,
+                optimizer_params=optimizer_params,
+                begin_epoch=begin_epoch,
+                num_epoch=end_epoch,
+                initializer=mx.init.Xavier(),
+                arg_params=args,
+                aux_params=auxs,
+                allow_missing=True,
+                monitor=monitor)
+    else:
+        mod.fit(train_iter,
+                plateau_lr, plateau_metric=plateau_metric,
+                fn_curr_model=prefix+'-1000.params',
+                plateau_backtrace=False,
+                eval_data=val_iter,
+                eval_metric=eval_metric,
+                validation_metric=valid_metric,
+                validation_period=5,
+                batch_end_callback=batch_end_callback,
+                epoch_end_callback=epoch_end_callback,
+                optimizer=optimizer_name,
+                optimizer_params=optimizer_params,
+                begin_epoch=begin_epoch,
+                num_epoch=end_epoch,
+                initializer=mx.init.Xavier(),
+                arg_params=args,
+                aux_params=auxs,
+                allow_missing=True,
+                monitor=monitor)

@@ -52,9 +52,9 @@ cfg.train.color_jitter = ColorJitter(random_hue_prob=0.5, random_saturation_prob
 cfg.train.inter_method = 10  # random interpolation
 cfg.train.rand_mirror_prob = 0.5
 cfg.train.shuffle = True
-cfg.train.seed = 233
+cfg.train.seed = 0
 cfg.train.preprocess_threads = 48
-cfg.train.use_focal_loss = False # focal loss
+cfg.train.use_focal_loss = True # focal loss
 cfg.train = config_as_dict(cfg.train)  # convert to normal dict
 
 # validation
