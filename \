@@ -1,0 +1,16 @@
+Adding codes for FD training.
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Your branch is up-to-date with 'origin/master'.
+#
+# Changes to be committed:
+#	modified:   ssd/dataset/dataset_loader.py
+#	new file:   ssd/dataset/wider.py
+#	new file:   ssd/symbol/hypernet_1d.py
+#	modified:   ssd/symbol/symbol_factory.py
+#	modified:   ssd/tools/rand_sampler.py
+#	modified:   ssd/train/train_net_imdb.py
+#	new file:   ssd/train_facenet.sh
+#	modified:   ssd/train_imdb.py
+#

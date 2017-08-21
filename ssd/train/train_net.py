@@ -236,7 +236,7 @@ def train_net(net, train_path, num_classes, batch_size,
             _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
             args = convert_pretrained(pretrained, args)
         except:
-            logger.info("Failed to load the pretrained model. Fall back to from scratch.")
+            logger.info("Failed to load the pretrained model. Start from scratch.")
             args = None
             auxs = None
             fixed_param_names = None

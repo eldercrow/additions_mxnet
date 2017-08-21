@@ -21,7 +21,7 @@ class Wider(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170526_1'  # for caching
+    IDX_VER = '170819_1'  # for caching
 
     def __init__(self, image_set, devkit_path, shuffle=False, is_train=False):
         super(Wider,
@@ -33,7 +33,9 @@ class Wider(Imdb):
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ('__background__', 'face')
+        self.classes = ('face',)
+
+        self.config = {'th_small': 6, 'use_difficult': False, 'padding': 256}
 
         self.num_classes = len(self.classes)
         self.max_objects = 0

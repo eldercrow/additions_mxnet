@@ -32,7 +32,19 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         loc_loss = preds[1].asnumpy()
         cls_label = preds[2].asnumpy()
         loc_label = preds[3].asnumpy()
-        valid_count = np.sum(cls_label > 0) if self.use_focal_loss else np.sum(cls_label >= 0)
+        valid_count = np.sum(cls_label >= 0)
+        if self.use_focal_loss:
+            valid_count += np.sum(loc_label)
+            valid_count /= 100.0 # just for better display
+            vc_cls, vc_loc = valid_count, valid_count
+        else:
+            vc0 = valid_count
+            vc1 = np.sum(cls_label > 0, axis=2)
+            vc2 = np.sum(vc1 == 0)
+            vc1 = np.sum(vc1)
+            vc_cls = np.minimum(vc0, vc1 * 4.0 + vc2)
+            # vc_cls = valid_count
+            vc_loc = np.sum(loc_label)
         # overall accuracy & object accuracy
         label = cls_label.flatten()
         mask = np.where(label >= 0)[0]
@@ -43,10 +55,10 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         if self.use_focal_loss:
             loss *= np.power(1 - prob, 2.0) * 0.25
         self.sum_metric[0] += loss.sum()
-        self.num_inst[0] += valid_count
+        self.num_inst[0] += vc_cls
         # smoothl1loss
         self.sum_metric[1] += np.sum(loc_loss)
-        self.num_inst[1] += np.sum(loc_label)
+        self.num_inst[1] += vc_loc
 
     def get(self):
         """Get the current evaluation result.

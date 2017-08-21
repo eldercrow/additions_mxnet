@@ -11,7 +11,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
     """
     Python implementation of MultiBoxTarget layer.
     """
-    def __init__(self, th_iou, th_iou_neg, th_nms_neg,
+    def __init__(self, th_iou, th_iou_neg, th_nms_neg, th_small,
             reg_sample_ratio, hard_neg_ratio, variances):
         #
         super(MultiBoxTarget, self).__init__()
@@ -29,7 +29,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.area_anchors_t = None
 
         self.th_anc_overlap = 0.6
-        self.th_small = 1.0 / 25.0
+        self.th_small = th_small
 
     def forward(self, is_train, req, in_data, out_data, aux):
         """
@@ -55,7 +55,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             self.nidx_neg = [[]] * n_anchors
             # self.nidx_pos = [[]] * n_anchors
             overlaps = _compute_overlap(self.anchors_t, self.area_anchors_t, (0, 0, 1, 1))
-            self.oob_mask = (overlaps <= self.th_anc_overlap)
+            # self.oob_mask = (overlaps <= self.th_anc_overlap)
         else:
             assert self.anchors.shape == in_data[0].shape[1:]
 
@@ -116,7 +116,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             if gt_sz < self.th_small and np.max(iou) < 0.1:
                 continue
             # skip oob boxes
-            iou_mask = np.logical_and(iou_mask, self.oob_mask == False)
+            # iou_mask = np.logical_and(iou_mask, self.oob_mask == False)
 
             # positive and regression samples
             pidx = np.where(np.logical_and(iou_mask, iou > self.th_iou))[0]
@@ -168,21 +168,23 @@ class MultiBoxTarget(mx.operator.CustomOp):
         neg_anchor_locs = []
 
         eidx = np.argsort(bg_probs)[::-1]
+        nidx = []
 
         # pick hard samples one by one, with nms
         k = 0
         for ii in eidx:
-            if bg_probs[ii] < 0.0 or self.oob_mask[ii]:
-                continue
-
+            # if bg_probs[ii] < 0.0 or self.oob_mask[ii]:
+            #     continue
+            #
             target_cls[ii] = 0
+            nidx.append(ii)
             if self.th_nms_neg < 1.0:
                 # apply nms
                 if len(self.nidx_neg[ii]) == 0:
                     self.nidx_neg[ii] = _compute_nms_cands( \
                             self.anchors[ii], self.anchors_t, self.area_anchors_t, self.th_nms_neg)
-                nidx = self.nidx_neg[ii]
-                bg_probs[nidx] = -1
+                idx = self.nidx_neg[ii]
+                bg_probs[idx] = -1
             k += 1
             if k >= n_neg_sample:
                 break
@@ -200,7 +202,14 @@ def _get_valid_labels(labels):
 
 def _compute_nms_cands(anc, anchors_t, area_anchors_t, th_nms):
     #
-    iou = _compute_iou(anc, anchors_t, area_anchors_t)
+    sf = 192.0 / (anc[3] - anc[1])
+    if sf > 1.0:
+        anc = _rescale_anchor(anc, sf)
+        anc_t = _rescale_anchor(anchors_t, sf)
+        aanc_t = (anc_t[3]-anc_t[1]) * (anc_t[2]-anc_t[0])
+        iou = _compute_iou(anc, anc_t, aanc_t)
+    else:
+        iou = _compute_iou(anc, anchors_t, area_anchors_t)
     iidx = np.where(iou > th_nms)[0]
     return iidx
 
@@ -232,6 +241,16 @@ def _compute_loc_target(gt_bb, bb, variances):
     loc_target[:, 3] = np.log((gt_bb[3] - gt_bb[1]) / ah)
     return loc_target / variances, np.ones_like(loc_target)
 
+def _rescale_anchor(anchors_t, sf):
+    ranc = anchors_t.copy()
+    ranc[0] = (ranc[0] + ranc[2]) * 0.5
+    ranc[1] = (ranc[1] + ranc[3]) * 0.5
+    ranc[2] = ranc[0] + (anchors_t[2] - anchors_t[0]) * 0.5 * sf
+    ranc[3] = ranc[1] + (anchors_t[3] - anchors_t[1]) * 0.5 * sf
+    ranc[0] -= (anchors_t[2] - anchors_t[0]) * 0.5 * sf
+    ranc[1] -= (anchors_t[3] - anchors_t[1]) * 0.5 * sf
+    return ranc
+
 # def _expand_target(loc_target, cid, n_cls):
 #     n_target = loc_target.shape[0]
 #     loc_target_e = np.zeros((n_target, 4 * n_cls), dtype=np.float32)
@@ -249,13 +268,15 @@ def _compute_loc_target(gt_bb, bb, variances):
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self,
             th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0,
-            reg_sample_ratio=1.0, hard_neg_ratio=2.0,
+            th_small = 0.04,
+            reg_sample_ratio=1.0, hard_neg_ratio=3.0,
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxTargetProp, self).__init__(need_top_grad=False)
         self.th_iou = float(th_iou)
         self.th_iou_neg = float(th_iou_neg)
         self.th_nms_neg = float(th_nms_neg)
+        self.th_small = float(th_small)
         self.reg_sample_ratio = int(reg_sample_ratio)
         self.hard_neg_ratio = float(hard_neg_ratio)
         if isinstance(variances, str):
@@ -281,5 +302,6 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def create_operator(self, ctx, shapes, dtypes):
         return MultiBoxTarget( \
                 self.th_iou, self.th_iou_neg, self.th_nms_neg,
+                self.th_small,
                 self.reg_sample_ratio, self.hard_neg_ratio,
                 self.variances)

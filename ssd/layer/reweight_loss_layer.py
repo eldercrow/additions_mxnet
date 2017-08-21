@@ -50,7 +50,7 @@ class ReweightLoss(mx.operator.CustomOp):
 class ReweightLossProp(mx.operator.CustomOpProp):
     '''
     '''
-    def __init__(self, alpha=0.25, gamma=2.0, normalize=True):
+    def __init__(self, alpha=0.25, gamma=2.0, normalize=False):
         #
         super(ReweightLossProp, self).__init__(need_top_grad=True)
         self.alpha = float(alpha)

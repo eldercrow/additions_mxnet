@@ -104,8 +104,6 @@ class RandCropper(RandSampler):
             valid_mask = np.where(label[:, 0] > -1)[0]
             gt = label[valid_mask, :]
             ious = self._check_satisfy(rand_box, gt)
-            import ipdb
-            ipdb.set_trace()
             if ious is not None:
                 # transform gt labels after crop, discard bad ones
                 l, t, r, b = rand_box
@@ -322,18 +320,18 @@ class RandScaler(RandSampler):
         list of (crop_box, label) tuples, if failed, return empty list []
         """
         valid_mask = np.where(np.all(label == -1, axis=1) == False)[0]
-        gt = label[valid_mask, :]
+        gt = label[valid_mask, :5]
         gt[:, 1::2] *= img_hw[1]
         gt[:, 2::2] *= img_hw[0]
         samples = []
 
-        scale_x = 1.0
-        scale_y = 1.0
-        if self.force_resize:
-            scale_x = self.patch_size / float(img_hw[1])
-            scale_y = self.patch_size / float(img_hw[0])
-
         for trial in range(self.max_trials):
+            scale_x = 1.0
+            scale_y = 1.0
+            if self.force_resize:
+                scale_x = self.patch_size / float(img_hw[1])
+                scale_y = self.patch_size / float(img_hw[0])
+
             sf = np.random.uniform(self.min_scale, self.max_scale)
             scale_x *= sf
             scale_y *= sf
@@ -350,6 +348,7 @@ class RandScaler(RandSampler):
             if dy != 0:
                 dy = np.random.randint(low=np.minimum(dy, 0), high=np.maximum(dy, 0))
             bbox = [dx, dy, dx+patch_sz_x, dy+patch_sz_y]
+            # if _compute_overlap(bbox, (0, 0, img_hw[1], img_hw[0])) < 0.1:
 
             new_gt_boxes = []
             for i, bb in enumerate(gt):
@@ -372,10 +371,14 @@ class RandScaler(RandSampler):
                 continue
             new_gt_boxes[:, 1::2] /= float(patch_sz_x)
             new_gt_boxes[:, 2::2] /= float(patch_sz_y)
+            if not self.force_resize:
+                new_gt_boxes[:, 1::2] *= self.patch_size
+                new_gt_boxes[:, 2::2] *= self.patch_size
             label = np.lib.pad(new_gt_boxes,
                 ((0, label.shape[0]-new_gt_boxes.shape[0]), (0,0)), \
                 'constant', constant_values=(-1, -1))
-            samples.append((bbox, label))
+            rr = 1.0 if self.force_resize else self.patch_size
+            samples.append((bbox, label, rr))
             break
         return samples[0]
 
