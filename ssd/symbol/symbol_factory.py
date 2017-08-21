@@ -133,6 +133,21 @@ def get_config(network, data_shape, **kwargs):
         th_small = 4.0
         del sz_list, sz0, sz_ratio
         return locals()
+    elif network == 'fasterface':
+        # network = 'facenet'
+        sz_list = []
+        sz0 = 12.0
+        sz_ratio = np.power(2.0, 0.25)
+        while sz0 <= data_shape:
+            sz_list.append(sz0)
+            sz0 *= 2
+        ratios = [[0.8,]] * len(sz_list)
+        sizes = [[s / sz_ratio, s * sz_ratio] for s in sz_list]
+        steps = [2**(2+i) for i in range(len(sz_list))]
+        th_small = 8.0
+        from_layers = num_filters = pads = normalizations = strides = None
+        del sz_list, sz0, sz_ratio
+        return locals()
     else:
         msg = 'No configuration found for %s with data_shape %d' % (network, data_shape)
         raise NotImplementedError(msg)

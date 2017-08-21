@@ -25,7 +25,6 @@ def prepare_groups(group_i, data_shape, n_curr_ch, use_global_stats):
     nf3_s7 = (48, 48, 96)
     nf3_s5 = (48, 96)
     nf3_s3 = (96,)
-    nf1_sall = 96
 
     for i in range(n_remaining_group, 0, -1):
         if feat_sz >= 7:
@@ -37,7 +36,6 @@ def prepare_groups(group_i, data_shape, n_curr_ch, use_global_stats):
         else:
             nf_3x3.append(nf3_s3)
             nf_1x1.append(96)
-        nf_1x1.append(nf1_sall)
         feat_sz /= 2
 
     # prepare groups
@@ -53,7 +51,7 @@ def prepare_groups(group_i, data_shape, n_curr_ch, use_global_stats):
         use_crelu = True if i < 4 else False
         # prefix_name = 'g{}/'.format(i)
         prefix_name = 'g{}/'.format(i) if i < 4 else 'gm{}/'.format(n_group-i)
-        group_i, n_curr_ch = inception_group(group_i, prefix_name, n_curr_ch,
+        group_i, n_curr_ch = conv_group(group_i, prefix_name, n_curr_ch,
                 num_filter_3x3=nf3, num_filter_1x1=nf1, use_crelu=use_crelu,
                 use_global_stats=use_global_stats)
         groups.append(group_i)
