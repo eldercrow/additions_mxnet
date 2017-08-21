@@ -4,10 +4,6 @@ import numpy as np
 from layer.multibox_prior_layer import *
 
 @mx.init.register
-<<<<<<< HEAD
-=======
-# @alias('focal_bias')
->>>>>>> d3f4b31f555e1c8b4454507561880150a1752a59
 class FocalBiasInit(mx.init.Initializer):
     '''
     Initialize bias according to Focal Loss.
@@ -307,10 +303,10 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
             step = (steps[k], steps[k])
         else:
             step = '(-1.0, -1.0)'
-        # anchors = mx.contrib.symbol.MultiBoxPrior(from_layer, sizes=size_str, ratios=ratio_str, \
-        #     clip=clip, name="{}_anchors".format(from_name), steps=step)
-        # anchors = mx.symbol.Flatten(data=anchors)
-        # anchor_layers.append(anchors)
+        anchors = mx.contrib.symbol.MultiBoxPrior(from_layer, sizes=size_str, ratios=ratio_str, \
+            clip=clip, name="{}_anchors".format(from_name), steps=step)
+        anchors = mx.symbol.Flatten(data=anchors)
+        anchor_layers.append(anchors)
 
     loc_preds = mx.symbol.Concat(*loc_pred_layers, num_args=len(loc_pred_layers), \
         dim=1, name="multibox_loc_pred")
@@ -318,9 +314,9 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         dim=1)
     cls_preds = mx.symbol.Reshape(data=cls_preds, shape=(0, -1, num_classes))
     cls_preds = mx.symbol.transpose(cls_preds, axes=(0, 2, 1), name="multibox_cls_pred")
-    # anchor_boxes = mx.symbol.Concat(*anchor_layers, \
-    #     num_args=len(anchor_layers), dim=1)
-    # anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
-    anchor_boxes = mx.symbol.Custom(*from_layers, op_type='multibox_prior',
-            name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps)
+    anchor_boxes = mx.symbol.Concat(*anchor_layers, \
+        num_args=len(anchor_layers), dim=1)
+    anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
+    # anchor_boxes = mx.symbol.Custom(*from_layers, op_type='multibox_prior',
+    #         name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps)
     return [loc_preds, cls_preds, anchor_boxes]

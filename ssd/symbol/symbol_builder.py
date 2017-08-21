@@ -100,7 +100,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='null', name="cls_prob", out_grad=True)
         cls_loss = mx.sym.Custom(cls_loss, cls_target, op_type='reweight_loss', name='focal_loss',
-                gamma=5.0, alpha=0.2)
+                gamma=2.0, alpha=0.25, normalize=True)
         cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     else:
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
@@ -109,7 +109,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
-        normalization='valid' if not use_focal_loss else 'null', name="loc_loss")
+        normalization='valid', name="loc_loss")
 
     # monitoring training status
     cls_label = mx.sym.BlockGrad(cls_target, name="cls_label")
