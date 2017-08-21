@@ -3,14 +3,17 @@ python train_imdb.py \
     --image-set train \
     --devkit-path ./data/wider \
     --network facenet \
-    --batch-size 6 \
-    --data-shape 768 \
+    --prefix ./model/ssd_facenet \
+    --batch-size 32 \
+    --data-shape 480 \
     --force-resize 0 \
     --min-obj-size 4 \
     --freeze '' \
-    --optimizer-name nadam \
-    --from-scratch 1 \
+    --pretrained none \
+    --epoch 1000 \
+    --optimizer-name adam \
     --lr 1e-03 \
-    --lr-steps 3,4,5,6 \
-    --frequent 100 \
+    --lr-steps 2,2,4,4,6,6 \
+    --lr-factor 0.316227766 \
+    --frequent 50 \
     --gpus 0,1

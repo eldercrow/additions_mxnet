@@ -1,4 +1,4 @@
-python train.py \
+python train_imdb.py \
     --network pva101 \
     --batch-size 32 \
     --data-shape 384 \

@@ -25,7 +25,7 @@ def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
     return mx.sym.Pooling(data, name=name, kernel=kernel, stride=stride, pool_type=pool_type)
 
 
-def subpixel_upsample(data, ch, c, r):
+def subpixel_upsample(data, ch, c, r, name=None):
     if r == 1 and c == 1:
         return data
     X = mx.sym.reshape(data=data, shape=(-3, 0, 0))  # (bsize*ch*r*c, a, b)
@@ -34,8 +34,7 @@ def subpixel_upsample(data, ch, c, r):
     X = mx.sym.transpose(data=X, axes=(0, 3, 2, 1))  # (bsize*ch, b, a, r*c)
     X = mx.sym.reshape(data=X, shape=(0, 0, -1, c))  # (bsize*ch, b, a*r, c)
     X = mx.sym.transpose(data=X, axes=(0, 2, 1, 3))  # (bsize*ch, a*r, b, c)
-    X = mx.sym.reshape(
-        data=X, shape=(-4, -1, ch, 0, -3))  # (bsize, ch, a*r, b*c)
+    X = mx.sym.reshape(data=X, name=name, shape=(-4, -1, ch, 0, -3))  # (bsize, ch, a*r, b*c)
     return X
 
 
@@ -131,13 +130,13 @@ def inception_group(data,
 
     prefix_name = prefix_group_name
 
-    if num_filter_init == 0:
-        num_filter_init = num_filter_3x3[0]
-
-    bn_, s = relu_conv_bn(data, prefix_name=prefix_name+'init/',
-            num_filter=num_filter_init, kernel=(1,1), pad=(0,0),
-            use_global_stats=use_global_stats, get_syms=True)
-    syms['init'] = bn_
+    if num_filter_init > 0:
+        bn_, s = relu_conv_bn(data, prefix_name=prefix_name+'init/',
+                num_filter=num_filter_init, kernel=(1,1), pad=(0,0),
+                use_global_stats=use_global_stats, get_syms=True)
+        syms['init'] = s
+    else:
+        bn_ = data
 
     incep_layers = [bn_] if len(num_filter_3x3) == 0 else []
     for ii, nf3 in enumerate(num_filter_3x3):
@@ -148,7 +147,7 @@ def inception_group(data,
         syms['unit{}'.format(ii)] = s
         incep_layers.append(bn_)
 
-    concat_ = mx.sym.concat(*incep_layers)
+    concat_ = mx.sym.concat(*incep_layers) if len(incep_layers) > 1 else incep_layers[0]
     proj_, s = relu_conv_bn(concat_,
             prefix_name=prefix_name + '1x1/',
             num_filter=num_filter_1x1, kernel=(1,1),
@@ -194,4 +193,28 @@ def upsample_feature(data,
         kernel=(3, 3),
         pad=(1, 1),
         use_global_stats=use_global_stats)
-    return subpixel_upsample(bn, num_filter_upsample, scale, scale)
+    return subpixel_upsample(bn, num_filter_upsample, scale, scale, name=name+'subpixel')
+
+
+def upsample_pred(data,
+                  name,
+                  scale,
+                  num_filter_proj=0,
+                  num_filter_upsample=0,
+                  use_global_stats=False):
+    ''' use subpixel_upsample to upsample a given layer '''
+    if num_filter_proj > 0:
+        proj = relu_conv_bn(
+            data,
+            prefix_name=name + 'proj/',
+            num_filter=num_filter_proj,
+            kernel=(1, 1),
+            pad=(0, 0),
+            use_global_stats=use_global_stats)
+    else:
+        proj = data
+    nf = num_filter_upsample * scale * scale
+    relu = mx.sym.Activation(proj, act_type='relu')
+    conv = mx.sym.Convolution(relu, name=name+'conv',
+            num_filter=nf, kernel=(3, 3), pad=(1, 1))
+    return subpixel_upsample(conv, num_filter_upsample, scale, scale, name=name+'subpixel')

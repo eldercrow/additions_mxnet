@@ -255,10 +255,11 @@ class DetIter(mx.io.DataIter):
         if self.is_train:
             valid_mask = np.where(np.any(label != -1, axis=1))[0]
             if self._rand_mirror:
+                rr = rand_crop[2]
                 if np.random.uniform(0, 1) > 0.5:
                     data = mx.nd.flip(data, axis=1)
-                    tmp = 1.0 - label[valid_mask, 1]
-                    label[valid_mask, 1] = 1.0 - label[valid_mask, 3]
+                    tmp = rr - label[valid_mask, 1]
+                    label[valid_mask, 1] = rr - label[valid_mask, 3]
                     label[valid_mask, 3] = tmp
             # label[valid_mask, 1::2] *= data.shape[1]
             # label[valid_mask, 2::2] *= data.shape[0]

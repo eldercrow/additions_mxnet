@@ -80,9 +80,10 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
+        th_small = 0.04 if not 'th_small' in kwargs else kwargs['th_small']
         cls_probs = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
         tmp = mx.sym.Custom(*[anchor_boxes, label, cls_probs], name='multibox_target',
-                op_type='multibox_target', hard_neg_ratio=neg_ratio)
+                op_type='multibox_target', hard_neg_ratio=neg_ratio, th_small=th_small)
     else:
         neg_ratio = -1 if use_focal_loss else 3
         tmp = mx.contrib.symbol.MultiBoxTarget(
@@ -98,7 +99,8 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='null', name="cls_prob", out_grad=True)
-        cls_loss = mx.sym.Custom(cls_loss, cls_target, op_type='reweight_loss', name='focal_loss')
+        cls_loss = mx.sym.Custom(cls_loss, cls_target, op_type='reweight_loss', name='focal_loss',
+                gamma=5.0, alpha=0.2)
         cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     else:
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
@@ -107,7 +109,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
-        normalization='valid', name="loc_loss")
+        normalization='valid' if not use_focal_loss else 'null', name="loc_loss")
 
     # monitoring training status
     cls_label = mx.sym.BlockGrad(cls_target, name="cls_label")
@@ -173,6 +175,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     mx.Symbol
 
     """
+    kwargs['use_global_stats'] = True
     body = import_module(network).get_symbol(num_classes, **kwargs)
     layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
         min_filter=min_filter)
@@ -185,5 +188,5 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
         name='cls_prob')
     out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
         name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
-        variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk)
+        variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk, clip=False)
     return out
