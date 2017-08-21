@@ -12,7 +12,7 @@ class ReweightLoss(mx.operator.CustomOp):
         self.gamma = gamma
         self.normalize = normalize
 
-        self.eps = 1e-08
+        self.eps = 1e-14
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''
@@ -34,7 +34,7 @@ class ReweightLoss(mx.operator.CustomOp):
         if self.normalize:
             g /= mx.nd.sum(in_data[1] > 0).asscalar()
 
-        self.assign(in_grad[0], req[0], out_grad[0] * g)
+        self.assign(in_grad[0], req[0], mx.nd.tile(g, (1, in_data[0].shape[1], 1)))
         self.assign(in_grad[1], req[1], 0)
 
 
@@ -44,7 +44,7 @@ class ReweightLossProp(mx.operator.CustomOpProp):
     '''
     def __init__(self, alpha=0.25, gamma=2.0, normalize=False):
         #
-        super(ReweightLossProp, self).__init__(need_top_grad=True)
+        super(ReweightLossProp, self).__init__(need_top_grad=False)
         self.alpha = float(alpha)
         self.gamma = float(gamma)
         self.normalize = bool(literal_eval(str(normalize)))
