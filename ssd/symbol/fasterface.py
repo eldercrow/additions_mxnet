@@ -1,5 +1,6 @@
 import mxnet as mx
 from symbol.net_block import *
+from layer.multibox_prior_layer import *
 
 
 def prepare_groups(group_i, data_shape, n_curr_ch, use_global_stats):
@@ -124,8 +125,29 @@ def get_symbol(num_classes, sizes, ratios, steps, **kwargs):
     n_curr_ch = 64
     groups, nf_1x1 = prepare_groups(bn2, data_shape, n_curr_ch, use_global_stats)
 
+    num_classes += 1
+
     preds = predict(groups, 128, use_global_stats, num_classes, len(sizes), len(ratios))
     preds[:4] = densely_predict(groups[:4], nf_1x1[:4], use_global_stats, \
             num_classes, len(sizes), len(ratios))
 
-    return preds
+    nf_pred = num_classes + 4
+    cls_pred_layers = []
+    loc_pred_layers = []
+    anchor_layers = []
+
+    for p in preds:
+        p = mx.sym.transpose(p, (0, 2, 3, 1))
+        p = mx.sym.reshape(p, (0, -1, nf_pred))
+        cls_pred_layers.append(mx.sym.slice_axis(p, axis=2, begin=0, end=num_classes))
+        loc_pred_layers.append(mx.sym.slice_axis(p, axis=2, begin=num_classes, end=None))
+
+    cls_preds = mx.sym.concat(*cls_pred_layers, dim=1)
+    cls_preds = mx.sym.transpose(cls_preds, axes=(0, 2, 1), name='multibox_cls_pred')
+    loc_preds = mx.sym.concat(*loc_pred_layers, dim=1)
+    loc_preds = mx.sym.flatten(loc_preds, name='multibox_loc_preds')
+
+    anchor_boxes = mx.symbol.Custom(*preds, op_type='multibox_prior',
+            name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps)
+
+    return [loc_preds, cls_preds, anchor_boxes]

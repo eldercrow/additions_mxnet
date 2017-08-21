@@ -70,13 +70,18 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     label = mx.sym.Variable('label')
     kwargs['use_global_stats'] = False
-    body = import_module(network).get_symbol(num_classes, **kwargs)
-    layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
-        min_filter=min_filter)
 
-    loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
-        num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-        num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
+    if network == 'fasterface':
+        loc_preds, cls_preds, anchor_boxes = import_module(network).get_symbol( \
+                num_classes, sizes=sizes, ratios=ratios, steps=steps, **kwargs)
+    else:
+        body = import_module(network).get_symbol(num_classes, **kwargs)
+        layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
+            min_filter=min_filter)
+
+        loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
+            num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
+            num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
@@ -176,13 +181,24 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
 
     """
     kwargs['use_global_stats'] = True
-    body = import_module(network).get_symbol(num_classes, **kwargs)
-    layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
-        min_filter=min_filter)
+    if network == 'fasterface':
+        loc_preds, cls_preds, anchor_boxes = import_module(network).get_symbol( \
+                num_classes, sizes=sizes, ratios=ratios, steps=steps, **kwargs)
+    else:
+        body = import_module(network).get_symbol(num_classes, **kwargs)
+        layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
+            min_filter=min_filter)
 
-    loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
-        num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-        num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
+        loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
+            num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
+            num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
+    # body = import_module(network).get_symbol(num_classes, **kwargs)
+    # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
+    #     min_filter=min_filter)
+    #
+    # loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
+    #     num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
+    #     num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
 
     cls_prob = mx.symbol.SoftmaxActivation(data=cls_preds, mode='channel', \
         name='cls_prob')
