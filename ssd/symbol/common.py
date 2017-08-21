@@ -2,13 +2,12 @@ import mxnet as mx
 import numpy as np
 
 @mx.init.register
-@alias('focal_bias')
 class FocalBiasInit(mx.init.Initializer):
     '''
     Initialize bias according to Focal Loss.
     '''
     def __init__(self, num_classes, pi):
-        super(FocalBias, self).__init__(num_classes=num_classes, pi=pi)
+        super(FocalBiasInit, self).__init__(num_classes=num_classes, pi=pi)
         self._num_classes = num_classes
         self._pi = pi
 
