@@ -5,7 +5,7 @@ python train.py \
     --optimizer-name sgd \
     --freeze '' \
     --pretrained ./model/ssd_hypernet_448 \
-    --epoch 1 \
+    --epoch 1000 \
     --lr 2e-05 \
     --lr-factor 0.316227766 \
     --lr-steps 20,20,40 \

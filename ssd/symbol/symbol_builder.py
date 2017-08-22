@@ -186,6 +186,10 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     mx.Symbol
 
     """
+    data_shape = (0, 0) if not 'data_shape' in kwargs else kwargs['data_shape']
+    if isinstance(data_shape, int):
+        data_shape = (data_shape, data_shape)
+
     kwargs['use_global_stats'] = True
     if network == 'fasterface':
         loc_preds, cls_preds, anchor_boxes = import_module(network).get_symbol( \
@@ -197,7 +201,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
 
         loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
             num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-            num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
+            num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape)
     # body = import_module(network).get_symbol(num_classes, **kwargs)
     # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
     #     min_filter=min_filter)
