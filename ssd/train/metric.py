@@ -46,7 +46,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         prob = prob[mask, indices]
         loss = -np.log(prob + self.eps)
         if self.use_focal_loss:
-            loss *= np.power(1 - prob, 2.0) * 0.25
+            loss *= np.power(1 - prob, 5.0) * 0.1
         self.sum_metric[0] += loss.sum()
         self.num_inst[0] += vc_cls
         # smoothl1loss

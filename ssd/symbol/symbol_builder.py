@@ -15,7 +15,7 @@ def import_module(module_name):
 
 def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pads,
                      sizes, ratios, normalizations=-1, steps=[], min_filter=128,
-                     nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
+                     nms_thresh=0.5, upscale=1, force_suppress=False, nms_topk=400, **kwargs):
     """Build network symbol for training SSD
 
     Parameters
@@ -81,7 +81,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
         loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
             num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-            num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
+            num_channels=num_filters, clip=False, interm_layer=0, steps=steps, upscale=upscale)
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
@@ -105,15 +105,16 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='null', name="cls_prob", out_grad=True)
         cls_loss = mx.sym.Custom(cls_loss, cls_target, op_type='reweight_loss', name='cls_loss',
-                gamma=2.0, alpha=0.25, normalize=True)
+                gamma=5.0, alpha=0.1, normalize=True)
         # cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     else:
+        # cls_preds = mx.sym.Custom(cls_preds, op_type='dummy')
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='valid', name="cls_loss")
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
+    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0 if not use_focal_loss else 0.25, \
         normalization='valid', name="loc_loss")
 
     # monitoring training status

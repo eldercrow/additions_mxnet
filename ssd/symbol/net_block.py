@@ -119,6 +119,7 @@ def inception_group(data,
                     num_filter_3x3,
                     num_filter_1x1,
                     num_filter_init=0,
+                    use_init=False,
                     use_crelu=False,
                     use_global_stats=False,
                     get_syms=False):
@@ -138,7 +139,7 @@ def inception_group(data,
     else:
         bn_ = data
 
-    incep_layers = [bn_] if len(num_filter_3x3) == 0 else []
+    incep_layers = [bn_] if use_init or len(num_filter_3x3) == 0 else []
     for ii, nf3 in enumerate(num_filter_3x3):
         bn_, s = relu_conv_bn(
             bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
@@ -200,7 +201,7 @@ def upsample_pred(data,
                   name,
                   scale,
                   num_filter_proj=0,
-                  num_filter_upsample=0,
+                  num_filter_pred=0,
                   use_global_stats=False):
     ''' use subpixel_upsample to upsample a given layer '''
     if num_filter_proj > 0:
@@ -213,8 +214,8 @@ def upsample_pred(data,
             use_global_stats=use_global_stats)
     else:
         proj = data
-    nf = num_filter_upsample * scale * scale
+    nf = num_filter_pred * scale * scale
     relu = mx.sym.Activation(proj, act_type='relu')
     conv = mx.sym.Convolution(relu, name=name+'conv',
             num_filter=nf, kernel=(3, 3), pad=(1, 1))
-    return subpixel_upsample(conv, num_filter_upsample, scale, scale, name=name+'subpixel')
+    return subpixel_upsample(conv, num_filter_pred, scale, scale, name=name+'subpixel')
