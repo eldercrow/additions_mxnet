@@ -132,7 +132,6 @@ def get_config(network, data_shape, **kwargs):
         sizes = [[s, s * sz_ratio] for s in sz_list]
         normalizations = -1
         steps = [2**(2+i) for i in range(len(sz_list))]
-        data_shape = (data_shape, data_shape)
         th_small = 9.0
         upscale = 2
         del sz_list, sz0, sz_ratio

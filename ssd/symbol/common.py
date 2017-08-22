@@ -299,7 +299,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
             stride=(1,1), pad=(1,1), num_filter=num_cls_pred * upscale * upscale, \
             name="{}_cls_pred_conv".format(from_name))
         if upscale > 1:
-            cls_pred_conv = subpixel_upsample(cls_pred_conv, num_cls_pred, upscale, upscale)
+            cls_pred_conv = subpixel_upsample(cls_pred_conv, num_cls_pred, upscale, upscale,
+                    name='{}_cls_pred_conv_up'.format(from_name))
         cls_pred = mx.symbol.transpose(cls_pred_conv, axes=(0,2,3,1))
         cls_pred = mx.symbol.Flatten(data=cls_pred)
         cls_pred_layers.append(cls_pred)

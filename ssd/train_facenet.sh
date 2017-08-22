@@ -5,14 +5,14 @@ python train_imdb.py \
     --network facenet \
     --prefix ./model/ssd_facenet \
     --batch-size 32 \
-    --data-shape 480 \
+    --data-shape 512 \
     --force-resize 0 \
-    --min-obj-size 4 \
+    --min-obj-size 9 \
     --freeze '' \
     --pretrained none \
     --epoch 1000 \
-    --optimizer-name adam \
-    --lr 1e-03 \
+    --optimizer-name sgd \
+    --lr 1e-02 \
     --lr-steps 2,2,4,4,6,6 \
     --lr-factor 0.316227766 \
     --frequent 50 \

@@ -69,7 +69,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     use_focal_loss = cfg.train['use_focal_loss']
 
     label = mx.sym.Variable('label')
-    kwargs['use_global_stats'] = True
+    kwargs['use_global_stats'] = False
 
     data_shape = (0, 0) if not 'data_shape' in kwargs else kwargs['data_shape']
     if isinstance(data_shape, int):

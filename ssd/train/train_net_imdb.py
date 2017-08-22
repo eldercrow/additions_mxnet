@@ -67,7 +67,6 @@ def set_mod_params(mod, args, auxs, data_shape, logger):
     # for k, v in sorted(arg_params.items()):
     #     print k, v.shape
 
-    '''
     net = mod.symbol
     internals = net.get_internals()
     in_shape = (3, 3, data_shape[1], data_shape[2])
@@ -75,8 +74,8 @@ def set_mod_params(mod, args, auxs, data_shape, logger):
     out_dict = {n: s for n, s in zip(internals.list_outputs(), out_shapes)}
 
     for n, s in sorted(out_dict.items()):
-        print n, s
-    '''
+        if n.find('cls_pred_conv_up') > 0:
+            print n, s
 
     if args is not None:
         for k in args0:
