@@ -4,7 +4,6 @@ import numpy as np
 from layer.multibox_prior_layer import *
 
 @mx.init.register
-# @alias('focal_bias')
 class FocalBiasInit(mx.init.Initializer):
     '''
     Initialize bias according to Focal Loss.
