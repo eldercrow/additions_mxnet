@@ -4,11 +4,11 @@ python train.py \
     --data-shape 448 \
     --optimizer-name sgd \
     --freeze '' \
-    --pretrained none \
-    --epoch 1000 \
-    --lr 1e-02 \
+    --pretrained ./model/ssd_hypernet_448 \
+    --epoch 1 \
+    --lr 2e-05 \
     --lr-factor 0.316227766 \
-    --lr-steps 2,2,4,4,6,6,8,8 \
+    --lr-steps 20,20,40 \
     --end-epoch 250 \
     --frequent 100 \
     --gpus 0,1

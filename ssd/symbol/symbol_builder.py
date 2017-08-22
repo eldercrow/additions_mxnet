@@ -69,7 +69,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     use_focal_loss = cfg.train['use_focal_loss']
 
     label = mx.sym.Variable('label')
-    kwargs['use_global_stats'] = False
+    kwargs['use_global_stats'] = True
 
     data_shape = (0, 0) if not 'data_shape' in kwargs else kwargs['data_shape']
     if isinstance(data_shape, int):
@@ -110,14 +110,13 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             normalization='null', name="cls_prob", out_grad=True)
         cls_loss = mx.sym.Custom(cls_loss, cls_target, op_type='reweight_loss', name='focal_loss',
                 gamma=5.0, alpha=0.1)
-        cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     else:
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='valid', name="cls_loss")
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0, \
+    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0 if not use_focal_loss else 0.25, \
         normalization='valid', name="loc_loss")
 
     # monitoring training status
