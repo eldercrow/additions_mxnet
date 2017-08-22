@@ -82,13 +82,7 @@ def get_symbol(num_classes=1000, **kwargs):
         hc = relu_conv_bn(c, 'hyperc{}/'.format(i),
                 num_filter=nf, kernel=(1,1), pad=(0,0),
                 use_global_stats=use_global_stats)
-        hp = relu_conv_bn(hc, 'hyperp{}/'.format(i),
-                num_filter=nf, kernel=(1,1), pad=(0,0),
-                use_global_stats=use_global_stats)
-        h = relu_conv_bn(hp, 'hyper{}/'.format(i),
-                num_filter=nf, kernel=(1,1), pad=(0,0),
-                use_global_stats=use_global_stats)
-        hyper = mx.sym.Activation(hc+h, name='hyper{}'.format(i), act_type='relu')
+        hyper = mx.sym.Activation(hc, name='hyper{}'.format(i), act_type='relu')
         hgroups.append(hyper)
 
     pooled = []

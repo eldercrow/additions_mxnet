@@ -6,7 +6,9 @@ python train.py \
     --freeze '' \
     --pretrained none \
     --epoch 1000 \
-    --lr 2e-03 \
-    --lr-steps 3,6,9,12 \
+    --lr 1e-02 \
+    --lr-factor 0.316227766 \
+    --lr-steps 2,2,4,4,6,6,8,8 \
+    --end-epoch 250 \
     --frequent 100 \
     --gpus 0,1

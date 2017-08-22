@@ -89,7 +89,11 @@ class MultiBoxPriorProp(mx.operator.CustomOpProp):
         self.sizes = make_tuple(sizes)
         self.ratios = make_tuple(ratios)
         assert len(self.sizes) == len(self.ratios)
+        if strides:
+            strides = make_tuple(str(strides))
         self.strides = make_tuple(strides) if strides else None
+        import ipdb
+        ipdb.set_trace()
         if strides:
             assert len(self.sizes) == len(self.strides)
         self.clip = int(clip)

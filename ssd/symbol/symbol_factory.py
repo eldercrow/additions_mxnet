@@ -131,6 +131,7 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = [2**(2+i) for i in range(len(sz_list))]
         th_small = 4.0
+        data_shape = (data_shape, data_shape)
         del sz_list, sz0, sz_ratio
         return locals()
     else:

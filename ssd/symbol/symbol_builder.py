@@ -70,13 +70,18 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     label = mx.sym.Variable('label')
     kwargs['use_global_stats'] = False
+
+    data_shape = (0, 0) if not 'data_shape' in kwargs else kwargs['data_shape']
+    if isinstance(data_shape, int):
+        data_shape = (data_shape, data_shape)
+
     body = import_module(network).get_symbol(num_classes, **kwargs)
     layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
         min_filter=min_filter)
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-        num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
+        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape)
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
@@ -100,7 +105,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='null', name="cls_prob", out_grad=True)
         cls_loss = mx.sym.Custom(cls_loss, cls_target, op_type='reweight_loss', name='focal_loss',
-                gamma=5.0, alpha=0.2)
+                gamma=5.0, alpha=0.1)
         cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     else:
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
