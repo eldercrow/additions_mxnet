@@ -6,36 +6,45 @@ def prepare_groups(group_i, data_shape, n_curr_ch, use_global_stats):
     '''
     '''
     # assume data_shape = 480
-    feat_sz = int(data_shape / 4)
+    feat_sz = int(data_shape / 8) # 60
     rf = 12
 
     # prepare filters
-    nf_3x3 = [(24, 24, 48), (32, 32, 64), (48, 48, 96), (80, 80, 160)]
-    nf_1x1 = [0, 0, 0, 0]
+    nf_3x3 = [(32, 32), (40, 40), (48, 48)]
+    nf_init = [64, 80, 96]
+    nf_1x1 = [144, 192, 320]
+    n_unit = [2, 2, 2]
 
-    rf *= 16 # 192
-    feat_sz /= 16 # 15
+    rf *= 8 # 96
+    feat_sz /= 8 # 7
 
     n_remaining_group = 0
     while rf <= data_shape:
         n_remaining_group += 1
         rf *= 2
 
-    nf3_s7 = (48, 48, 96)
-    nf3_s5 = (48, 96)
-    nf3_s3 = (96,)
-    nf1_sall = 96
+    # TODO: remove this line
+    assert n_remaining_group == 3
+
+    nf3_s7 = (24, 24)
+    nf3_s5 = (48,)
+    nf3_s3 = (48,)
+    nfi_sall = 48
+    nf1_sall = 128
 
     for i in range(n_remaining_group, 0, -1):
         if feat_sz >= 7:
             nf_3x3.append(nf3_s7)
-            nf_1x1.append(0)
+            n_unit.append(2)
         elif feat_sz >= 5:
             nf_3x3.append(nf3_s5)
-            nf_1x1.append(0)
-        else:
+            n_unit.append(2)
+        elif feat_sz >= 3:
             nf_3x3.append(nf3_s3)
-            nf_1x1.append(96)
+            n_unit.append(1)
+        else:
+            nf_3x3.append([])
+        nf_init.append(nfi_sall if feat_sz > 1 else 128)
         nf_1x1.append(nf1_sall)
         feat_sz /= 2
 
@@ -43,19 +52,20 @@ def prepare_groups(group_i, data_shape, n_curr_ch, use_global_stats):
     n_group = len(nf_1x1)
     groups = []
     feat_sz = int(data_shape / 2)
-    for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
+    for i, (nf3, nf1, nfi, nu) in enumerate(zip(nf_3x3, nf_1x1, nf_init, n_unit)):
         if feat_sz % 2 == 0:
             group_i = pool(group_i)
         else:
             group_i = pool(group_i, kernel=(3, 3))
+        feat_sz /= 2
 
         # prefix_name = 'g{}/'.format(i)
-        prefix_name = 'g{}/'.format(i) if i < 4 else 'gm{}/'.format(n_group-i)
-        group_i, n_curr_ch = conv_group(group_i, prefix_name, n_curr_ch,
-                num_filter_3x3=nf3, num_filter_1x1=nf1,
-                use_global_stats=use_global_stats, use_crelu=True if i < 4 else False)
+        for j in range(nu):
+            prefix_name = 'g{}u{}/'.format(i, j) if i < 4 else 'gm{}u{}/'.format(n_group-i, j)
+            group_i, n_curr_ch = inception_group(group_i, prefix_name, n_curr_ch,
+                    num_filter_3x3=nf3, num_filter_1x1=nf1, num_filter_init=nfi, use_init=True,
+                    use_global_stats=use_global_stats)
         groups.append(group_i)
-        feat_sz /= 2
 
     return groups, nf_1x1
 
@@ -76,9 +86,10 @@ def densely_upsample(groups, nf_1x1, use_global_stats):
         #         use_global_stats=use_global_stats)
         s = 2
         nfu = 96
+        nfp = 24
         for j in range(i+1, n_group):
             u = upsample_feature(g, name='up{}{}/'.format(i, j), scale=s,
-                    num_filter_proj=nfu*s/2, num_filter_upsample=nfu, use_global_stats=use_global_stats)
+                    num_filter_proj=nfp*s, num_filter_upsample=nfu, use_global_stats=use_global_stats)
             up_groups[j].append(u)
             s *= 2
             nfu /= 2
@@ -95,21 +106,28 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=12, kernel=(3, 3), pad=(1, 1), stride=(1, 1), no_bias=True)  # 32, 198
+        num_filter=24, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='concat1')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1)
 
-    bn2 = relu_conv_bn(pool1, '2/',
-            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+    bn2 = relu_conv_bn(poo1, '2/',
+            num_filter=48, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
 
-    n_curr_ch = 64
+    n_curr_ch = 96
     groups, nf_1x1 = prepare_groups(bn2, data_shape, n_curr_ch, use_global_stats)
 
-    up_groups = densely_upsample(groups[:4], nf_1x1[:4], use_global_stats)
+    up_groups = densely_upsample(groups[:3], nf_1x1[:3], use_global_stats)
     for i in range(4, len(groups)):
         up_groups.append([])
+
+    dn_groups = []
+    for i, g in enumerate([bn2] + groups[:-1]):
+        d = relu_conv_bn(g, 'dn{}/'.format(i),
+                num_filter=64, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
+                use_global_stats=use_global_stats)
+        dn_groups.append(d)
 
     hyper_groups = []
     nf_proj = [24, 48, 96, 192]
@@ -117,15 +135,14 @@ def get_symbol(num_classes=1000, **kwargs):
         nf_proj.append(192)
     nf_hyper = 192
 
-    for i, (g, u, nfp) in enumerate(zip(groups, up_groups, nf_proj)):
+    for i, (g, u, d, nfp) in enumerate(zip(groups, up_groups, dn_groups, nf_proj)):
         p = relu_conv_bn(g, 'hyperproj{}/'.format(i),
                 num_filter=nfp, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
-        if u:
-            p = mx.sym.concat(*([p] + u))
-            p = relu_conv_bn(p, 'hyperconcat{}/'.format(i),
-                    num_filter=nf_hyper, kernel=(1, 1), pad=(0, 0),
-                    use_global_stats=use_global_stats)
+        p = mx.sym.concat(*([p, d] + u))
+        p = relu_conv_bn(p, 'hyperconcat{}/'.format(i),
+                num_filter=nf_hyper, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
         h = mx.sym.Activation(p, name='hyper{}'.format(i), act_type='relu')
         hyper_groups.append(h)
 
