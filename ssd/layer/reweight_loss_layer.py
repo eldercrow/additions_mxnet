@@ -24,19 +24,24 @@ class ReweightLoss(mx.operator.CustomOp):
         '''
         Reweight loss according to focal loss.
         '''
-        # n_batch, n_class, n_anchor = in_data[0].shape
         p = mx.nd.pick(in_data[0], in_data[1], axis=1, keepdims=True)
+
+        n_class = in_data[0].shape[1]
+        # alpha = mx.nd.one_hot(mx.nd.reshape(in_data[1], (0, -1)), n_class,
+        #         on_value=self.alpha, off_value=1-self.alpha)
+        # alpha = mx.nd.transpose(alpha, (0, 2, 1))
 
         u = 1 - p - (self.gamma * p * mx.nd.log(mx.nd.maximum(p, self.eps)))
         v = 1 - p if self.gamma == 2.0 else mx.nd.power(1 - p, self.gamma - 1.0)
-        g = self.alpha * v * u
+        a = (in_data[1] > 0) * self.alpha + (in_data[1] == 0) * (1 - self.alpha)
+        g = v * u * a
 
         g *= (in_data[1] >= 0)
 
         if self.normalize:
             g /= mx.nd.sum(in_data[1] > 0).asscalar()
 
-        self.assign(in_grad[0], req[0], mx.nd.tile(g, (1, in_data[0].shape[1], 1)))
+        self.assign(in_grad[0], req[0], mx.nd.tile(g, (1, n_class, 1)))
         self.assign(in_grad[1], req[1], 0)
 
 
