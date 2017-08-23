@@ -1,14 +1,15 @@
 python train.py \
     --network hypernet \
-    --batch-size 32 \
+    --batch-size 16 \
     --data-shape 448 \
     --optimizer-name sgd \
     --freeze '' \
     --pretrained ./model/ssd_hypernet_448 \
     --epoch 1000 \
-    --lr 2e-05 \
+    --lr 1e-02 \
+    --use-plateau 1 \
     --lr-factor 0.316227766 \
-    --lr-steps 20,20,40 \
+    --lr-steps 2,2,4,4,6,6,8 \
     --end-epoch 250 \
     --frequent 100 \
-    --gpus 0,1
+    --gpus 0

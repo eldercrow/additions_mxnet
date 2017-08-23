@@ -111,7 +111,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         #     ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
         #     normalization='null', name="cls_prob", out_grad=True)
         cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='reweight_loss', name='cls_loss',
-                gamma=2.0, alpha=0.25, normalize=True)
+                gamma=2.0, alpha=0.5, normalize=True)
         # cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     else:
         # cls_preds = mx.sym.Custom(cls_preds, op_type='dummy')

@@ -99,7 +99,7 @@ def set_mod_params(mod, args, auxs, logger):
 def train_net(net, train_path, num_classes, batch_size,
               data_shape, mean_pixels, resume, finetune, pretrained, epoch,
               prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
-              momentum, weight_decay, lr_refactor_step, lr_refactor_ratio,
+              momentum, weight_decay, use_plateau, lr_refactor_step, lr_refactor_ratio,
               freeze_layer_pattern='',
               num_example=10000, label_pad_width=350,
               nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
@@ -252,7 +252,7 @@ def train_net(net, train_path, num_classes, batch_size,
         logger.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
     # init training module
-    if cfg.train['use_focal_loss']: # focal loss does not go well with plateau
+    if not use_plateau: # focal loss does not go well with plateau
         mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
                 fixed_param_names=fixed_param_names)
     else:
@@ -274,11 +274,11 @@ def train_net(net, train_path, num_classes, batch_size,
     if optimizer_name == 'sgd':
         optimizer_params['momentum'] = momentum
 
-    if cfg.train['use_focal_loss']:
+    if not use_plateau:
         learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
                 lr_refactor_ratio, num_example, batch_size, begin_epoch)
     else:
-        eval_weights = None #{'CrossEntropy': 1.0, 'SmoothL1': 0.2}
+        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': 0.25}
         plateau_lr = PlateauScheduler( \
                 patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
         plateau_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
@@ -290,7 +290,7 @@ def train_net(net, train_path, num_classes, batch_size,
     else:
         valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
 
-    if cfg.train['use_focal_loss']:
+    if not use_plateau:
         mod.fit(train_iter,
                 eval_data=val_iter,
                 eval_metric=eval_metric,
