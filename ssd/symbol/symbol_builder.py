@@ -15,7 +15,7 @@ def import_module(module_name):
 
 def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pads,
                      sizes, ratios, normalizations=-1, steps=[], min_filter=128,
-                     nms_thresh=0.5, upscale=1, force_suppress=False, nms_topk=400, **kwargs):
+                     nms_thresh=0.5, upscales=1, force_suppress=False, nms_topk=400, **kwargs):
     """Build network symbol for training SSD
 
     Parameters
@@ -82,7 +82,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
         num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape, \
-        upscale=upscale)
+        upscales=upscales)
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3

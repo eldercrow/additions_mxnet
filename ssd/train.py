@@ -55,6 +55,8 @@ def parse_args():
                         help='blue mean value')
     parser.add_argument('--optimizer-name', dest='optimizer_name', type=str, default='sgd',
                         help='optimizer name')
+    parser.add_argument('--use-plateau', dest='use_plateau', type=bool, default=True,
+                        help='use plateau learning scheduler')
     parser.add_argument('--lr-steps', dest='lr_refactor_step', type=str, default='3,4,5,6',
                         help='refactor learning rate at specified epochs')
     parser.add_argument('--lr-factor', dest='lr_refactor_ratio', type=str, default=0.1,
@@ -120,6 +122,7 @@ if __name__ == '__main__':
               args.resume, args.finetune, args.pretrained,
               args.epoch, args.prefix, ctx, args.begin_epoch, args.end_epoch,
               args.frequent, args.learning_rate, args.momentum, args.weight_decay,
+              args.use_plateau,
               args.lr_refactor_step, args.lr_refactor_ratio,
               val_path=args.val_path,
               num_example=args.num_example,

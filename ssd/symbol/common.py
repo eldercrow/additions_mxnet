@@ -1,6 +1,7 @@
 import mxnet as mx
 import numpy as np
 
+from collections import Iterable
 from layer.multibox_prior_layer import *
 from net_block import subpixel_upsample
 
@@ -129,33 +130,47 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
     """
     # arguments check
     assert len(from_layers) > 0
-    assert isinstance(from_layers[0], str) and len(from_layers[0].strip()) > 0
+    if isinstance(from_layers[0], Iterable):
+        assert isinstance(from_layers[0][0], str) and len(from_layers[0][0].strip()) > 0
+        assert isinstance(from_layers[0][1], str) and len(from_layers[0][1].strip()) > 0
+    else:
+        assert isinstance(from_layers[0], str) and len(from_layers[0].strip()) > 0
     assert len(from_layers) == len(num_filters) == len(strides) == len(pads)
+
+    is_decoupled = isinstance(from_layers[0], Iterable)
+
+    def get_layer(name, num_filter, s, p, prefix_name, layer=None):
+        if name.strip():
+            # extract from base network
+            return internals[name.strip() + '_output']
+        else:
+            # attach from last feature layer
+            assert layer is not None
+            assert num_filter > 0
+            num_1x1 = max(min_filter, num_filter // 2)
+            conv_1x1 = conv_act_layer(layer, prefix_name+'conv_1x1',
+                num_1x1, kernel=(1, 1), pad=(0, 0), stride=(1, 1), act_type='relu')
+            conv_3x3 = conv_act_layer(conv_1x1, prefix_name+'conv_3x3',
+                num_filter, kernel=(3, 3), pad=(p, p), stride=(s, s), act_type='relu')
+            return conv_3x3
 
     internals = body.get_internals()
     layers = []
+    layer = (None, None) if is_decoupled else None
     for k, params in enumerate(zip(from_layers, num_filters, strides, pads)):
         from_layer, num_filter, s, p = params
-        if from_layer.strip():
-            # extract from base network
-            layer = internals[from_layer.strip() + '_output']
-            layers.append(layer)
+        if is_decoupled:
+            l_cls = get_layer(from_layer[0], num_filter, s, p, 'multi_feat_cls_{}_'.format(k), layer[0])
+            l_loc = get_layer(from_layer[1], num_filter, s, p, 'multi_feat_loc_{}_'.format(k), layer[1])
+            layer = (l_cls, l_loc)
         else:
-            # attach from last feature layer
-            assert len(layers) > 0
-            assert num_filter > 0
-            layer = layers[-1]
-            num_1x1 = max(min_filter, num_filter // 2)
-            conv_1x1 = conv_act_layer(layer, 'multi_feat_%d_conv_1x1' % (k),
-                num_1x1, kernel=(1, 1), pad=(0, 0), stride=(1, 1), act_type='relu')
-            conv_3x3 = conv_act_layer(conv_1x1, 'multi_feat_%d_conv_3x3' % (k),
-                num_filter, kernel=(3, 3), pad=(p, p), stride=(s, s), act_type='relu')
-            layers.append(conv_3x3)
+            layer = get_layer(from_layer, num_filter, s, p, 'multi_feat_{}_'.format(k), layer)
+        layers.append(layer)
     return layers
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[], upscale=1,
+                    clip=False, interm_layer=0, steps=[], upscales=1,
                     mimic_fc=True, use_global_stats=True, data_shape=(0, 0)):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
@@ -216,6 +231,9 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
     assert len(sizes) == len(from_layers), \
         "sizes and from_layers must have same length"
 
+    if not isinstance(upscales, Iterable):
+        upscales = [upscales] * len(from_layers)
+
     if not isinstance(normalization, list):
         normalization = [normalization] * len(from_layers)
     assert len(normalization) == len(from_layers)
@@ -231,10 +249,30 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
     anchor_layers = []
     num_classes += 1 # always use background as label 0
 
+
+    def add_fc(layer, n_iter=1):
+        from_name = layer.name
+        if not layer.attr('num_filter'):
+            _, out_shapes, _ = layer.infer_shape_partial(data=(1, 3, data_shape[0], data_shape[1]))
+            num_hidden = out_shapes[0][1]
+        else:
+            num_hidden = int(layer.attr('num_filter'))
+        print 'nf for {} = {}'.format(from_name, num_hidden)
+        fc = layer
+        for i in range(n_iter):
+            fc = mx.sym.Convolution(fc, name='{}_fc{}'.format(from_name, i),
+                    num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
+            fc = mx.sym.BatchNorm(fc, name='{}_fc{}/bn'.format(from_name, i),
+                    use_global_stats=use_global_stats, fix_gamma=False)
+            fc = mx.sym.Activation(fc, act_type='relu')
+        return fc
+
+
     for k, from_layer in enumerate(from_layers):
-        from_name = from_layer.name
         # normalize
         if normalization[k] > 0:
+            assert isinstance(from_layer, Iterable) == False
+            from_name = from_layer.name
             from_layer = mx.symbol.L2Normalization(data=from_layer, \
                 mode="channel", name="{}_norm".format(from_name))
             scale = mx.symbol.Variable(name="{}_scale".format(from_name),
@@ -243,6 +281,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                 attr={'__wd_mult__': '0.1'})
             from_layer = mx.symbol.broadcast_mul(lhs=scale, rhs=from_layer)
         if interm_layer > 0:
+            assert isinstance(from_layer, Iterable) == False
+            from_name = from_layer.name
             from_layer = mx.symbol.Convolution(data=from_layer, kernel=(3,3), \
                 stride=(1,1), pad=(1,1), num_filter=interm_layer, \
                 name="{}_inter_conv".format(from_name))
@@ -259,31 +299,27 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         assert len(ratio) > 0, "must provide at least one ratio"
         ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
         num_anchors = len(size) -1 + len(ratio)
+        upscale = upscales[i]
 
         # import ipdb
         # ipdb.set_trace()
         if mimic_fc == True:
-            if not from_layer.attr('num_filter'):
-                _, out_shapes, _ = from_layer.infer_shape_partial(data=(1, 3, data_shape[0], data_shape[1]))
-                num_hidden = out_shapes[0][1]
+            if isinstance(from_layer, Iterable):
+                from_layer = [add_fc(f, 1) for f in from_layer]
             else:
-                num_hidden = int(from_layer.attr('num_filter'))
-            print 'nf for {} = {}'.format(from_name, num_hidden)
-            fc = from_layer
-            for i in range(1):
-                fc = mx.sym.Convolution(fc, name='{}_fc{}'.format(from_name, i),
-                        num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
-                fc = mx.sym.BatchNorm(fc, name='{}_fc{}/bn'.format(from_name, i),
-                        use_global_stats=use_global_stats, fix_gamma=False)
-                fc = mx.sym.Activation(fc, act_type='relu')
-            from_layer = fc
+                from_layer = add_fc(from_layer, 1)
+
+        if not isinstance(from_layer, Iterable):
+            from_layer = (from_layer, from_layer)
+        from_name = [f.name for f in from_layer]
+
         # create location prediction layer
         num_loc_pred = num_anchors * 4
-        bias = mx.symbol.Variable(name="{}_loc_pred_conv_bias".format(from_name),
+        bias = mx.symbol.Variable(name="{}_loc_pred_conv_bias".format(from_name[1]),
             init=mx.init.Constant(0.0), attr={'__lr_mult__': '2.0'})
-        loc_pred_conv = mx.symbol.Convolution(data=from_layer, bias=bias, kernel=(3,3), \
+        loc_pred_conv = mx.symbol.Convolution(data=from_layer[1], bias=bias, kernel=(3,3), \
             stride=(1,1), pad=(1,1), num_filter=num_loc_pred, \
-            name="{}_loc_pred_conv".format(from_name))
+            name="{}_loc_pred_conv".format(from_name[1]))
         if upscale > 1:
             loc_pred_conv = mx.sym.UpSampling(loc_pred_conv, scale=upscale,
                     sample_type='bilinear', num_filter=num_loc_pred, num_args=2)
@@ -293,14 +329,14 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
 
         # create class prediction layer
         num_cls_pred = num_anchors * num_classes
-        bias = mx.symbol.Variable(name="{}_cls_pred_conv_bias".format(from_name),
+        bias = mx.symbol.Variable(name="{}_cls_pred_conv_bias".format(from_name[0]),
             init=FocalBiasInit(num_classes, 0.01), attr={'__lr_mult__': '2.0'})
-        cls_pred_conv = mx.symbol.Convolution(data=from_layer, bias=bias, kernel=(3,3), \
+        cls_pred_conv = mx.symbol.Convolution(data=from_layer[0], bias=bias, kernel=(3,3), \
             stride=(1,1), pad=(1,1), num_filter=num_cls_pred * upscale * upscale, \
-            name="{}_cls_pred_conv".format(from_name))
+            name="{}_cls_pred_conv".format(from_name[0]))
         if upscale > 1:
             cls_pred_conv = subpixel_upsample(cls_pred_conv, num_cls_pred, upscale, upscale,
-                    name='{}_cls_pred_conv_up'.format(from_name))
+                    name='{}_cls_pred_conv_up'.format(from_name[0]))
         cls_pred = mx.symbol.transpose(cls_pred_conv, axes=(0,2,3,1))
         cls_pred = mx.symbol.Flatten(data=cls_pred)
         cls_pred_layers.append(cls_pred)

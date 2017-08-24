@@ -80,9 +80,9 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         return locals()
-    elif network == 'hypernet':
+    elif network in ('hypernet', 'hypernetv2'):
         # network = 'hypernet'
-        from_layers = ['hyper{}'.format(i) for i in range(6)]
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
         pads = [-1] * 6
@@ -96,7 +96,8 @@ def get_config(network, data_shape, **kwargs):
         sizes = sizes.tolist()
         normalizations = -1
         steps = []
-        th_small = 18.0 / data_shape
+        th_small = 16.0 / data_shape
+        upscales = (2, 2, 2, 1, 1, 1)
         return locals()
     elif network == 'pva101':
         # network = 'pva101'
