@@ -264,7 +264,7 @@ def train_net(net, train_path, num_classes, batch_size,
     mod = set_mod_params(mod, args, auxs, logger)
 
     # fit parameters
-    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
+    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=False)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     optimizer_params={'learning_rate': learning_rate,

@@ -113,7 +113,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             if label[0] == -1:
                 continue
             gt_sz = np.maximum(label[3]-label[1], label[4]-label[2])
-            if gt_sz < self.th_small and np.max(iou) < 0.1:
+            if gt_sz < self.th_small and np.max(iou) < self.th_iou_neg:
                 continue
             # skip oob boxes
             # iou_mask = np.logical_and(iou_mask, self.oob_mask == False)
