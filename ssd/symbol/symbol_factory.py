@@ -97,6 +97,7 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         th_small = 16.0 / data_shape
+        upscales = (2, 2, 2, 1, 1, 1)
         return locals()
     elif network == 'pva101':
         # network = 'pva101'
@@ -133,7 +134,7 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = [2**(2+i) for i in range(len(sz_list))]
         th_small = 9.0
-        upscale = 2
+        upscales = 2
         del sz_list, sz0, sz_ratio
         return locals()
     elif network == 'fasterface':

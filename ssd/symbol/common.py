@@ -170,7 +170,7 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[], upscale=1,
+                    clip=False, interm_layer=0, steps=[], upscales=1,
                     mimic_fc=True, use_global_stats=True, data_shape=(0, 0)):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
@@ -230,6 +230,9 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
          sizes = zip(min_sizes, max_sizes)
     assert len(sizes) == len(from_layers), \
         "sizes and from_layers must have same length"
+
+    if not isinstance(upscales, Iterable):
+        upscales = [upscales] * len(from_layers)
 
     if not isinstance(normalization, list):
         normalization = [normalization] * len(from_layers)
@@ -296,6 +299,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         assert len(ratio) > 0, "must provide at least one ratio"
         ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
         num_anchors = len(size) -1 + len(ratio)
+        upscale = upscales[i]
 
         # import ipdb
         # ipdb.set_trace()
