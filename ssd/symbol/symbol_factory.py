@@ -120,7 +120,7 @@ def get_config(network, data_shape, **kwargs):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
-        sz_ratio = np.power(2.0, 0.5)
+        sz_ratio = np.power(2.0, 0.25)
         while sz0 <= data_shape:
             sz_list.append(sz0)
             sz0 *= 2
@@ -129,26 +129,31 @@ def get_config(network, data_shape, **kwargs):
         strides = [-1] * len(from_layers)
         pads = [-1] * len(from_layers)
         ratios = [[0.8,]] * len(from_layers)
-        sizes = [[s, s * sz_ratio] for s in sz_list]
+        sizes = [[s / sz_ratio, s * sz_ratio] for s in sz_list]
         normalizations = -1
         steps = [2**(2+i) for i in range(len(sz_list))]
-        th_small = 9.0
-        upscale = 2
+        th_small = 8.0
+        upscale = 1
         del sz_list, sz0, sz_ratio
         return locals()
     elif network == 'fasterface':
         # network = 'facenet'
         sz_list = []
-        sz0 = 12.0
-        sz_ratio = np.power(2.0, 0.25)
-        while sz0 <= data_shape:
+        sz0 = 24.0
+        sz_ratio = np.power(2.0, 0.5)
+        for _ in range(5):
             sz_list.append(sz0)
             sz0 *= 2
-        ratios = [[0.8,]] * len(sz_list)
-        sizes = [[s / sz_ratio, s * sz_ratio] for s in sz_list]
-        steps = [2**(2+i) for i in range(len(sz_list))]
-        th_small = 8.0
-        from_layers = num_filters = pads = normalizations = strides = None
+        from_layers = ['hyper{}'.format(i) for i in range(len(sz_list))]
+        num_filters = [-1] * len(from_layers)
+        strides = [-1] * len(from_layers)
+        pads = [-1] * len(from_layers)
+        ratios = [[0.8,]] * len(from_layers)
+        sizes = [[s, s * sz_ratio] for s in sz_list]
+        sizes[-1] = [s,]
+        normalizations = -1
+        steps = [2**(3+i) for i in range(len(sz_list))]
+        th_small = 16.0
         del sz_list, sz0, sz_ratio
         return locals()
     else:

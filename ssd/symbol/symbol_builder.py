@@ -75,21 +75,19 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     if isinstance(data_shape, int):
         data_shape = (data_shape, data_shape)
 
-    if network == 'fasterface':
-        loc_preds, cls_preds, anchor_boxes = import_module(network).get_symbol( \
-                num_classes, sizes=sizes, ratios=ratios, steps=steps, **kwargs)
-    else:
-        body = import_module(network).get_symbol(num_classes, **kwargs)
-        layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
-            min_filter=min_filter)
+    body = import_module(network).get_symbol(num_classes, **kwargs)
+    layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
+        min_filter=min_filter)
 
-        loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
-            num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-            num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape, \
-            upscale=upscale)
+    loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
+        num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
+        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape, \
+        upscale=upscale)
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
+        import ipdb
+        ipdb.set_trace()
         th_small = 0.04 if not 'th_small' in kwargs else kwargs['th_small']
         cls_probs = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
         tmp = mx.sym.Custom(*[anchor_boxes, label, cls_probs], name='multibox_target',
@@ -111,7 +109,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         #     ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
         #     normalization='null', name="cls_prob", out_grad=True)
         cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='reweight_loss', name='cls_loss',
-                gamma=2.0, alpha=0.25, normalize=True)
+                gamma=2.0, alpha=0.5, normalize=True)
         # cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     else:
         # cls_preds = mx.sym.Custom(cls_preds, op_type='dummy')
@@ -120,7 +118,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             normalization='valid', name="cls_loss")
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
-    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=1.0 if not use_focal_loss else 0.25, \
+    loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=0.25, \
         normalization='valid', name="loc_loss")
 
     # monitoring training status
@@ -192,17 +190,13 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
         data_shape = (data_shape, data_shape)
 
     kwargs['use_global_stats'] = True
-    if network == 'fasterface':
-        loc_preds, cls_preds, anchor_boxes = import_module(network).get_symbol( \
-                num_classes, sizes=sizes, ratios=ratios, steps=steps, **kwargs)
-    else:
-        body = import_module(network).get_symbol(num_classes, **kwargs)
-        layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
-            min_filter=min_filter)
+    body = import_module(network).get_symbol(num_classes, **kwargs)
+    layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
+        min_filter=min_filter)
 
-        loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
-            num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-            num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape)
+    loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
+        num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
+        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape)
     # body = import_module(network).get_symbol(num_classes, **kwargs)
     # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
     #     min_filter=min_filter)

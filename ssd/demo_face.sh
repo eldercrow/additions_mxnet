@@ -1,10 +1,10 @@
 #!/bin/bash
 python demo_face.py \
-  --network facenet \
-  --images ./data/demo/1_156.jpg \
-  --prefix ./model/ssd_facenet_480 \
+  --network fasterface \
+  --images ./data/demo/1_20.jpg \
+  --prefix ./model/ssd_ff_384 \
   --epoch 1000 \
-  --gpu 0 \
-  --data-shape 480 \
+  --cpu \
+  --data-shape 384 \
   --thresh 0.55 \
   # --gpu 0 \

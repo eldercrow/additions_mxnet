@@ -9,7 +9,7 @@ class FocalBiasInit(mx.init.Initializer):
     '''
     Initialize bias according to Focal Loss.
     '''
-    def __init__(self, num_classes, pi):
+    def __init__(self, num_classes, pi=0.01):
         super(FocalBiasInit, self).__init__(num_classes=num_classes, pi=pi)
         self._num_classes = num_classes
         self._pi = pi

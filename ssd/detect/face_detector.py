@@ -30,7 +30,7 @@ class FaceDetector(object):
     """
 
     def __init__(self, symbol, model_prefix, epoch, data_hw, mean_pixels,
-                 img_stride=32, th_nms=0.3333, ctx=None):
+                 img_stride=128, th_nms=0.3333, ctx=None):
         '''
         '''
         self.ctx = mx.cpu() if not ctx else ctx
@@ -79,7 +79,7 @@ class FaceDetector(object):
             out = self.mod.get_outputs()
 
             dets = out[0][0].asnumpy()
-            iidx = np.where(np.logical_and(dets[:, 0] >= 0, dets[:, 1] >= 0.55))[0]
+            iidx = np.where(np.logical_and(dets[:, 0] >= 0, dets[:, 1] >= 0.25))[0]
             dets = dets[iidx, :]
             # overlap = self._comp_overlap(dets[:, 2:], im_info['im_shape'])
             # iidx = np.where(overlap > 0.8)[0]

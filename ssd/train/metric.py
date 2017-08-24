@@ -48,8 +48,8 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         if self.use_focal_loss:
             label = label[mask]
             loss *= np.power(1 - prob, 2.0)
-            loss[label > 0] *= 0.25
-            loss[label ==0] *= 0.75
+            loss[label > 0] *= 0.5
+            loss[label ==0] *= 0.5
         self.sum_metric[0] += loss.sum()
         self.num_inst[0] += vc_cls
         # smoothl1loss
