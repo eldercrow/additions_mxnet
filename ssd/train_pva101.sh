@@ -4,11 +4,11 @@ python train.py \
     --data-shape 384 \
     --optimizer-name sgd \
     --freeze '' \
-    --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100 \
-    --epoch 0 \
-    --lr 1e-02 \
+    --pretrained ./model/ssd_pva101_384 \
+    --epoch 1000 \
+    --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 3,4,4,6,6,8,8 \
+    --lr-steps 2,4,4,6,6,8 \
     --lr-factor 0.316227766 \
     --end-epoch 240 \
     --frequent 50 \

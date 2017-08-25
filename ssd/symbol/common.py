@@ -1,6 +1,7 @@
 import mxnet as mx
 import numpy as np
 
+from config.config import cfg
 from collections import Iterable
 from layer.multibox_prior_layer import *
 from net_block import subpixel_upsample
@@ -130,14 +131,14 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
     """
     # arguments check
     assert len(from_layers) > 0
-    if isinstance(from_layers[0], Iterable):
+    if isinstance(from_layers[0], (list, tuple)):
         assert isinstance(from_layers[0][0], str) and len(from_layers[0][0].strip()) > 0
         assert isinstance(from_layers[0][1], str) and len(from_layers[0][1].strip()) > 0
     else:
         assert isinstance(from_layers[0], str) and len(from_layers[0].strip()) > 0
     assert len(from_layers) == len(num_filters) == len(strides) == len(pads)
 
-    is_decoupled = isinstance(from_layers[0], Iterable)
+    is_decoupled = isinstance(from_layers[0], (list, tuple))
 
     def get_layer(name, num_filter, s, p, prefix_name, layer=None):
         if name.strip():
@@ -171,7 +172,7 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
                     clip=False, interm_layer=0, steps=[], upscales=1,
-                    mimic_fc=True, use_global_stats=True, data_shape=(0, 0)):
+                    use_global_stats=True, data_shape=(0, 0)):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
     generate multiple object detection targets by customized layers
@@ -231,10 +232,10 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
     assert len(sizes) == len(from_layers), \
         "sizes and from_layers must have same length"
 
-    if not isinstance(upscales, Iterable):
+    if not isinstance(upscales, (list, tuple)):
         upscales = [upscales] * len(from_layers)
 
-    if not isinstance(normalization, list):
+    if not isinstance(normalization, (list, tuple)):
         normalization = [normalization] * len(from_layers)
     assert len(normalization) == len(from_layers)
 
@@ -264,14 +265,14 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
             fc = mx.sym.BatchNorm(fc, name='{}_fc{}/bn'.format(from_name, i),
                     use_global_stats=use_global_stats, fix_gamma=False)
-            fc = mx.sym.Activation(fc, act_type='relu')
+            fc = mx.sym.Activation(fc, act_type='relu', name='{}_fc{}/relu'.format(from_name, i))
         return fc
 
 
     for k, from_layer in enumerate(from_layers):
         # normalize
         if normalization[k] > 0:
-            assert isinstance(from_layer, Iterable) == False
+            assert isinstance(from_layer, str)
             from_name = from_layer.name
             from_layer = mx.symbol.L2Normalization(data=from_layer, \
                 mode="channel", name="{}_norm".format(from_name))
@@ -281,7 +282,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                 attr={'__wd_mult__': '0.1'})
             from_layer = mx.symbol.broadcast_mul(lhs=scale, rhs=from_layer)
         if interm_layer > 0:
-            assert isinstance(from_layer, Iterable) == False
+            assert isinstance(from_layer, str)
             from_name = from_layer.name
             from_layer = mx.symbol.Convolution(data=from_layer, kernel=(3,3), \
                 stride=(1,1), pad=(1,1), num_filter=interm_layer, \
@@ -301,15 +302,13 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         num_anchors = len(size) -1 + len(ratio)
         upscale = upscales[k]
 
-        # import ipdb
-        # ipdb.set_trace()
-        if mimic_fc == True:
-            if isinstance(from_layer, Iterable):
-                from_layer = [add_fc(f, 1) for f in from_layer]
+        if cfg.train['mimic_fc'] > 0:
+            if isinstance(from_layer, (list, tuple)):
+                from_layer = [add_fc(f, cfg.train['mimic_fc']) for f in from_layer]
             else:
-                from_layer = add_fc(from_layer, 1)
+                from_layer = add_fc(from_layer, cfg.train['mimic_fc'])
 
-        if not isinstance(from_layer, Iterable):
+        if not isinstance(from_layer, (list, tuple)):
             from_layer = (from_layer, from_layer)
         from_name = [f.name for f in from_layer]
 
