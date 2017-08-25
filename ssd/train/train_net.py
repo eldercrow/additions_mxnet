@@ -315,7 +315,7 @@ def train_net(net, train_path, num_classes, batch_size,
         eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': w_l1}
         plateau_lr = PlateauScheduler( \
                 patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
-        plateau_metric = MultiBoxMetric()
+        plateau_metric = MultiBoxMetric(fn_stat='/home/hyunjoon/github/additions_mxnet/ssd/stat.txt')
 
     eval_metric = MultiBoxMetric()
     # run fit net, every n epochs we run evaluation network to get mAP

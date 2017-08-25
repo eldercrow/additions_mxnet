@@ -65,7 +65,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         target_reg = np.zeros((n_batch, n_anchors, 4), dtype=np.float32)
         mask_reg = np.zeros_like(target_reg)
         target_cls = np.full((n_batch, 1, n_anchors), -1, dtype=np.float32)
-        match_info = np.zeros((n_batch, in_data[1].shape[1], 50))
+        match_info = np.full((n_batch, in_data[1].shape[1], 50), -1)
 
         max_iou_pos = []
 
@@ -104,7 +104,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         '''
         n_anchors = self.anchors_t.shape[1]
 
-        match_info = np.zeros((labels.shape[0], 50))
+        match_info = np.full((labels.shape[0], 50), -1)
 
         labels = _get_valid_labels(labels)
         max_iou = np.zeros(n_anchors, dtype=np.float32)

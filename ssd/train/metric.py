@@ -1,21 +1,25 @@
 import mxnet as mx
 import numpy as np
 from config.config import cfg
+import cv2
 
 
 class MultiBoxMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, eps=1e-8):
-        super(MultiBoxMetric, self).__init__('MultiBox')
+    def __init__(self, fn_stat=None, eps=1e-8):
+        # managed internally, for debug only
+        self.fn_stat = fn_stat
+        self.aphw_grid = np.zeros((100, 100), dtype=np.int64)
+        self.pphw_grid = np.zeros((100, 100), dtype=np.float64)
         self.eps = eps
+        self.reset_stat = 0
+
+        super(MultiBoxMetric, self).__init__('MultiBox')
         self.use_focal_loss = cfg.train['use_focal_loss']
         self.num = 2
         self.name = ['CrossEntropy', 'SmoothL1']
-        self.reset()
 
-        # managed internally, for debug only
-        self.aphw_grid = np.zeros((100, 100), dtype=np.int64)
-        self.pphw_grid = np.zeros((100, 100), dtype=np.float64)
+        self.reset()
 
     def reset(self):
         """
@@ -27,58 +31,72 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         else:
             self.num_inst = [0] * self.num
             self.sum_metric = [0.0] * self.num
+        if self.fn_stat and self.reset_stat % 10 == 0:
+            with open(self.fn_stat, 'w') as fh:
+                # import ipdb
+                # ipdb.set_trace()
+                for l in self.aphw_grid:
+                    lstr = '  '.join(('{:>8d}'.format(a) for a in l))
+                    fh.write(lstr + '\n')
+                for p, n in zip(self.pphw_grid, self.aphw_grid):
+                    pp = p / np.maximum(n, 1)
+                    lstr = '  '.join(('{:>1.3f}'.format(a) for a in pp))
+                    fh.write(lstr + '\n')
+            normalized_pp = self.pphw_grid / np.maximum(self.aphw_grid, 1)
+            normalized_pp /= np.maximum(self.eps, np.max(normalized_pp))
+            normalized_ap = self.aphw_grid / float(np.maximum(np.max(self.aphw_grid), 1))
+            cv2.imwrite(self.fn_stat.replace('.txt', '_pphw.png'), (normalized_pp * 255).astype(int))
+            cv2.imwrite(self.fn_stat.replace('.txt', '_aphw.png'), (normalized_ap * 255).astype(int))
+
+            self.aphw_grid = np.zeros((100, 100), dtype=np.int64)
+            self.pphw_grid = np.zeros((100, 100), dtype=np.float64)
+        self.reset_stat += 1
 
     def update(self, labels, preds):
         """
         Implementation of updating metrics
         """
         # get generated multi label from network
-        cls_prob = preds[0].asnumpy()
-        loc_loss = preds[1].asnumpy()
+        cls_prob = mx.nd.pick(preds[0], preds[2], axis=1, keepdims=True).asnumpy()
         cls_label = preds[2].asnumpy()
-        loc_label = preds[3].asnumpy()
-        match_info = preds[5].asnumpy().astype(int)
-
-        import ipdb
-        ipdb.set_trace()
-
-        vc_cls = np.sum(cls_label >= 0)
+        loss = -np.log(np.maximum(cls_prob, self.eps))
         if self.use_focal_loss:
-            vc_cls = np.sum(cls_label > 0)
-        vc_loc = np.sum(loc_label)
-
-        # overall accuracy & object accuracy
-        label = cls_label.flatten()
-        mask = np.where(label >= 0)[0]
-        indices = np.int64(label[mask])
-        prob = cls_prob.transpose((0, 2, 1)).reshape((-1, cls_prob.shape[1]))
-        prob = prob[mask, indices]
-        loss = -np.log(prob + self.eps)
-        if self.use_focal_loss:
-            label = label[mask]
             gamma = float(cfg.train['focal_loss_gamma'])
             alpha = float(cfg.train['focal_loss_alpha'])
-            loss *= np.power(1 - prob, gamma)
-            loss[label > 0] *= alpha
-            loss[label ==0] *= 1 - alpha
+            loss *= np.power(1 - cls_prob, gamma)
+            loss[cls_label > 0] *= alpha
+            loss[cls_label ==0] *= 1 - alpha
+        loss *= (cls_label >= 0)
+
         self.sum_metric[0] += loss.sum()
-        self.num_inst[0] += vc_cls
+        self.num_inst[0] += np.sum(cls_label > 0) if self.use_focal_loss else np.sum(cls_label >= 0)
+
         # smoothl1loss
+        loc_loss = preds[1].asnumpy()
+        loc_label = preds[3].asnumpy()
         self.sum_metric[1] += np.sum(loc_loss)
-        self.num_inst[1] += vc_loc
+        self.num_inst[1] += np.sum(loc_label)
+
+        match_info = preds[5].asnumpy()
 
         n_batch = cls_prob.shape[0]
-        cls_prob = np.reshape(prob, (n_batch, -1))
+        cls_label = labels[0].asnumpy()
         for prob, label, minfo in zip(cls_prob, cls_label, match_info): # for each batch
-            vidx = np.where(np.any(label, axis=1))[0]
+            vidx = np.where(np.any(label != -1, axis=1))[0]
             label = label[vidx, :]
             minfo = minfo[vidx, :]
-            wid = np.minimum(99, int((label[:, 3] - label[:, 1]) * 100))
-            hid = np.minimum(99, int((label[:, 4] - label[:, 2]) * 100))
+
+            wid = np.minimum(99, (label[:, 3] - label[:, 1]) * 100).astype(int)
+            hid = np.minimum(99, (label[:, 4] - label[:, 2]) * 100).astype(int)
+            if len(label) == 1:
+                wid = [wid]
+                hid = [hid]
 
             for w, h, m in zip(wid, hid, minfo):
-                self.aphw_grid[h, w] += np.sum(m >= 0)
-                self.pphw_grid[h, w] += np.sum(prob[minfo] * m >= 0)
+                n_anc = np.sum(m >= 0)
+                sum_prob = np.sum(prob[0][m.astype(int)] * (m >= 0))
+                self.aphw_grid[h, w] += n_anc
+                self.pphw_grid[h, w] += sum_prob
 
     def get(self):
         """Get the current evaluation result.
