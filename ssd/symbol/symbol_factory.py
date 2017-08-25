@@ -80,9 +80,9 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         return locals()
-    elif network == 'hypernet':
+    elif network in ('hypernet', 'hypernetv2'):
         # network = 'hypernet'
-        from_layers = ['hyper{}'.format(i) for i in range(6)]
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
         pads = [-1] * 6
@@ -96,7 +96,8 @@ def get_config(network, data_shape, **kwargs):
         sizes = sizes.tolist()
         normalizations = -1
         steps = []
-        th_small = 18.0 / data_shape
+        th_small = 16.0 / data_shape
+        upscales = (2, 2, 2, 1, 1, 1)
         return locals()
     elif network == 'pva101':
         # network = 'pva101'
@@ -140,7 +141,7 @@ def get_config(network, data_shape, **kwargs):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
-        sz_ratio = np.power(2.0, 0.5)
+        sz_ratio = np.power(2.0, 0.25)
         while sz0 <= data_shape:
             sz_list.append(sz0)
             sz0 *= 2
@@ -149,26 +150,32 @@ def get_config(network, data_shape, **kwargs):
         strides = [-1] * len(from_layers)
         pads = [-1] * len(from_layers)
         ratios = [[0.8,]] * len(from_layers)
-        sizes = [[s, s * sz_ratio] for s in sz_list]
+        sizes = [[s / sz_ratio, s * sz_ratio] for s in sz_list]
         normalizations = -1
         steps = [2**(2+i) for i in range(len(sz_list))]
-        th_small = 9.0
-        upscale = 2
+        th_small = 8.0
+        upscale = 1
         del sz_list, sz0, sz_ratio
         return locals()
-    elif network == 'fasterface':
+    elif network in ('hyperface', 'fasterface'):
         # network = 'facenet'
         sz_list = []
-        sz0 = 12.0
-        sz_ratio = np.power(2.0, 0.25)
-        while sz0 <= data_shape:
+        sz0 = 24.0 * np.sqrt(0.8)
+        sz_ratio = np.power(2.0, 0.33333)
+        for _ in range(5):
             sz_list.append(sz0)
             sz0 *= 2
-        ratios = [[0.8,]] * len(sz_list)
-        sizes = [[s / sz_ratio, s * sz_ratio] for s in sz_list]
-        steps = [2**(2+i) for i in range(len(sz_list))]
-        th_small = 8.0
-        from_layers = num_filters = pads = normalizations = strides = None
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(5)]
+        num_filters = [-1] * len(from_layers)
+        strides = [-1] * len(from_layers)
+        pads = [-1] * len(from_layers)
+        ratios = [[0.8, 0.5]] * len(from_layers)
+        sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
+        sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
+        normalizations = -1
+        upscales = 1
+        steps = [2**(3+i) for i in range(len(sz_list))]
+        th_small = 16.0
         del sz_list, sz0, sz_ratio
         return locals()
     else:

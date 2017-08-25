@@ -1,13 +1,14 @@
 import mxnet as mx
 import numpy as np
+from config.config import cfg
 
 
 class MultiBoxMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, eps=1e-8, use_focal_loss=False):
+    def __init__(self, eps=1e-8):
         super(MultiBoxMetric, self).__init__('MultiBox')
         self.eps = eps
-        self.use_focal_loss = use_focal_loss
+        self.use_focal_loss = cfg.train['use_focal_loss']
         self.num = 2
         self.name = ['CrossEntropy', 'SmoothL1']
         self.reset()
@@ -47,9 +48,11 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         loss = -np.log(prob + self.eps)
         if self.use_focal_loss:
             label = label[mask]
-            loss *= np.power(1 - prob, 2.0)
-            loss[label > 0] *= 0.5
-            loss[label ==0] *= 0.5
+            gamma = float(cfg.train['focal_loss_gamma'])
+            alpha = float(cfg.train['focal_loss_alpha'])
+            loss *= np.power(1 - prob, gamma)
+            loss[label > 0] *= alpha
+            loss[label ==0] *= 1 - alpha
         self.sum_metric[0] += loss.sum()
         self.num_inst[0] += vc_cls
         # smoothl1loss

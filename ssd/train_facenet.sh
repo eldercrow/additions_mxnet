@@ -2,18 +2,18 @@ python train_imdb.py \
     --dataset wider \
     --image-set train \
     --devkit-path ./data/wider \
-    --network facenet \
-    --prefix ./model/ssd_facenet \
-    --batch-size 32 \
-    --data-shape 512 \
+    --network fasterface \
+    --prefix ./model/ssd_ff \
+    --batch-size 64 \
+    --data-shape 384 \
     --force-resize 0 \
-    --min-obj-size 9 \
     --freeze '' \
-    --pretrained none \
+    --pretrained ./model/ssd_ff_384 \
     --epoch 1000 \
     --optimizer-name sgd \
-    --lr 1e-02 \
-    --lr-steps 2,2,4,4,6,6 \
+    --lr 1e-05 \
+    --use-plateau 1 \
+    --lr-steps 6,6 \
     --lr-factor 0.316227766 \
     --frequent 50 \
     --gpus 0,1

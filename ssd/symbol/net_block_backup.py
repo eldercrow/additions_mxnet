@@ -82,7 +82,6 @@ def conv_group(data,
         bn_ = relu_conv_bn(data, prefix_name=prefix_name+'init/',
                 num_filter=num_filter_1x1, kernel=(1,1), pad=(0,0),
                 use_global_stats=use_global_stats)
-        cgroup.append(bn_)
     else:
         bn_ = data
 
@@ -91,11 +90,8 @@ def conv_group(data,
             bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
             num_filter=nf3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu,
             use_global_stats=use_global_stats)
-        cgroup.append(bn_)
 
-    concat_ = mx.sym.concat(*cgroup, name=prefix_name + 'concat/')
-
-    return concat_
+    return bn_
 
 
 def proj_add(lhs, rhs, num_filter, use_global_stats):
@@ -107,29 +103,6 @@ def proj_add(lhs, rhs, num_filter, use_global_stats):
             use_global_stats=use_global_stats)
     return lhs + rhs
 
-
-def multiple_conv(data,
-                  prefix_name,
-                  num_filter_3x3,
-                  num_filter_1x1=0,
-                  use_crelu=False,
-                  use_global_stats=False):
-    '''
-    '''
-    if num_filter_1x1 > 0:
-        bn_ = relu_conv_bn(data, prefix_name=prefix_name+'init/',
-                num_filter=num_filter_1x1, kernel=(1,1), pad=(0,0),
-                use_global_stats=use_global_stats)
-    else:
-        bn_ = data
-
-    for ii, nf3 in enumerate(num_filter_3x3):
-        bn_ = relu_conv_bn(
-            bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
-            num_filter=nf3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu,
-            use_global_stats=use_global_stats)
-
-    return bn_
 
 
 def inception_group(data,

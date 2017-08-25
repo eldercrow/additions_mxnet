@@ -33,7 +33,7 @@ class Wider(Imdb):
         self.extension = '.jpg'
         self.is_train = is_train
 
-        self.classes = ('face',)
+        self.classes = ['face',]
 
         self.config = {'th_small': 6, 'use_difficult': False, 'padding': 256}
 

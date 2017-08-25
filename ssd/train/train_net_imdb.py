@@ -98,6 +98,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
               prefix, ctx, begin_epoch, end_epoch, frequent,
               optimizer_name='adam', learning_rate=1e-03, momentum=0.9, weight_decay=5e-04,
               lr_refactor_step=(3,4,5,6), lr_refactor_ratio=0.1,
+              use_plateau=True,
               year='', freeze_layer_pattern='',
               force_resize=True,
               min_obj_size=32.0, use_difficult=False,
@@ -237,7 +238,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         logger.info("Freezed parameters: [" + ','.join(fixed_param_names) + ']')
 
     # init training module
-    if False: #cfg.train['use_focal_loss']: # focal loss does not go well with plateau
+    if not use_plateau: #cfg.train['use_focal_loss']: # focal loss does not go well with plateau
         mod = mx.mod.Module(net, label_names=('label',), logger=logger, context=ctx,
                 fixed_param_names=fixed_param_names)
     else:
@@ -249,7 +250,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     mod = set_mod_params(mod, args, auxs, data_shape, logger)
 
     # fit parameters
-    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent)
+    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=True)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     optimizer_params={'learning_rate': learning_rate,
@@ -259,19 +260,20 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     if optimizer_name == 'sgd':
         optimizer_params['momentum'] = momentum
 
-    if False: #cfg.train['use_focal_loss']:
+    if not use_plateau: #cfg.train['use_focal_loss']:
         learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
                 lr_refactor_ratio, num_example, batch_size, begin_epoch)
     else:
-        eval_weights = None #{'CrossEntropy': 1.0, 'SmoothL1': 0.2}
+        w_l1 = cfg.train['smoothl1_weight']
+        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': w_l1}
         plateau_lr = PlateauScheduler( \
                 patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
-        plateau_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
+        plateau_metric = MultiBoxMetric()
 
-    eval_metric = MultiBoxMetric(use_focal_loss=False) #cfg.train['use_focal_loss'])
+    eval_metric = MultiBoxMetric()
     valid_metric = None
 
-    if False: #cfg.train['use_focal_loss']:
+    if not use_plateau: #cfg.train['use_focal_loss']:
         mod.fit(train_iter,
                 eval_data=val_iter,
                 eval_metric=eval_metric,

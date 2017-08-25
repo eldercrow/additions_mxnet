@@ -57,6 +57,8 @@ def parse_args():
                         help='green mean value')
     parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
                         help='blue mean value')
+    parser.add_argument('--use-plateau', dest='use_plateau', type=bool, default=True,
+                        help='use plateau learning rate scheduler')
     parser.add_argument('--lr-steps', dest='lr_refactor_step', type=str, default='3,4,5,6',
                         help='refactor learning rate at specified epochs')
     parser.add_argument('--lr-factor', dest='lr_refactor_ratio', type=str, default=0.1,
@@ -91,6 +93,7 @@ if __name__ == '__main__':
               args.frequent,
               args.optimizer_name, args.learning_rate, args.momentum, args.weight_decay,
               args.lr_refactor_step, args.lr_refactor_ratio,
+              use_plateau=args.use_plateau,
               force_resize=args.force_resize,
               year=args.year,
               freeze_layer_pattern=args.freeze_pattern,

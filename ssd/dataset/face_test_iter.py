@@ -16,7 +16,8 @@ class FaceTestIter(mx.io.DataIter):
     mean_pixels : float or float list
         [R, G, B], mean pixel values
     """
-    def __init__(self, imdb, min_hw=(384, 384), mean_pixels=[128, 128, 128], img_stride=32):
+    def __init__(self, imdb, has_label=False,
+            min_hw=(384, 384), mean_pixels=[128, 128, 128], img_stride=128):
         super(FaceTestIter, self).__init__()
 
         self._imdb = imdb
@@ -39,7 +40,10 @@ class FaceTestIter(mx.io.DataIter):
 
     @property
     def provide_label(self):
-        return []
+        try:
+            return [(k, v.shape) for k, v in self._label.items()]
+        except:
+            return []
 
     def reset(self):
         self._current = 0
@@ -90,10 +94,17 @@ class FaceTestIter(mx.io.DataIter):
             img = mx.img.imdecode(img_content)
             data, scale = self._data_augmentation(img)
             im_shape = img.shape
+            if self._imdb.labels:
+                label = mx.nd.array(self._imdb.label_from_index(index))
+            else:
+                label = None
+
         batch_data = mx.nd.expand_dims(data, axis=0)
         scale = mx.nd.expand_dims(scale, axis=0)
         self._data = {'data': batch_data}
-        self._label = {'label': None}
+        if label is not None:
+            label = mx.nd.expand_dims(label, axis=0)
+        self._label = {'label': label}
         self._im_info = {'im_scale': scale, 'im_path': im_path, 'im_shape': im_shape}
 
     def _data_augmentation(self, data):
