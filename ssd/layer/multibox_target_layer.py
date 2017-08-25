@@ -104,7 +104,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         '''
         n_anchors = self.anchors_t.shape[1]
 
-        match_info = np.zeros((labels.shape[0], 4))
+        match_info = np.zeros((labels.shape[0], 50))
 
         labels = _get_valid_labels(labels)
         max_iou = np.zeros(n_anchors, dtype=np.float32)

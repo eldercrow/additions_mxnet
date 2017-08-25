@@ -39,6 +39,9 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         loc_label = preds[3].asnumpy()
         match_info = preds[5].asnumpy().astype(int)
 
+        import ipdb
+        ipdb.set_trace()
+
         vc_cls = np.sum(cls_label >= 0)
         if self.use_focal_loss:
             vc_cls = np.sum(cls_label > 0)

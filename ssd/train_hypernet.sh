@@ -5,11 +5,11 @@ python train.py \
     --optimizer-name sgd \
     --freeze '' \
     --pretrained ./model/ssd_hypernetv2_384 \
-    --epoch 211 \
-    --lr 1e-04 \
+    --epoch 1000 \
+    --lr 1e-03 \
     --use-plateau 1 \
     --lr-factor 0.316227766 \
-    --lr-steps 6,6,8,8 \
+    --lr-steps 2,4,6,6,8,8 \
     --end-epoch 250 \
     --frequent 100 \
     --gpus 0,1
