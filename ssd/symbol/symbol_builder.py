@@ -3,6 +3,7 @@ from common import multi_layer_feature, multibox_layer
 from layer.multibox_target_layer import *
 from layer.dummy_layer import *
 from layer.reweight_loss_layer import *
+from layer.multibox_detection_layer import *
 from config.config import cfg
 
 
@@ -209,7 +210,10 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
 
     cls_prob = mx.symbol.SoftmaxActivation(data=cls_preds, mode='channel', \
         name='cls_prob')
-    out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
-        name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
-        variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk, clip=False)
+    cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
+    out = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
+            th_pos=0.25, th_nms=1.0/3.0)
+    # out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
+    #     name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
+    #     variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk, clip=False)
     return out

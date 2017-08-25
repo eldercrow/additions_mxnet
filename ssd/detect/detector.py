@@ -40,6 +40,7 @@ class Detector(object):
         self.mod.set_params(args, auxs)
         self.data_shape = data_shape
         self.mean_pixels = mean_pixels
+        self.th_nms = 1.0 / 3.0
 
     def detect(self, det_iter, show_timer=False):
         """
@@ -68,6 +69,12 @@ class Detector(object):
         result = []
         for i in range(detections.shape[0]):
             det = detections[i, :, :]
+            pidx = np.where(det[:, 0] >= 0)[0]
+            det = det[pidx, :]
+            sidx = np.argsort(det[:, 1])[::-1]
+            det = det[sidx, :]
+            vidx = self._do_nms(det)
+            det = det[vidx, :]
             res = det[np.where(det[:, 0] >= 0)[0]]
             result.append(res)
         return result
@@ -171,3 +178,20 @@ class Detector(object):
             img = cv2.imread(im_list[k])
             img[:, :, (0, 1, 2)] = img[:, :, (2, 1, 0)]
             self.visualize_detection(img, det, classes, thresh)
+
+    def _do_nms(self, dets):
+        #
+        areas = (dets[:, 4] - dets[:, 2]) * (dets[:, 5] - dets[:, 3])
+        vmask = np.ones((dets.shape[0],), dtype=int)
+        vidx = []
+        for i, d in enumerate(dets):
+            if vmask[i] == 0:
+                continue
+            iw = np.minimum(d[4], dets[i:, 4]) - np.maximum(d[2], dets[i:, 2])
+            ih = np.minimum(d[5], dets[i:, 5]) - np.maximum(d[3], dets[i:, 3])
+            I = np.maximum(iw, 0) * np.maximum(ih, 0)
+            iou = I / np.maximum(areas[i:] + areas[i] - I, 1e-08)
+            nidx = np.where(iou > self.th_nms)[0] + i
+            vmask[nidx] = 0
+            vidx.append(i)
+        return vidx

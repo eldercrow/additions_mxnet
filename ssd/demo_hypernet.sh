@@ -1,8 +1,9 @@
 #!/bin/bash
 
 python demo.py \
-    --network hypernet \
-    --prefix ./model/ssd_hypernet_448 \
+    --network hypernetv2 \
+    --prefix ./model/ssd_hypernetv2_384 \
     --epoch 1000 \
-    --data-shape 448 \
-    --gpu 0
+    --images ./data/demo/000010.jpg \
+    --data-shape 384 \
+    --cpu
