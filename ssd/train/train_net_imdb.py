@@ -250,7 +250,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     mod = set_mod_params(mod, args, auxs, data_shape, logger)
 
     # fit parameters
-    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=False)
+    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=True)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     optimizer_params={'learning_rate': learning_rate,
@@ -264,12 +264,13 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
                 lr_refactor_ratio, num_example, batch_size, begin_epoch)
     else:
-        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': 0.5 if cfg.train['use_focal_loss'] else 1.0}
+        w_l1 = cfg.train['smoothl1_weight']
+        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': w_l1}
         plateau_lr = PlateauScheduler( \
                 patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
-        plateau_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
+        plateau_metric = MultiBoxMetric()
 
-    eval_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
+    eval_metric = MultiBoxMetric()
     valid_metric = None
 
     if not use_plateau: #cfg.train['use_focal_loss']:

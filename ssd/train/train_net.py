@@ -264,7 +264,7 @@ def train_net(net, train_path, num_classes, batch_size,
     mod = set_mod_params(mod, args, auxs, logger)
 
     # fit parameters
-    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=False)
+    batch_end_callback = mx.callback.Speedometer(train_iter.batch_size, frequent=frequent, auto_reset=True)
     epoch_end_callback = mx.callback.do_checkpoint(prefix)
     monitor = mx.mon.Monitor(iter_monitor, pattern=monitor_pattern) if iter_monitor > 0 else None
     optimizer_params={'learning_rate': learning_rate,
@@ -278,12 +278,13 @@ def train_net(net, train_path, num_classes, batch_size,
         learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
                 lr_refactor_ratio, num_example, batch_size, begin_epoch)
     else:
-        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': 0.25}
+        w_l1 = cfg.train['smoothl1_weight']
+        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': w_l1}
         plateau_lr = PlateauScheduler( \
                 patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
-        plateau_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
+        plateau_metric = MultiBoxMetric()
 
-    eval_metric = MultiBoxMetric(use_focal_loss=cfg.train['use_focal_loss'])
+    eval_metric = MultiBoxMetric()
     # run fit net, every n epochs we run evaluation network to get mAP
     if voc07_metric:
         valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)

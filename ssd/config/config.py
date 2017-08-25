@@ -54,7 +54,10 @@ cfg.train.rand_mirror_prob = 0.5
 cfg.train.shuffle = True
 cfg.train.seed = 0
 cfg.train.preprocess_threads = 48
-cfg.train.use_focal_loss = False # focal loss
+cfg.train.use_focal_loss = True # focal loss
+cfg.train.focal_loss_alpha = 0.75
+cfg.train.focal_loss_gamma = 2.0
+cfg.train.smoothl1_weight = 0.25 if cfg.train.use_focal_loss else 1.0
 cfg.train = config_as_dict(cfg.train)  # convert to normal dict
 
 # validation

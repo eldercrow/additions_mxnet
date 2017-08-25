@@ -11,7 +11,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
     """
     Python implementation of MultiBoxTarget layer.
     """
-    def __init__(self, th_iou, th_iou_neg, th_nms_neg, th_small,
+    def __init__(self, th_iou, th_iou_neg, th_nms_neg, th_small, square_bb,
             reg_sample_ratio, hard_neg_ratio, variances):
         #
         super(MultiBoxTarget, self).__init__()
@@ -30,6 +30,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         self.th_anc_overlap = 0.6
         self.th_small = th_small
+        self.square_bb = square_bb
 
     def forward(self, is_train, req, in_data, out_data, aux):
         """
@@ -105,7 +106,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         for label in labels:
             gt_cls = int(label[0]) + 1
-            iou = _compute_iou(label[1:], self.anchors_t, self.area_anchors_t)
+            if self.square_bb:
+                lsq = _fit_box_ratio(label[1:], 0.8)
+            else:
+                lsq = label[1:]
+            iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)
 
             # skip already occupied ones
             iou_mask = iou > max_iou
@@ -251,6 +256,24 @@ def _rescale_anchor(anchors_t, sf):
     ranc[1] -= (anchors_t[3] - anchors_t[1]) * 0.5 * sf
     return ranc
 
+def _fit_box_ratio(bb, ratio):
+    #
+    ndim = bb.ndim
+    if ndim == 1:
+        bb = np.reshape(bb, (1, -1))
+
+    cx = (bb[:, 0] + bb[:, 2]) / 2.0
+    cy = (bb[:, 1] + bb[:, 3]) / 2.0
+    sz2 = np.maximum(bb[:, 2] - bb[:, 0], bb[:, 3] - bb[:, 1]) / 2.0
+    res = bb.copy()
+    res[:, 0] = cx - sz2 * ratio
+    res[:, 1] = cy - sz2
+    res[:, 2] = cx + sz2 * ratio
+    res[:, 3] = cy + sz2
+    if ndim == 1:
+        res = res.ravel()
+    return res
+
 # def _expand_target(loc_target, cid, n_cls):
 #     n_target = loc_target.shape[0]
 #     loc_target_e = np.zeros((n_target, 4 * n_cls), dtype=np.float32)
@@ -268,7 +291,7 @@ def _rescale_anchor(anchors_t, sf):
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self,
             th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0,
-            th_small = 0.04,
+            th_small=0.04, square_bb=False,
             reg_sample_ratio=1.0, hard_neg_ratio=3.0,
             variances=(0.1, 0.1, 0.2, 0.2)):
         #
@@ -279,6 +302,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         self.th_small = float(th_small)
         self.reg_sample_ratio = int(reg_sample_ratio)
         self.hard_neg_ratio = float(hard_neg_ratio)
+        self.square_bb = bool(make_tuple(str(square_bb)))
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.reshape(np.array(variances), (1, -1))
@@ -302,6 +326,6 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def create_operator(self, ctx, shapes, dtypes):
         return MultiBoxTarget( \
                 self.th_iou, self.th_iou_neg, self.th_nms_neg,
-                self.th_small,
+                self.th_small, self.square_bb,
                 self.reg_sample_ratio, self.hard_neg_ratio,
                 self.variances)

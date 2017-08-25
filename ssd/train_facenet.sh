@@ -11,9 +11,9 @@ python train_imdb.py \
     --pretrained ./model/ssd_ff_384 \
     --epoch 1000 \
     --optimizer-name sgd \
-    --lr 1e-03 \
+    --lr 1e-05 \
     --use-plateau 1 \
-    --lr-steps 4,4,6,6,8,8 \
+    --lr-steps 6,6 \
     --lr-factor 0.316227766 \
     --frequent 50 \
     --gpus 0,1

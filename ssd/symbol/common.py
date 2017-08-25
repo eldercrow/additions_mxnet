@@ -299,7 +299,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         assert len(ratio) > 0, "must provide at least one ratio"
         ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
         num_anchors = len(size) -1 + len(ratio)
-        upscale = upscales[i]
+        upscale = upscales[k]
 
         # import ipdb
         # ipdb.set_trace()

@@ -40,11 +40,11 @@ class FaceDetector(object):
         assert data_hw[0] % img_stride == 0 and data_hw[1] % img_stride == 0
         self.data_hw = data_hw
 
-        _, args, auxs = mx.model.load_checkpoint(model_prefix, epoch)
+        _, arg_params, aux_params = mx.model.load_checkpoint(model_prefix, epoch)
 
         self.mod = mx.mod.Module(symbol, label_names=None, context=ctx)
         self.mod.bind(data_shapes=[('data', (1, 3, data_hw[0], data_hw[1]))])
-        self.mod.set_params(args, auxs)
+        self.mod.set_params(arg_params, aux_params)
 
         self.mean_pixels = mean_pixels
         self.img_stride = img_stride
@@ -74,18 +74,19 @@ class FaceDetector(object):
         for i, (datum, im_info) in enumerate(det_iter):
             im_paths.append(im_info['im_path'])
             self.mod.reshape(data_shapes=datum.provide_data)
+
             start = timer()
             self.mod.forward(datum)
             out = self.mod.get_outputs()
-
             dets = out[0][0].asnumpy()
+            time_elapsed += timer() - start
+
             iidx = np.where(np.logical_and(dets[:, 0] >= 0, dets[:, 1] >= 0.25))[0]
             dets = dets[iidx, :]
             # overlap = self._comp_overlap(dets[:, 2:], im_info['im_shape'])
             # iidx = np.where(overlap > 0.8)[0]
             # dets = dets[iidx, :]
             result.append(dets)
-            time_elapsed += timer() - start
 
             if i % 10 == 0:
                 n_dets = dets.shape[0]
