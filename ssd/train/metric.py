@@ -64,9 +64,18 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         self.sum_metric[1] += np.sum(loc_loss)
         self.num_inst[1] += vc_loc
 
-        label = np.reshape(cls_label, (-1, cls_label.shape[-1]))
-        wid = np.minimum(99, int((label[:, 3] - label[:, 1]) * 100))
-        hid = np.minimum(99, int((label[:, 4] - label[:, 2]) * 100))
+        n_batch = cls_prob.shape[0]
+        cls_prob = np.reshape(prob, (n_batch, -1))
+        for prob, label, minfo in zip(cls_prob, cls_label, match_info): # for each batch
+            vidx = np.where(np.any(label, axis=1))[0]
+            label = label[vidx, :]
+            minfo = minfo[vidx, :]
+            wid = np.minimum(99, int((label[:, 3] - label[:, 1]) * 100))
+            hid = np.minimum(99, int((label[:, 4] - label[:, 2]) * 100))
+
+            for w, h, m in zip(wid, hid, minfo):
+                self.aphw_grid[h, w] += np.sum(m >= 0)
+                self.pphw_grid[h, w] += np.sum(prob[minfo] * m >= 0)
 
     def get(self):
         """Get the current evaluation result.
