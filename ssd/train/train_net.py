@@ -30,6 +30,36 @@ def convert_pretrained(name, args):
     """
     return args
 
+def convert_pvanet(args, auxs):
+    '''
+    '''
+    name_dict = { \
+            'inc3a': 'inc31', 'inc3b': 'inc3b',
+            'inc3c': 'inc41', 'inc3d': 'inc42', 'inc3e': 'inc43',
+            'inc4a': 'inc51', 'inc4b': 'inc52', 'inc4c': 'inc53',
+            'inc4d': 'inc61', 'inc4e': 'inc62'}
+
+    def find_name(name):
+        for n, v in name_dict.items():
+            if name.find(n) >= 0:
+                return name.replace(n, v)
+        return None
+
+    r_args = {}
+    r_auxs = {}
+    import ipdb
+    ipdb.set_trace()
+    for k, v in args.items():
+        mn = find_name(k)
+        if mn:
+            r_args[mn] = v
+    for k, v in auxs.items():
+        mn = find_name(k)
+        if mn:
+            r_auxs[mn] = v
+    return r_args, r_auxs
+
+
 def get_lr_scheduler(learning_rate, lr_refactor_step, lr_refactor_ratio,
                      num_example, batch_size, begin_epoch):
     """
@@ -204,6 +234,7 @@ def train_net(net, train_path, num_classes, batch_size,
         val_iter = None
 
     # load symbol
+    net_str = net
     net = get_symbol_train(net, data_shape[1], num_classes=num_classes,
         nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
 
@@ -235,6 +266,8 @@ def train_net(net, train_path, num_classes, batch_size,
                 .format(ctx_str, pretrained))
             _, args, auxs = mx.model.load_checkpoint(pretrained, epoch)
             args = convert_pretrained(pretrained, args)
+            if net_str == 'ssd_pva':
+                args, auxs = convert_pvanet(args, auxs)
         except:
             logger.info("Failed to load the pretrained model. Start from scratch.")
             args = None

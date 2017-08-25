@@ -2,7 +2,7 @@ import mxnet as mx
 
 
 def conv_bn_relu(data, group_name,
-        num_filter, kernel, pad, stride=(1, 1), no_bias=True,
+        num_filter, kernel, pad, stride=(1, 1), dilate=(1, 1), no_bias=True,
         use_global_stats=True, use_crelu=False,
         get_syms=False):
     ''' use in mCReLU '''
@@ -13,7 +13,7 @@ def conv_bn_relu(data, group_name,
 
     syms = {}
     conv = mx.sym.Convolution(data, name=conv_name,
-            num_filter=num_filter, kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
+            num_filter=num_filter, kernel=kernel, pad=pad, stride=stride, dilate=dilate, no_bias=no_bias)
     syms['conv'] = conv
     if use_crelu:
         conv = mx.sym.concat(conv, -conv, name=concat_name)
@@ -161,7 +161,7 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
             use_global_stats=use_global_stats)
     # inc3e/residual
     inc3e = residual_inc(inc3b, inc3e, prefix_lhs='inc3c', prefix_rhs='inc3e',
-            num_filter=128, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
+            num_filter=192, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
     # inc4a
     inc4a = inception(inc3e, prefix_group='inc4a',
             filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
@@ -187,35 +187,32 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
             use_global_stats=use_global_stats)
     # inc4e/residual
     inc4e = residual_inc(inc4b, inc4e, prefix_lhs='inc4c', prefix_rhs='inc4e',
-            num_filter=384, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
+            num_filter=256, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
 
-    # hyper3
-    up33 = upsample_feature(inc3e, name='up33', scale=2,
+    # hyper2
+    up32 = upsample_feature(inc3e, name='up32', scale=2,
+            num_filter_proj=96, num_filter_upsample=96, use_global_stats=use_global_stats)
+    up42 = upsample_feature(inc4e, name='up42', scale=4,
             num_filter_proj=128, num_filter_upsample=64, use_global_stats=use_global_stats)
-    up43 = upsample_feature(inc4e, name='up43', scale=4,
-            num_filter_proj=128, num_filter_upsample=96, use_global_stats=use_global_stats)
-    hyper3 = mx.sym.concat(conv3, up33, up43)
-    hyper3 = conv_bn_relu(hyper3, 'hyper3', num_filter=384,
+    hyper2 = mx.sym.concat(conv3, up32, up42)
+    hyper2 = conv_bn_relu(hyper2, 'hyper2', num_filter=384,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
 
-    # hyperfeature
-    downsample = mx.sym.Pooling(conv3, name='downsample',
-            kernel=(3,3), pad=(0,0), stride=(2,2), pool_type='max', pooling_convention='full')
-    upsample = mx.sym.UpSampling(inc4e, name='upsample', scale=2,
-            sample_type='bilinear', num_filter=384, num_args=2)
-    concat = mx.sym.concat(downsample, inc3e, upsample)
+    # hyper3
+    up43 = upsample_feature(inc4e, name='up43', scale=2,
+            num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats)
+    hyper3 = mx.sym.concat(inc3e, up43)
+    hyper3 = conv_bn_relu(hyper3, 'hyper3', num_filter=512,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
 
-    # features for rpn and rcnn
-    convf_rpn = mx.sym.Convolution(concat, name='convf_rpn',
-            num_filter=128, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=no_bias)
-    reluf_rpn = mx.sym.Activation(convf_rpn, name='reluf_rpn', act_type='relu')
+    # hyper4
+    hyper4 = conv_bn_relu(inc4e, 'hyper4_dilate', num_filter=512,
+            kernel=(3, 3), pad=(6, 6), dilate=(6, 6), use_global_stats=use_global_stats)
+    hyper4 = conv_bn_relu(hyper4, 'hyper4', num_filter=512,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
 
-    convf_2 = mx.sym.Convolution(concat, name='convf_2',
-            num_filter=384, pad=(0,0), kernel=(1,1), stride=(1,1), no_bias=no_bias)
-    reluf_2 = mx.sym.Activation(convf_2, name='reluf_2', act_type='relu')
-    hyper4 = mx.sym.concat(reluf_rpn, reluf_2, name='hyper4')
 
-    return hyper3, hyper4
+    return hyper2, hyper3, hyper4
 
 
 def get_symbol(num_classes=1000, **kwargs):
@@ -228,12 +225,13 @@ def get_symbol(num_classes=1000, **kwargs):
     data = mx.symbol.Variable(name="data")
     label = mx.symbol.Variable(name="label")
 
-    hyper3, hyper4 = pvanet_preact(data, use_global_stats)
+    hyper2, hyper3, hyper4 = pvanet_preact(data, use_global_stats)
 
+    pool2 = mx.sym.Pooling(hyper2, kernel=(2, 2), pool_type='max', global_pool=True)
     pool3 = mx.sym.Pooling(hyper3, kernel=(2, 2), pool_type='max', global_pool=True)
     pool4 = mx.sym.Pooling(hyper4, kernel=(2, 2), pool_type='max', global_pool=True)
 
-    pooled_all = mx.sym.flatten(mx.sym.concat(pool3, pool4), name='flatten')
+    pooled_all = mx.sym.flatten(mx.sym.concat(pool2, pool3, pool4), name='flatten')
     # softmax = mx.sym.SoftmaxOutput(data=pooled_all, label=label, name='softmax')
     fc1 = mx.sym.FullyConnected(pooled_all, num_hidden=4096, name='fc1')
     softmax = mx.sym.SoftmaxOutput(data=fc1, label=label, name='softmax')
