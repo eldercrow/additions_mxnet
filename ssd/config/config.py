@@ -73,4 +73,9 @@ cfg.valid.rand_mirror_prob = 0
 cfg.valid.shuffle = False
 cfg.valid.seed = 0
 cfg.valid.preprocess_threads = 32
+
+### [eldercrow] my additions
+cfg.valid.th_pos = 0.25
+cfg.valid.th_nms = 0.35
+
 cfg.valid = config_as_dict(cfg.valid)  # convert to normal dict

@@ -97,7 +97,6 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         th_small = 16.0 / data_shape
-        upscales = (2, 2, 2, 1, 1, 1)
         return locals()
     elif network == 'pva101':
         # network = 'pva101'

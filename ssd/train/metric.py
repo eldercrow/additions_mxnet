@@ -13,6 +13,10 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         self.name = ['CrossEntropy', 'SmoothL1']
         self.reset()
 
+        # managed internally, for debug only
+        self.aphw_grid = np.zeros((100, 100), dtype=np.int64)
+        self.pphw_grid = np.zeros((100, 100), dtype=np.float64)
+
     def reset(self):
         """
         override reset behavior
@@ -33,6 +37,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         loc_loss = preds[1].asnumpy()
         cls_label = preds[2].asnumpy()
         loc_label = preds[3].asnumpy()
+        match_info = preds[5].asnumpy().astype(int)
 
         vc_cls = np.sum(cls_label >= 0)
         if self.use_focal_loss:
@@ -58,6 +63,10 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         # smoothl1loss
         self.sum_metric[1] += np.sum(loc_loss)
         self.num_inst[1] += vc_loc
+
+        label = np.reshape(cls_label, (-1, cls_label.shape[-1]))
+        wid = np.minimum(99, int((label[:, 3] - label[:, 1]) * 100))
+        hid = np.minimum(99, int((label[:, 4] - label[:, 2]) * 100))
 
     def get(self):
         """Get the current evaluation result.

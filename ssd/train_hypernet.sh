@@ -4,12 +4,12 @@ python train.py \
     --data-shape 384 \
     --optimizer-name sgd \
     --freeze '' \
-    --pretrained none \
-    --epoch 1000 \
-    --lr 1e-02 \
+    --pretrained ./model/ssd_hypernetv2_384 \
+    --epoch 211 \
+    --lr 1e-04 \
     --use-plateau 1 \
     --lr-factor 0.316227766 \
-    --lr-steps 3,4,4,6,6,8,8 \
+    --lr-steps 6,6,8,8 \
     --end-epoch 250 \
     --frequent 100 \
     --gpus 0,1
