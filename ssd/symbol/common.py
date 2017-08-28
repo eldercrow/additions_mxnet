@@ -171,7 +171,7 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[], upscales=1, mimic_fc=0,
+                    clip=False, interm_layer=0, steps=[], upscales=1, mimic_fc=0, python_anchor=False,
                     use_global_stats=True, data_shape=(0, 0)):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
@@ -300,13 +300,16 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         # estimate number of anchors per location
         # here I follow the original version in caffe
         # TODO: better way to shape the anchors??
-        size = sizes[k]
-        assert len(size) > 0, "must provide at least one size"
-        size_str = "(" + ",".join([str(x) for x in size]) + ")"
-        ratio = ratios[k]
-        assert len(ratio) > 0, "must provide at least one ratio"
-        ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
-        num_anchors = len(size) -1 + len(ratio)
+        if not python_anchor:
+            size = sizes[k]
+            assert len(size) > 0, "must provide at least one size"
+            size_str = "(" + ",".join([str(x) for x in size]) + ")"
+            ratio = ratios[k]
+            assert len(ratio) > 0, "must provide at least one ratio"
+            ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
+            num_anchors = len(size) -1 + len(ratio)
+        else:
+            num_anchors = len(sizes[k]) * len(ratios[k])
         upscale = upscales[k]
 
         if mimic_fc > 0:
@@ -348,24 +351,27 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         cls_pred_layers.append(cls_pred)
 
         # create anchor generation layer
-        if steps:
-            step = (steps[k], steps[k])
-        else:
-            step = '(-1.0, -1.0)'
-        anchors = mx.contrib.symbol.MultiBoxPrior(cls_pred_conv, sizes=size_str, ratios=ratio_str, \
-            clip=clip, name="{}_anchors".format(from_name), steps=step)
-        anchors = mx.symbol.Flatten(data=anchors)
-        anchor_layers.append(anchors)
+        if not python_anchor:
+            if steps:
+                step = (steps[k], steps[k])
+            else:
+                step = '(-1.0, -1.0)'
+            anchors = mx.contrib.symbol.MultiBoxPrior(cls_pred_conv, sizes=size_str, ratios=ratio_str, \
+                clip=clip, name="{}_anchors".format(from_name), steps=step)
+            anchors = mx.symbol.Flatten(data=anchors)
+            anchor_layers.append(anchors)
 
-    loc_preds = mx.symbol.Concat(*loc_pred_layers, num_args=len(loc_pred_layers), \
-        dim=1, name="multibox_loc_pred")
-    cls_preds = mx.symbol.Concat(*cls_pred_layers, num_args=len(cls_pred_layers), \
-        dim=1)
+    loc_preds = mx.symbol.concat(*loc_pred_layers, dim=1, name="multibox_loc_pred")
+    cls_preds = mx.symbol.concat(*cls_pred_layers, dim=1)
+    # loc_preds = mx.symbol.Concat(*loc_pred_layers, num_args=len(loc_pred_layers), dim=1, name="multibox_loc_pred")
+    # cls_preds = mx.symbol.Concat(*cls_pred_layers, num_args=len(cls_pred_layers), dim=1)
     cls_preds = mx.symbol.Reshape(data=cls_preds, shape=(0, -1, num_classes))
     cls_preds = mx.symbol.transpose(cls_preds, axes=(0, 2, 1), name="multibox_cls_pred")
-    anchor_boxes = mx.symbol.Concat(*anchor_layers, \
-        num_args=len(anchor_layers), dim=1)
-    anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
-    # anchor_boxes = mx.symbol.Custom(*from_layers, op_type='multibox_prior',
-    #         name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps)
+    if not python_anchor:
+        anchor_boxes = mx.symbol.Concat(*anchor_layers, \
+            num_args=len(anchor_layers), dim=1)
+        anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
+    else:
+        anchor_boxes = mx.symbol.Custom(*cls_pred_layers, op_type='multibox_prior',
+                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps)
     return [loc_preds, cls_preds, anchor_boxes]

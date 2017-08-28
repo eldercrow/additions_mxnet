@@ -105,9 +105,10 @@ def get_config(network, data_shape, **kwargs):
         num_filters = [-1] * 5
         strides = [-1] * 5
         pads = [-1] * 5
-        r1 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
-        r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
-        ratios = [r1, r2, r2, r2, r1]
+        # r1 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
+        # r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
+        # ratios = [r1, r2, r2, r2, r1]
+        ratios = [[1, 0.5, 2.0]] * 5
         sz0 = 24.0 / data_shape
         szr = np.power(2.0, 1.0/3.0)
         sizes = []
@@ -120,7 +121,8 @@ def get_config(network, data_shape, **kwargs):
         steps = []
         th_small = 16.0 / data_shape
         mimic_fc = 2
-        del r1, r2, i, sz0, szr
+        del i, sz0, szr
+        # del r1, r2, i, sz0, szr
         return locals()
     elif network == 'pva101':
         # network = 'pva101'
