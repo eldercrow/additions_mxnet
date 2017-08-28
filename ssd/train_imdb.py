@@ -13,6 +13,10 @@ def parse_args():
                         default='trainval', type=str)
     parser.add_argument('--year', dest='year', help='can be 2007, 2012',
                         default='2007,2012', type=str)
+    parser.add_argument('--val-image-set', dest='val_image_set', help='validation set, can be val or test',
+                        default='', type=str)
+    parser.add_argument('--val-year', dest='val_year', help='can be 2007, 2012',
+                        default='', type=str)
     parser.add_argument('--devkit-path', dest='devkit_path', help='VOCdevkit or Wider path',
                         default=os.path.join(os.getcwd(), 'data', 'VOCdevkit'), type=str)
     parser.add_argument('--network', dest='network', type=str, default='hypernet',
@@ -57,7 +61,7 @@ def parse_args():
                         help='green mean value')
     parser.add_argument('--mean-b', dest='mean_b', type=float, default=104,
                         help='blue mean value')
-    parser.add_argument('--use-plateau', dest='use_plateau', type=bool, default=True,
+    parser.add_argument('--use-plateau', dest='use_plateau', type=int, default=1,
                         help='use plateau learning rate scheduler')
     parser.add_argument('--lr-steps', dest='lr_refactor_step', type=str, default='3,4,5,6',
                         help='refactor learning rate at specified epochs')
@@ -93,6 +97,8 @@ if __name__ == '__main__':
               args.frequent,
               args.optimizer_name, args.learning_rate, args.momentum, args.weight_decay,
               args.lr_refactor_step, args.lr_refactor_ratio,
+              val_image_set=args.val_image_set,
+              val_year=args.val_year,
               use_plateau=args.use_plateau,
               force_resize=args.force_resize,
               year=args.year,

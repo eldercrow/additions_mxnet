@@ -189,29 +189,59 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
     inc4e = residual_inc(inc4b, inc4e, prefix_lhs='inc4c', prefix_rhs='inc4e',
             num_filter=256, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
 
-    # hyper2
+    hyper_group = []
+
+    # hyper0
     up32 = upsample_feature(inc3e, name='up32', scale=2,
             num_filter_proj=96, num_filter_upsample=96, use_global_stats=use_global_stats)
     up42 = upsample_feature(inc4e, name='up42', scale=4,
             num_filter_proj=128, num_filter_upsample=64, use_global_stats=use_global_stats)
-    hyper2 = mx.sym.concat(conv3, up32, up42)
-    hyper2 = conv_bn_relu(hyper2, 'hyper2', num_filter=384,
+    hyper0 = mx.sym.concat(conv3, up32, up42)
+    hyper0_0 = conv_bn_relu(hyper0, 'hyper0_0', num_filter=192,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    hyper0_1 = conv_bn_relu(hyper0, 'hyper0_1', num_filter=192,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    hyper_group.append(mx.sym.concat(hyper0_0, hyper0_1))
 
-    # hyper3
+    # hyper1
     up43 = upsample_feature(inc4e, name='up43', scale=2,
             num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats)
-    hyper3 = mx.sym.concat(inc3e, up43)
-    hyper3 = conv_bn_relu(hyper3, 'hyper3', num_filter=512,
+    hyper1 = mx.sym.concat(inc3e, up43)
+    hyper1_0 = conv_bn_relu(hyper1, 'hyper1_0', num_filter=256,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    hyper1_1 = conv_bn_relu(hyper1, 'hyper1_1', num_filter=256,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    hyper_group.append(mx.sym.concat(hyper1_0, hyper1_1))
 
-    # hyper4
-    hyper4 = conv_bn_relu(inc4e, 'hyper4_dilate', num_filter=512,
+    # hyper2
+    hyper2 = conv_bn_relu(inc4e, 'hyper2_dilate', num_filter=512,
             kernel=(3, 3), pad=(6, 6), dilate=(6, 6), use_global_stats=use_global_stats)
-    hyper4 = conv_bn_relu(hyper4, 'hyper4', num_filter=512,
+    hyper2_0 = conv_bn_relu(hyper2, 'hyper2_0', num_filter=256,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    hyper2_1 = conv_bn_relu(hyper2, 'hyper2_1', num_filter=256,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    hyper_group.append(mx.sym.concat(hyper2_0, hyper2_1))
 
-    return hyper2, hyper3, hyper4
+    # hyper3, 4
+    nf_hyper = [256, 192]
+    convi = hyper2
+    for i, nfh in enumerate(nf_hyper, 3):
+        pooli = mx.sym.Pooling(convi, kernel=(2, 2), stride=(2, 2), pool_type='max')
+        hyperres = conv_bn_relu(pooli, 'hyperres/{}'.format(i), num_filter=nfh,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        hyper1x1 = conv_bn_relu(convi, 'hyper1x1/{}'.format(i), num_filter=nfh/4,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        hyper3x3 = conv_bn_relu(hyper1x1, 'hyper3x3/{}'.format(i), num_filter=nfh,
+                kernel=(3, 3), pad=(1, 1), stride=(2, 2), use_global_stats=use_global_stats)
+        hyperi = hyperres + hyper3x3
+        hyperi_0 = conv_bn_relu(hyperi, 'hyper{}_0'.format(i), num_filter=nfh,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        hyperi_1 = conv_bn_relu(hyperi, 'hyper{}_1'.format(i), num_filter=nfh,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        convi = hyperi
+        hyper_group.append(mx.sym.concat(hyperi_0, hyperi_1))
+
+    return hyper_group
 
 
 def get_symbol(num_classes=1000, **kwargs):
@@ -224,13 +254,11 @@ def get_symbol(num_classes=1000, **kwargs):
     data = mx.symbol.Variable(name="data")
     label = mx.symbol.Variable(name="label")
 
-    hyper2, hyper3, hyper4 = pvanet_preact(data, use_global_stats)
+    hyper_group = pvanet_preact(data, use_global_stats)
 
-    pool2 = mx.sym.Pooling(hyper2, kernel=(2, 2), pool_type='max', global_pool=True)
-    pool3 = mx.sym.Pooling(hyper3, kernel=(2, 2), pool_type='max', global_pool=True)
-    pool4 = mx.sym.Pooling(hyper4, kernel=(2, 2), pool_type='max', global_pool=True)
+    pooled = [mx.sym.Pooling(h, kernel=(2, 2), pool_type='max', global_pool=True) for h in hyper_group]
 
-    pooled_all = mx.sym.flatten(mx.sym.concat(pool2, pool3, pool4), name='flatten')
+    pooled_all = mx.sym.flatten(mx.sym.concat(*pooled), name='flatten')
     # softmax = mx.sym.SoftmaxOutput(data=pooled_all, label=label, name='softmax')
     fc1 = mx.sym.FullyConnected(pooled_all, num_hidden=4096, name='fc1')
     softmax = mx.sym.SoftmaxOutput(data=fc1, label=label, name='softmax')

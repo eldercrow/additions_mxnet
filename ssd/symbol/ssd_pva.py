@@ -2,7 +2,7 @@ import mxnet as mx
 
 
 def conv_bn_relu(data, group_name,
-        num_filter, kernel, pad, stride=(1, 1), dilate=(1, 1), no_bias=True,
+        num_filter, kernel, pad, stride=(1, 1), no_bias=True,
         use_global_stats=True, use_crelu=False,
         get_syms=False):
     ''' use in mCReLU '''
@@ -13,7 +13,7 @@ def conv_bn_relu(data, group_name,
 
     syms = {}
     conv = mx.sym.Convolution(data, name=conv_name,
-            num_filter=num_filter, kernel=kernel, pad=pad, stride=stride, dilate=dilate, no_bias=no_bias)
+            num_filter=num_filter, kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
     syms['conv'] = conv
     if use_crelu:
         conv = mx.sym.concat(conv, -conv, name=concat_name)
@@ -46,13 +46,13 @@ def upsample_feature(data, name, scale,
                      use_global_stats=False):
     ''' use subpixel_upsample to upsample a given layer '''
     if num_filter_proj > 0:
-        proj = conv_bn_relu(data, name+'proj/',
+        proj = conv_bn_relu(data, name+'/proj',
                 num_filter=num_filter_proj, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
     else:
         proj = data
     nf = num_filter_upsample * scale * scale
-    bn = conv_bn_relu(proj, name+'conv/',
+    bn = conv_bn_relu(proj, name+'/conv',
             num_filter=nf, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     return subpixel_upsample(bn, num_filter_upsample, scale, scale)
@@ -81,8 +81,8 @@ def inception(data, prefix_group,
         use_global_stats, do_pool=False):
     ''' inception group '''
     if do_pool:
-        pool1 = mx.sym.Pooling(data, name=prefix_group+'/pool1', kernel=(3,3), pad=(0,0), stride=(2,2),
-                pool_type='max', pooling_convention='full')
+        pool1 = mx.sym.Pooling(data, name=prefix_group+'/pool1',
+                kernel=(2,2), pad=(0,0), stride=(2,2), pool_type='max')
         ss = (2, 2)
     else:
         pool1 = data
@@ -111,7 +111,8 @@ def inception(data, prefix_group,
     return mx.sym.concat(conv1, conv3_2, conv5_3)
 
 
-def residual_inc(lhs, rhs, prefix_lhs, prefix_rhs, num_filter, stride, no_bias, use_global_stats):
+def residual_inc(lhs, rhs, prefix_lhs, prefix_rhs,
+        num_filter, stride, no_bias, use_global_stats, get_elt=False):
     ''' residual connection between inception layers '''
     lhs = mx.sym.Convolution(lhs, name=prefix_lhs+'/proj',
             num_filter=num_filter, kernel=(1,1), pad=(0,0), stride=stride, no_bias=no_bias)
@@ -121,8 +122,10 @@ def residual_inc(lhs, rhs, prefix_lhs, prefix_rhs, num_filter, stride, no_bias, 
     bn = mx.sym.BatchNorm(elt, name=prefix_rhs+'/elt/bn',
             use_global_stats=use_global_stats, fix_gamma=False)
     relu = mx.sym.Activation(bn, act_type='relu')
-    return relu
-    # return relu, elt
+    if get_elt:
+        return relu, elt
+    else:
+        return relu
 
 
 def pvanet_preact(data, use_global_stats=True, no_bias=False):
@@ -133,85 +136,97 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
     # conv2
     conv2 = mcrelu(conv1, prefix_group='conv2',
             filters=(16, 24, 48), no_bias=no_bias, use_global_stats=use_global_stats)
-    # conv3
+    # 64
     conv3 = mcrelu(conv2, prefix_group='conv3',
             filters=(24, 48, 96), no_bias=no_bias, use_global_stats=use_global_stats)
-    # inc3a
-    inc3a = inception(conv3, prefix_group='inc3a',
+    inc31 = inception(conv3, prefix_group='inc31', # inc3a
+            filters_1=64, filters_3=(16,32), filters_5=(16,32,32), no_bias=no_bias,
+            use_global_stats=use_global_stats)
+    inc32 = inception(inc31, prefix_group='inc32', # inc3b
+            filters_1=64, filters_3=(16,32), filters_5=(16,32,32), no_bias=no_bias,
+            use_global_stats=use_global_stats)
+    inc3 = residual_inc(conv2, inc32, prefix_lhs='conv2', prefix_rhs='inc32',
+            num_filter=192, stride=(2, 2), no_bias=no_bias, use_global_stats=use_global_stats)
+    # 32
+    inc41 = inception(inc3, prefix_group='inc41', # inc3c
             filters_1=96, filters_3=(16,64), filters_5=(16,32,32), no_bias=no_bias,
             use_global_stats=use_global_stats, do_pool=True)
-    # inc3b
-    inc3b = inception(inc3a, prefix_group='inc3b',
+    inc42 = inception(inc41, prefix_group='inc42', # inc3d
             filters_1=96, filters_3=(16,64), filters_5=(16,32,32), no_bias=no_bias,
             use_global_stats=use_global_stats)
-    # inc3b/residual
-    inc3b = residual_inc(conv3, inc3b, prefix_lhs='inc3a', prefix_rhs='inc3b',
-            num_filter=128, stride=(2,2), no_bias=no_bias, use_global_stats=use_global_stats)
-    # inc3c
-    inc3c = inception(inc3b, prefix_group='inc3c',
+    inc43 = inception(inc42, prefix_group='inc43', # inc3e
             filters_1=96, filters_3=(16,64), filters_5=(16,32,32), no_bias=no_bias,
             use_global_stats=use_global_stats)
-    # inc3d
-    inc3d = inception(inc3c, prefix_group='inc3d',
+    inc4 = residual_inc(inc3, inc43, prefix_lhs='inc3', prefix_rhs='inc43',
+            num_filter=256, stride=(2, 2), no_bias=no_bias, use_global_stats=use_global_stats)
+    # 16
+    inc51 = inception(inc4, prefix_group='inc51', # inc4a
             filters_1=96, filters_3=(16,64), filters_5=(16,32,32), no_bias=no_bias,
+            use_global_stats=use_global_stats, do_pool=True)
+    inc52 = inception(inc51, prefix_group='inc52', # inc4b
+            filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
             use_global_stats=use_global_stats)
-    # inc3e
-    inc3e = inception(inc3d, prefix_group='inc3e',
-            filters_1=96, filters_3=(16,64), filters_5=(16,32,32), no_bias=no_bias,
+    inc53 = inception(inc52, prefix_group='inc53', # inc4c
+            filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
             use_global_stats=use_global_stats)
-    # inc3e/residual
-    inc3e = residual_inc(inc3b, inc3e, prefix_lhs='inc3c', prefix_rhs='inc3e',
-            num_filter=192, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
-    # inc4a
-    inc4a = inception(inc3e, prefix_group='inc4a',
+    inc5 = residual_inc(inc4, inc53, prefix_lhs='inc4', prefix_rhs='inc53',
+            num_filter=256, stride=(2,2), no_bias=no_bias, use_global_stats=use_global_stats)
+    # 8
+    inc61 = inception(inc5, prefix_group='inc61', # inc4d
             filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
             use_global_stats=use_global_stats, do_pool=True)
-    # inc4b
-    inc4b = inception(inc4a, prefix_group='inc4b',
+    inc62 = inception(inc61, prefix_group='inc62', # inc4e
             filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
             use_global_stats=use_global_stats)
-    # inc4b/residual
-    inc4b = residual_inc(inc3e, inc4b, prefix_lhs='inc4a', prefix_rhs='inc4b',
-            num_filter=192, stride=(2,2), no_bias=no_bias, use_global_stats=use_global_stats)
-    # inc4c
-    inc4c = inception(inc4b, prefix_group='inc4c',
+    inc6 = residual_inc(inc5, inc62, prefix_lhs='inc5', prefix_rhs='inc62',
+            num_filter=256, stride=(2,2), no_bias=no_bias, use_global_stats=use_global_stats)
+    # 4
+    inc71 = inception(inc6, prefix_group='inc71',
             filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
-            use_global_stats=use_global_stats)
-    # inc4d
-    inc4d = inception(inc4c, prefix_group='inc4d',
-            filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
-            use_global_stats=use_global_stats)
-    # inc4e
-    inc4e = inception(inc4d, prefix_group='inc4e',
-            filters_1=128, filters_3=(32,96), filters_5=(16,32,32), no_bias=no_bias,
-            use_global_stats=use_global_stats)
-    # inc4e/residual
-    inc4e = residual_inc(inc4b, inc4e, prefix_lhs='inc4c', prefix_rhs='inc4e',
-            num_filter=256, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
+            use_global_stats=use_global_stats, do_pool=True)
+    inc7 = residual_inc(inc6, inc71, prefix_lhs='inc6', prefix_rhs='inc71',
+            num_filter=256, stride=(2,2), no_bias=no_bias, use_global_stats=use_global_stats)
+    # 1
+    conv81 = mx.sym.Convolution(inc7, name='conv81',
+            num_filter=256, kernel=(4,4), pad=(0,0), stride=(1,1), no_bias=no_bias)
+    pool82 = mx.sym.Pooling(inc7, kernel=(4, 4), pool_type='max')
+    conv82 = mx.sym.Convolution(pool82, name='conv82',
+            num_filter=256, kernel=(1,1), pad=(0,0), no_bias=no_bias)
+    elt8 = conv81 + conv82
+    bn8 = mx.sym.BatchNorm(elt8, name='bn8', use_global_stats=use_global_stats, fix_gamma=False)
+    relu8 = mx.sym.Activation(bn8, act_type='relu')
 
-    # hyper2
-    up32 = upsample_feature(inc3e, name='up32', scale=2,
-            num_filter_proj=96, num_filter_upsample=96, use_global_stats=use_global_stats)
-    up42 = upsample_feature(inc4e, name='up42', scale=4,
-            num_filter_proj=128, num_filter_upsample=64, use_global_stats=use_global_stats)
-    hyper2 = mx.sym.concat(conv3, up32, up42)
-    hyper2 = conv_bn_relu(hyper2, 'hyper2', num_filter=384,
-            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    # channels: (192, 256, 256, 256, 256, 256)
+    return [inc3, inc4, inc5, inc6, inc7, relu8]
 
-    # hyper3
-    up43 = upsample_feature(inc4e, name='up43', scale=2,
-            num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats)
-    hyper3 = mx.sym.concat(inc3e, up43)
-    hyper3 = conv_bn_relu(hyper3, 'hyper3', num_filter=512,
-            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
 
-    # hyper4
-    hyper4 = conv_bn_relu(inc4e, 'hyper4_dilate', num_filter=512,
-            kernel=(3, 3), pad=(6, 6), dilate=(6, 6), use_global_stats=use_global_stats)
-    hyper4 = conv_bn_relu(hyper4, 'hyper4', num_filter=512,
-            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+def downsample_groups(groups, use_global_stats):
+    dn_groups = [[] for _ in groups]
+    for i, g in enumerate(groups[1:-2], 2):
+        d = conv_bn_relu(g, 'dn{}'.format(i),
+                num_filter=64, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
+                use_global_stats=use_global_stats)
+        dn_groups[i].append(d)
+    dn_groups[-1].append( \
+            conv_bn_relu(groups[-2], 'dn{}'.format(len(groups)-1),
+                    num_filter=128, kernel=(4, 4), pad=(0, 0),
+                    use_global_stats=use_global_stats))
+    return dn_groups
 
-    return hyper2, hyper3, hyper4
+
+def upsample_groups(groups, use_global_stats):
+    up_groups = [[] for _ in groups]
+    for i, g in enumerate(groups[1:3], 1):
+        u = upsample_feature(g, 'up{}{}'.format(i, i-1), scale=2,
+                num_filter_proj=64, num_filter_upsample=64,
+                use_global_stats=use_global_stats)
+        up_groups[i-1].append(u)
+    up_groups[0].append( \
+            upsample_feature(groups[2], 'up20', scale=4,
+                num_filter_proj=128, num_filter_upsample=64,
+                use_global_stats=use_global_stats))
+    up_groups.append([])
+    return up_groups
 
 
 def get_symbol(num_classes=1000, **kwargs):
@@ -224,13 +239,26 @@ def get_symbol(num_classes=1000, **kwargs):
     data = mx.symbol.Variable(name="data")
     label = mx.symbol.Variable(name="label")
 
-    hyper2, hyper3, hyper4 = pvanet_preact(data, use_global_stats)
+    groups = pvanet_preact(data, use_global_stats)
+    dn_groups = downsample_groups(groups, use_global_stats)
+    up_groups = upsample_groups(groups, use_global_stats)
 
-    pool2 = mx.sym.Pooling(hyper2, kernel=(2, 2), pool_type='max', global_pool=True)
-    pool3 = mx.sym.Pooling(hyper3, kernel=(2, 2), pool_type='max', global_pool=True)
-    pool4 = mx.sym.Pooling(hyper4, kernel=(2, 2), pool_type='max', global_pool=True)
+    nf_hyper=320
 
-    pooled_all = mx.sym.flatten(mx.sym.concat(pool2, pool3, pool4), name='flatten')
+    hyper_groups = []
+    for i, (g, u, d) in enumerate(zip(groups, up_groups, dn_groups)):
+        h = mx.sym.concat(*([g] + d + u))
+        hc = conv_bn_relu(h, 'hyper{}'.format(i),
+                num_filter=nf_hyper, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
+        hyper_groups.append(hc)
+
+    pooled = []
+    for i, h in enumerate(hyper_groups):
+        p = mx.sym.Pooling(h, kernel=(2,2), global_pool=True, pool_type='max')
+        pooled.append(p)
+
+    pooled_all = mx.sym.flatten(mx.sym.concat(*pooled), name='flatten')
     # softmax = mx.sym.SoftmaxOutput(data=pooled_all, label=label, name='softmax')
     fc1 = mx.sym.FullyConnected(pooled_all, num_hidden=4096, name='fc1')
     softmax = mx.sym.SoftmaxOutput(data=fc1, label=label, name='softmax')
