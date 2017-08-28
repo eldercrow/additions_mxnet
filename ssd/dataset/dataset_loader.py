@@ -3,7 +3,9 @@ import mxnet as mx
 from pascal_voc import PascalVoc
 # from pascal_voc_patch import PascalVocPatch
 from wider import Wider
+from mscoco import Coco
 from concat_db import ConcatDB
+from config.config import cfg
 # from concat_patch_db import ConcatPatchDB
 
 
@@ -49,6 +51,12 @@ def load_pascal(image_set, year, devkit_path, shuffle=False):
 
 def load_wider(image_set, devkit_path, shuffle=False):
     return Wider(image_set, devkit_path, shuffle, is_train=True)
+
+
+def load_mscoco(image_set, year, devkit_path, shuffle=False):
+    fn_anno = 'instances_' + image_set + '{}.json'.format(year)
+    anno_file = os.path.join(devkit_path, 'annotations', fn_anno)
+    return Coco(image_set, anno_file, devkit_path, shuffle)
 
 
 # def load_pascal_patch(image_set, year, devkit_path, patch_shape, shuffle=True):

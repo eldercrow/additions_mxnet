@@ -1,10 +1,10 @@
 #!/bin/bash
 
 python demo.py \
-    --network hypernetv2 \
-    --prefix ./model/ssd_hypernetv2_384 \
+    --network hypernetv3 \
+    --prefix ./model/ssd_hypernetv3_384 \
     --epoch 1000 \
-    --images ./data/demo/dog.jpg \
+    --images ./data/demo/street.jpg \
     --data-shape 384 \
-    --thresh 0.25 \
+    --thresh 0.5 \
     --cpu

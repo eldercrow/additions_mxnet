@@ -1,15 +1,15 @@
 python train.py \
-    --network hypernetv2 \
-    --batch-size 16 \
+    --network hypernetv3 \
+    --batch-size 32 \
     --data-shape 384 \
-    --optimizer-name sgd \
+    --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv2_384 \
+    --pretrained none \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-factor 0.316227766 \
-    --lr-steps 2,4,6,6,8,8 \
+    --lr-steps 3,4,4,6,6,8,8 \
     --end-epoch 250 \
     --frequent 100 \
     --gpus 0,1

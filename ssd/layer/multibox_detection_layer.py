@@ -44,8 +44,10 @@ class MultiBoxDetection(mx.operator.CustomOp):
                 out_i[1] = mx.nd.max(pcls, axis=0)
                 iidx = out_i[1] > self.th_pos
                 out_i[0] = iidx * (mx.nd.argmax(pcls, axis=0) + 1) - 1
-            out_i[2:] = _transform_roi( \
-                    mx.nd.transpose(preg), mx.nd.transpose(anchors), self.variances, 1.0)
+            iidx = mx.nd.array(np.where(iidx.asnumpy())[0])
+            out_i[2:] = mx.nd.transpose(_transform_roi(preg, anchors, iidx, self.variances, 1.0))
+            # out_i[2:] = _transform_roi( \
+            #         mx.nd.transpose(preg), mx.nd.transpose(anchors), iidx, self.variances, 1.0)
             out_data[0][nn] = mx.nd.transpose(out_i, (1, 0))
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
@@ -73,10 +75,11 @@ def _nms(out_t, th_nms):
     return np.where(nms_mask == False)[0]
 
 
-def _transform_roi(reg_t, anc_t, variances, ratio=1.0):
+def _transform_roi(reg, anc, iidx, variances, ratio=1.0):
     #
-    # reg_t = mx.nd.transpose(reg)
-    # anc_t = mx.nd.transpose(anc)
+    reg_t = mx.nd.transpose(mx.nd.take(reg, iidx))
+    anc_t = mx.nd.transpose(mx.nd.take(anc, iidx))
+
     for i in range(4):
         reg_t[i] *= variances[i]
 
@@ -94,7 +97,33 @@ def _transform_roi(reg_t, anc_t, variances, ratio=1.0):
     reg_t[1] = cy - h
     reg_t[2] = cx + w
     reg_t[3] = cy + h
-    return reg_t
+
+    reg_tt = mx.nd.transpose(reg_t)
+    for i, j in enumerate(iidx.asnumpy().astype(int)):
+        reg[j] = reg_tt[i]
+    return reg
+# def _transform_roi(reg_t, anc_t, variances, ratio=1.0):
+#     #
+#     # reg_t = mx.nd.transpose(reg)
+#     # anc_t = mx.nd.transpose(anc)
+#     for i in range(4):
+#         reg_t[i] *= variances[i]
+#
+#     cx = (anc_t[0] + anc_t[2]) * 0.5
+#     cy = (anc_t[1] + anc_t[3]) * 0.5
+#
+#     aw = anc_t[2] - anc_t[0]
+#     ah = anc_t[3] - anc_t[1]
+#     aw *= ratio
+#     cx += reg_t[0] * aw
+#     cy += reg_t[1] * ah
+#     w = (2.0**reg_t[2]) * aw * 0.5
+#     h = (2.0**reg_t[3]) * ah * 0.5
+#     reg_t[0] = cx - w
+#     reg_t[1] = cy - h
+#     reg_t[2] = cx + w
+#     reg_t[3] = cy + h
+#     return reg_t
 
 
 @mx.operator.register("multibox_detection")

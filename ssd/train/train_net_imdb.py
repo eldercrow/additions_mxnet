@@ -184,6 +184,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         imdb = load_pascal(image_set, year, devkit_path, cfg.train['shuffle'])
     elif dataset == 'wider':
         imdb = load_wider(image_set, devkit_path, cfg.train['shuffle'])
+    elif dataset == 'mscoco':
+        imdb = load_mscoco(image_set, devkit_path, cfg.train['shuffle'])
     else:
         raise NotImplementedError("Dataset " + dataset + " not supported")
     val_imdb = None

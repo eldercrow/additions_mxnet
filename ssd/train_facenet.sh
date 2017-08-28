@@ -2,18 +2,18 @@ python train_imdb.py \
     --dataset wider \
     --image-set train \
     --devkit-path ./data/wider \
-    --network fasterface \
-    --prefix ./model/ssd_ff \
+    --network hyperface \
+    --prefix ./model/ssd_hyperface \
     --batch-size 64 \
     --data-shape 384 \
     --force-resize 0 \
     --freeze '' \
-    --pretrained ./model/ssd_ff_384 \
+    --pretrained ./model/ssd_hyperface_384 \
     --epoch 1000 \
     --optimizer-name sgd \
     --lr 1e-05 \
-    --use-plateau 1 \
-    --lr-steps 6,6 \
+    --use-plateau 0 \
+    --lr-steps 10,10 \
     --lr-factor 0.316227766 \
     --frequent 50 \
     --gpus 0,1

@@ -171,7 +171,7 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[], upscales=1,
+                    clip=False, interm_layer=0, steps=[], upscales=1, mimic_fc=0,
                     use_global_stats=True, data_shape=(0, 0)):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
@@ -261,9 +261,16 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         print 'nf for {} = {}'.format(from_name, num_hidden)
         fc = layer
         for i in range(n_iter):
-            fc = mx.sym.Convolution(fc, name='{}_fc{}'.format(from_name, i),
+            fcp = mx.sym.Convolution(fc, name='{}_fc{}/p'.format(from_name, i),
                     num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
-            fc = mx.sym.BatchNorm(fc, name='{}_fc{}/bn'.format(from_name, i),
+            fc3 = mx.sym.Convolution(fc, name='{}=fc{}/3'.format(from_name, i),
+                    num_filter=num_hidden / 8, kernel=(3, 3), pad=(1, 1))
+            fc3 = mx.sym.BatchNorm(fc3, name='{}_fc{}/bn/3'.format(from_name, i),
+                    use_global_stats=use_global_stats, fix_gamma=False)
+            fc3 = mx.sym.Activation(fc3, act_type='relu')
+            fc1 = mx.sym.Convolution(fc3, name='{}=fc{}/1'.format(from_name, i),
+                    num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
+            fc = mx.sym.BatchNorm(fcp+fc1, name='{}_fc{}/bn'.format(from_name, i),
                     use_global_stats=use_global_stats, fix_gamma=False)
             fc = mx.sym.Activation(fc, act_type='relu', name='{}_fc{}/relu'.format(from_name, i))
         return fc
@@ -302,11 +309,11 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         num_anchors = len(size) -1 + len(ratio)
         upscale = upscales[k]
 
-        if cfg.train['mimic_fc'] > 0:
+        if mimic_fc > 0:
             if isinstance(from_layer, (list, tuple)):
-                from_layer = [add_fc(f, cfg.train['mimic_fc']) for f in from_layer]
+                from_layer = [add_fc(f, mimic_fc) for f in from_layer]
             else:
-                from_layer = add_fc(from_layer, cfg.train['mimic_fc'])
+                from_layer = add_fc(from_layer, mimic_fc)
 
         if not isinstance(from_layer, (list, tuple)):
             from_layer = (from_layer, from_layer)

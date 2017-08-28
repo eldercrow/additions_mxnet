@@ -72,6 +72,7 @@ def conv_group(data,
                prefix_name,
                num_filter_3x3,
                num_filter_1x1=0,
+               do_proj=False,
                use_crelu=False,
                use_global_stats=False):
     '''
@@ -94,6 +95,11 @@ def conv_group(data,
         cgroup.append(bn_)
 
     concat_ = mx.sym.concat(*cgroup, name=prefix_name + 'concat/')
+    if do_proj:
+        nf_proj = num_filter_1x1 + sum(num_filter_3x3)
+        concat_ = relu_conv_bn(concat_, prefix_name=prefix_name+'proj/',
+                num_filter=nf_proj, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
 
     return concat_
 

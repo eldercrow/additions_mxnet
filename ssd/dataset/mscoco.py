@@ -18,6 +18,8 @@ class Coco(Imdb):
         whether initially shuffle image list
 
     """
+    IDX_VER = '170811_1'
+
     def __init__(self, anno_file, image_dir, shuffle=True, names='mscoco.names'):
         assert os.path.isfile(anno_file), "Invalid annotation file: " + anno_file
         basename = os.path.splitext(os.path.basename(anno_file))[0]
@@ -28,9 +30,19 @@ class Coco(Imdb):
             os.path.join(os.path.dirname(__file__), 'names'))
 
         self.num_classes = len(self.classes)
-        self._load_all(anno_file, shuffle)
-        self.num_images = len(self.image_set_index)
 
+        # try to load cached data
+        cached = self._load_from_cache()
+        if cached is None:  # no cached data, load from DB (and save)
+            fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
+            self._load_all(anno_file, shuffle)
+            self._save_to_cache()
+        else:
+            self.image_set_index = cached['image_set_index']
+            self.num_images = len(self.image_set_index)
+            if self.is_train:
+                self.labels = cached['labels']
+        self.num_images = len(self.image_set_index)
 
     def image_path_from_index(self, index):
         """
@@ -80,6 +92,7 @@ class Coco(Imdb):
         labels = []
         coco = COCO(anno_file)
         img_ids = coco.getImgIds()
+        max_objects == 0
         for img_id in img_ids:
             # filename
             image_info = coco.loadImgs(img_id)[0]
@@ -101,8 +114,11 @@ class Coco(Imdb):
                 ymax = ymin + float(bbox[3]) / height
                 label.append([cat_id, xmin, ymin, xmax, ymax, 0])
             if label:
+                max_objects = max(max_objects, len(labels))
                 labels.append(np.array(label))
                 image_set_index.append(os.path.join(subdir, filename))
+
+        assert max_objects > 0
 
         if shuffle:
             import random
@@ -113,3 +129,46 @@ class Coco(Imdb):
         # store the results
         self.image_set_index = image_set_index
         self.labels = labels
+        self.max_objects = max_objects
+
+    @property
+    def cache_path(self):
+        """
+        make a directory to store all caches
+
+        Returns:
+        ---------
+            cache path
+        """
+        cache_path = os.path.join(os.path.dirname(__file__), '..', 'cache')
+        if not os.path.exists(cache_path):
+            os.mkdir(cache_path)
+        return cache_path
+
+    def _load_from_cache(self):
+        fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
+        cached = {}
+        if os.path.exists(fn_cache):
+            try:
+                with open(fn_cache, 'rb') as fh:
+                    header = cPickle.load(fh)
+                    assert header['ver'] == self.IDX_VER, "Version mismatch, re-index DB."
+                    self.max_objects = header['max_objects']
+                    iidx = cPickle.load(fh)
+                    cached['image_set_index'] = iidx['image_set_index']
+                    if self.is_train:
+                        labels = cPickle.load(fh)
+                        cached['labels'] = labels['labels']
+            except:
+                # print 'Exception in load_from_cache.'
+                return None
+        return cached
+
+    def _save_to_cache(self):
+        fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
+        with open(fn_cache, 'wb') as fh:
+            header = {'ver': self.IDX_VER, 'max_objects': self.max_objects}
+            cPickle.dump(header, fh, cPickle.HIGHEST_PROTOCOL)
+            cPickle.dump({'image_set_index': self.image_set_index}, fh, cPickle.HIGHEST_PROTOCOL)
+            if self.is_train:
+                cPickle.dump({'labels': self.labels}, fh, cPickle.HIGHEST_PROTOCOL)

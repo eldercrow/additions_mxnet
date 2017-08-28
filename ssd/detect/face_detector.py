@@ -78,18 +78,19 @@ class FaceDetector(object):
             start = timer()
             self.mod.forward(datum)
             out = self.mod.get_outputs()
-            dets = out[0][0].asnumpy()
+            det = out[0][0].asnumpy()
+            pidx = np.where(det[:, 0] >= 0)[0]
+            det = det[pidx, :]
+            sidx = np.argsort(det[:, 1])[::-1]
+            det = det[sidx, :]
+            vidx = self._do_nms(det)
+            det = det[vidx, :]
             time_elapsed += timer() - start
 
-            iidx = np.where(np.logical_and(dets[:, 0] >= 0, dets[:, 1] >= 0.25))[0]
-            dets = dets[iidx, :]
-            # overlap = self._comp_overlap(dets[:, 2:], im_info['im_shape'])
-            # iidx = np.where(overlap > 0.8)[0]
-            # dets = dets[iidx, :]
-            result.append(dets)
+            result.append(det)
 
             if i % 10 == 0:
-                n_dets = dets.shape[0]
+                n_dets = det.shape[0]
                 print('Processing image {}/{}, {} faces detected.'.format(i+1, num_images, n_dets))
         # time_elapsed = timer() - start
         if show_timer:
