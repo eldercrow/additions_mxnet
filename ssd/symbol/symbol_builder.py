@@ -15,7 +15,8 @@ def import_module(module_name):
     return importlib.import_module(module_name)
 
 def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pads,
-                     sizes, ratios, normalizations=-1, steps=[], min_filter=128, square_bb=False,
+                     sizes, ratios, normalizations=-1, steps=[], shifts=[],
+                     min_filter=128, square_bb=False,
                      nms_thresh=0.5, upscales=1, force_suppress=False, nms_topk=400, **kwargs):
     """Build network symbol for training SSD
 
@@ -84,8 +85,8 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape, \
-        upscales=upscales, mimic_fc=mimic_fc, python_anchor=python_anchor)
+        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, shifts=shifts, \
+        data_shape=data_shape, upscales=upscales, mimic_fc=mimic_fc, python_anchor=python_anchor)
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
@@ -139,7 +140,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     return out
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
-               strides, pads, normalizations=-1, steps=[], upscales=1, min_filter=128,
+               strides, pads, normalizations=-1, steps=[], shifts=[], upscales=1, min_filter=128,
                nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
     """Build network for testing SSD
 
@@ -194,6 +195,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     if isinstance(data_shape, int):
         data_shape = (data_shape, data_shape)
     mimic_fc = 0 if not 'mimic_fc' in kwargs else kwargs['mimic_fc']
+    python_anchor = False if not 'python_anchor' in kwargs else kwargs['python_anchor']
 
     kwargs['use_global_stats'] = True
     body = import_module(network).get_symbol(num_classes, **kwargs)
@@ -202,8 +204,8 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, data_shape=data_shape,
-        upscales=upscales, mimic_fc=mimic_fc)
+        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, shifts=shifts,
+        data_shape=data_shape, upscales=upscales, mimic_fc=mimic_fc, python_anchor=python_anchor)
     # body = import_module(network).get_symbol(num_classes, **kwargs)
     # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
     #     min_filter=min_filter)

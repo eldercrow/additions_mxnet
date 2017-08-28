@@ -119,8 +119,37 @@ def get_config(network, data_shape, **kwargs):
         sizes[-1] = [sz0, sz0 / szr]
         normalizations = -1
         steps = []
+        shifts = [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0)]
         th_small = 16.0 / data_shape
         mimic_fc = 2
+        python_anchor = True
+        del i, sz0, szr
+        # del r1, r2, i, sz0, szr
+        return locals()
+    elif network == 'hypernetv4':
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(5)]
+        num_filters = [-1] * 5
+        strides = [-1] * 5
+        pads = [-1] * 5
+        # r1 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
+        # r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
+        # ratios = [r1, r2, r2, r2, r1]
+        ratios = [[1, 0.5, 2.0]] * 5
+        sz0 = 24.0 / data_shape
+        szr = np.power(2.0, 1.0/2.0)
+        sizes = []
+        shifts = []
+        for i in range(5):
+            sizes.append([sz0, sz0 / szr])
+            shifts.append([0, sz0 / 12.0])
+            sz0 *= 2
+        sz0 = 1.0
+        sizes[-1] = [sz0, sz0 / szr]
+        normalizations = -1
+        steps = []
+        th_small = 16.0 / data_shape
+        mimic_fc = 2
+        python_anchor = True
         del i, sz0, szr
         # del r1, r2, i, sz0, szr
         return locals()

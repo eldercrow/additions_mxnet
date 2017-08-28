@@ -171,7 +171,8 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[], upscales=1, mimic_fc=0, python_anchor=False,
+                    clip=False, interm_layer=0, steps=[], shifts=[],
+                    upscales=1, mimic_fc=0, python_anchor=False,
                     use_global_stats=True, data_shape=(0, 0)):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
@@ -276,6 +277,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         return fc
 
 
+    shape_layers = []
     for k, from_layer in enumerate(from_layers):
         # normalize
         if normalization[k] > 0:
@@ -309,7 +311,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
             ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
             num_anchors = len(size) -1 + len(ratio)
         else:
-            num_anchors = len(sizes[k]) * len(ratios[k])
+            shift = shifts[k]
+            num_anchors = sum([1 if sh == 0 else 4 for sh in shift]) * len(ratios[k])
         upscale = upscales[k]
 
         if mimic_fc > 0:
@@ -348,6 +351,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         if upscale > 1:
             cls_pred_conv = subpixel_upsample(cls_pred_conv, num_cls_pred, upscale, upscale,
                     name='{}_cls_pred_conv_up'.format(from_name[0]))
+        shape_layers.append(cls_pred_conv)
         cls_pred = mx.symbol.transpose(cls_pred_conv, axes=(0,2,3,1))
         cls_pred = mx.symbol.Flatten(data=cls_pred)
         cls_pred_layers.append(cls_pred)
@@ -374,6 +378,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
             num_args=len(anchor_layers), dim=1)
         anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
     else:
-        anchor_boxes = mx.symbol.Custom(*cls_pred_layers, op_type='multibox_prior',
-                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps)
+        for u in upscales:
+            assert u == 1
+        anchor_boxes = mx.symbol.Custom(*shape_layers, op_type='multibox_prior',
+                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps, shifts=shifts)
     return [loc_preds, cls_preds, anchor_boxes]
