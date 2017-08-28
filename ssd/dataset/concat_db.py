@@ -74,8 +74,8 @@ class ConcatDB(Imdb):
             else:
                 return (k, pos)
 
-    def pad_labels(self):
-        max_objects = 0
+    def pad_labels(self, max_objects=0):
+        # max_objects = 0
         for imdb in self.imdbs:
             if imdb.max_objects > max_objects:
                 max_objects = imdb.max_objects
@@ -83,6 +83,7 @@ class ConcatDB(Imdb):
             imdb.max_objects = max_objects
             imdb.pad_labels()
         self.max_objects = max_objects
+        self.padding = self.max_objects
 
     def image_path_from_index(self, index):
         """

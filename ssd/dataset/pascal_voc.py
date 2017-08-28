@@ -234,8 +234,9 @@ class PascalVoc(Imdb):
         assert max_objects > 0, "No objects found for any of the images"
         return temp, max_objects
 
-    def pad_labels(self):
+    def pad_labels(self, max_objects=0):
         """ labels: list of ndarrays """
+        self.max_objects = max(self.max_objects, max_objects)
         self.padding = self.max_objects
         for (i, label) in enumerate(self.labels):
             padded = np.tile(np.full((6, ), -1, dtype=np.float32), (self.padding, 1))

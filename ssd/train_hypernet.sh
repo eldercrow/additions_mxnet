@@ -1,5 +1,11 @@
-python train.py \
+python train_imdb.py \
     --network hypernetv3 \
+    --dataset pascal_voc \
+    --devkit-path ./data/VOCdevkit \
+    --year 2007,2012 \
+    --image-set trainval \
+    --val-image-set test \
+    --val-year 2007 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name sgd \

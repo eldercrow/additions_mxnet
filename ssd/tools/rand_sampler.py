@@ -288,15 +288,18 @@ class RandScaler(RandSampler):
     max_sample : int
         maximum random crop samples to be generated
     """
-    def __init__(self, patch_size, min_gt_scale=.01, max_trials=50, max_sample=1, force_resize=False):
-        super(RandScaler, self).__init__(max_trials, max_sample)
+    def __init__(self, patch_size, no_random=False,
+            min_gt_scale=.01, max_trials=50, max_sample=1, force_resize=False):
         '''
         Experimental. Some parameters are hardcoded.
         '''
+        super(RandScaler, self).__init__(max_trials, max_sample)
         assert 0 <= min_gt_scale and min_gt_scale <= 1, "min_gt_scale must in [0, 1]"
         self.min_gt_scale = min_gt_scale
         self.patch_size = patch_size
         self.force_resize = force_resize
+
+        self.no_random = no_random
 
         self.min_scale = 0.5
         self.max_scale = 1.5
@@ -332,42 +335,49 @@ class RandScaler(RandSampler):
                 scale_x = self.patch_size / float(img_hw[1])
                 scale_y = self.patch_size / float(img_hw[0])
 
-            sf = np.random.uniform(self.min_scale, self.max_scale)
-            scale_x *= sf
-            scale_y *= sf
-            asp = np.power(2.0, np.random.uniform(-self.aspect_exp, self.aspect_exp))
-            asp = np.sqrt(asp)
-            scale_x *= asp
-            scale_y /= asp
-            patch_sz_x = np.round(self.patch_size / scale_x)
-            patch_sz_y = np.round(self.patch_size / scale_y)
-            dx = img_hw[1] - patch_sz_x
-            dy = img_hw[0] - patch_sz_y
-            if dx != 0:
-                dx = np.random.randint(low=np.minimum(dx, 0), high=np.maximum(dx, 0))
-            if dy != 0:
-                dy = np.random.randint(low=np.minimum(dy, 0), high=np.maximum(dy, 0))
+            if not self.no_random:
+                sf = np.random.uniform(self.min_scale, self.max_scale)
+                scale_x *= sf
+                scale_y *= sf
+                asp = np.power(2.0, np.random.uniform(-self.aspect_exp, self.aspect_exp))
+                asp = np.sqrt(asp)
+                scale_x *= asp
+                scale_y /= asp
+                patch_sz_x = np.round(self.patch_size / scale_x)
+                patch_sz_y = np.round(self.patch_size / scale_y)
+                dx = img_hw[1] - patch_sz_x
+                dy = img_hw[0] - patch_sz_y
+                if dx != 0:
+                    dx = np.random.randint(low=np.minimum(dx, 0), high=np.maximum(dx, 0))
+                if dy != 0:
+                    dy = np.random.randint(low=np.minimum(dy, 0), high=np.maximum(dy, 0))
+            else:
+                dx, dy, patch_sz_x, patch_sz_y = (0, 0, img_hw[1], img_hw[0])
             bbox = [dx, dy, dx+patch_sz_x, dy+patch_sz_y]
+
             # if _compute_overlap(bbox, (0, 0, img_hw[1], img_hw[0])) < 0.1:
 
-            new_gt_boxes = []
-            for i, bb in enumerate(gt):
-                # some sanity check
-                overlap = _compute_overlap(bb[1:], bbox)
-                if overlap < self.min_gt_ignore:
-                    continue
-                new_size = max((bb[4] - bb[2]) / patch_sz_y, (bb[3] - bb[1]) / patch_sz_x)
-                if new_size < (self.min_gt_scale * 0.707):
-                    continue
-                # ignore check
-                if new_size < self.min_gt_scale or overlap < self.min_gt_overlap:
-                    l = -1
-                else:
-                    l = bb[0]
-                new_gt_boxes.append([l, bb[1]-dx, bb[2]-dy, bb[3]-dx, bb[4]-dy])
+            if not self.no_random:
+                new_gt_boxes = []
+                for i, bb in enumerate(gt):
+                    # some sanity check
+                    overlap = _compute_overlap(bb[1:], bbox)
+                    if overlap < self.min_gt_ignore:
+                        continue
+                    new_size = max((bb[4] - bb[2]) / patch_sz_y, (bb[3] - bb[1]) / patch_sz_x)
+                    if new_size < (self.min_gt_scale * 0.707):
+                        continue
+                    # ignore check
+                    if new_size < self.min_gt_scale or overlap < self.min_gt_overlap:
+                        l = -1
+                    else:
+                        l = bb[0]
+                    new_gt_boxes.append([l, bb[1]-dx, bb[2]-dy, bb[3]-dx, bb[4]-dy])
+                new_gt_boxes = np.reshape(np.array(new_gt_boxes), (-1, 5))
+            else:
+                new_gt_boxes = gt
 
-            new_gt_boxes = np.reshape(np.array(new_gt_boxes), (-1, 5))
-            if len(new_gt_boxes) == 0 and trial < self.max_trials - 1:
+            if not self.no_random and len(new_gt_boxes) == 0 and trial < self.max_trials - 1:
                 continue
             new_gt_boxes[:, 1::2] /= float(patch_sz_x)
             new_gt_boxes[:, 2::2] /= float(patch_sz_y)
