@@ -26,6 +26,8 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
               year='', freeze_layer_pattern='',
               force_resize=True,
               min_obj_size=32.0, use_difficult=False,
+              nms_thresh=0.45, force_suppress=False, ovp_thresh=0.5,
+              voc07_metric=True, nms_topk=400,
               iter_monitor=0, monitor_pattern=".*", log_file=None):
     """
     Wrapper for training phase.
@@ -109,6 +111,9 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
         if val_image_set:
             assert val_year
             val_imdb = load_pascal(val_image_set, val_year, devkit_path, False)
+            max_objects = max(imdb.max_objects, val_imdb.max_objects)
+            imdb.pad_labels(max_objects)
+            val_imdb.pad_labels(max_objects)
         force_resize = True
     elif dataset == 'wider':
         imdb = load_wider(image_set, devkit_path, cfg.train['shuffle'])
@@ -138,11 +143,11 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
                      data_shape, resume, finetune, pretrained, epoch,
                      prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
                      momentum, weight_decay, use_plateau, lr_refactor_step, lr_refactor_ratio,
-                     freeze_layer_pattern, num_example, label_pad_width,
-                     nms_thresh, force_nms, ovp_thresh,
-                     use_difficult, class_names,
+                     freeze_layer_pattern, imdb.num_images, imdb.max_objects,
+                     nms_thresh, force_suppress, ovp_thresh,
+                     use_difficult, imdb.classes,
                      optimizer_name,
-                     voc07_metric, nms_topk, force_suppress,
+                     voc07_metric, nms_topk,
                      iter_monitor,
                      monitor_pattern, logger)
 

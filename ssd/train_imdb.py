@@ -79,6 +79,14 @@ def parse_args():
                         help='minimum object size to be used for training.')
     parser.add_argument('--use-difficult', dest='use_difficult', type=bool, default=False,
                         help='use difficult ground-truths in evaluation')
+    parser.add_argument('--nms', dest='nms_thresh', type=float, default=0.45,
+                        help='non-maximum suppression threshold')
+    parser.add_argument('--overlap', dest='overlap_thresh', type=float, default=0.5,
+                        help='evaluation overlap threshold')
+    parser.add_argument('--force', dest='force_nms', type=bool, default=False,
+                        help='force non-maximum suppression on different class')
+    parser.add_argument('--voc07', dest='use_voc07_metric', type=bool, default=True,
+                        help='use PASCAL VOC 07 11-point metric')
     args = parser.parse_args()
     return args
 
@@ -107,4 +115,8 @@ if __name__ == '__main__':
               monitor_pattern=args.monitor_pattern,
               log_file=args.log_file,
               min_obj_size=args.min_obj_size,
-              use_difficult=args.use_difficult)
+              use_difficult=args.use_difficult,
+              nms_thresh=args.nms_thresh,
+              ovp_thresh=args.overlap_thresh,
+              force_suppress=args.force_nms,
+              voc07_metric=args.use_voc07_metric)

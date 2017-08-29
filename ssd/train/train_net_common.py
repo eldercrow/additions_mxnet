@@ -132,12 +132,12 @@ def train_net_common(net, train_iter, val_iter, batch_size,
                      momentum, weight_decay, use_plateau, lr_refactor_step, lr_refactor_ratio,
                      freeze_layer_pattern='',
                      num_example=10000, label_pad_width=350,
-                     nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
+                     nms_thresh=0.45, force_suppress=False, ovp_thresh=0.5,
                      use_difficult=False, class_names=None,
                      optimizer_name='sgd',
-                     voc07_metric=False, nms_topk=400, force_suppress=False,
+                     voc07_metric=False, nms_topk=400,
                      iter_monitor=0,
-                     monitor_pattern=".*", logger):
+                     monitor_pattern=".*", logger=None):
     """
     """
     # check args
@@ -145,7 +145,7 @@ def train_net_common(net, train_iter, val_iter, batch_size,
 
     # load symbol
     net_str = net
-    net = get_symbol_train(net, data_shape[1], num_classes=num_classes,
+    net = get_symbol_train(net, data_shape[1], num_classes=len(class_names),
         nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
 
     # define layers with fixed weight/bias

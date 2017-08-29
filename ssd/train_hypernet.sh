@@ -1,5 +1,5 @@
 python train_imdb.py \
-    --network hypernetv3 \
+    --network hypernetv4 \
     --dataset pascal_voc \
     --devkit-path ./data/VOCdevkit \
     --year 2007,2012 \
@@ -10,7 +10,7 @@ python train_imdb.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained none \
+    --pretrained ./model/ssd_hypernetv3_384 \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \

@@ -351,9 +351,10 @@ class RandScaler(RandSampler):
                     dx = np.random.randint(low=np.minimum(dx, 0), high=np.maximum(dx, 0))
                 if dy != 0:
                     dy = np.random.randint(low=np.minimum(dy, 0), high=np.maximum(dy, 0))
-                bbox = [dx, dy, dx+patch_sz_x, dy+patch_sz_y]
             else:
-                bbox = [0, 0, img_hw[1], img_hw[0]]
+                dx, dy, patch_sz_x, patch_sz_y = (0, 0, img_hw[1], img_hw[0])
+            bbox = [dx, dy, dx+patch_sz_x, dy+patch_sz_y]
+
             # if _compute_overlap(bbox, (0, 0, img_hw[1], img_hw[0])) < 0.1:
 
             if not self.no_random:
@@ -374,7 +375,7 @@ class RandScaler(RandSampler):
                     new_gt_boxes.append([l, bb[1]-dx, bb[2]-dy, bb[3]-dx, bb[4]-dy])
                 new_gt_boxes = np.reshape(np.array(new_gt_boxes), (-1, 5))
             else:
-                new_gt_boxes = bb
+                new_gt_boxes = gt
 
             if not self.no_random and len(new_gt_boxes) == 0 and trial < self.max_trials - 1:
                 continue

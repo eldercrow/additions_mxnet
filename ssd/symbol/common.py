@@ -171,7 +171,8 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[], upscales=1, mimic_fc=0,
+                    clip=False, interm_layer=0, steps=[], shifts=[],
+                    upscales=1, mimic_fc=0, python_anchor=False,
                     use_global_stats=True, data_shape=(0, 0)):
     """
     the basic aggregation module for SSD detection. Takes in multiple layers,
@@ -264,7 +265,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
             fcp = mx.sym.Convolution(fc, name='{}_fc{}/p'.format(from_name, i),
                     num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
             fc3 = mx.sym.Convolution(fc, name='{}=fc{}/3'.format(from_name, i),
-                    num_filter=num_hidden / 8, kernel=(3, 3), pad=(1, 1))
+                    num_filter=num_hidden / 4, kernel=(3, 3), pad=(1, 1))
             fc3 = mx.sym.BatchNorm(fc3, name='{}_fc{}/bn/3'.format(from_name, i),
                     use_global_stats=use_global_stats, fix_gamma=False)
             fc3 = mx.sym.Activation(fc3, act_type='relu')
@@ -276,6 +277,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         return fc
 
 
+    shape_layers = []
     for k, from_layer in enumerate(from_layers):
         # normalize
         if normalization[k] > 0:
@@ -300,13 +302,20 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         # estimate number of anchors per location
         # here I follow the original version in caffe
         # TODO: better way to shape the anchors??
-        size = sizes[k]
-        assert len(size) > 0, "must provide at least one size"
-        size_str = "(" + ",".join([str(x) for x in size]) + ")"
-        ratio = ratios[k]
-        assert len(ratio) > 0, "must provide at least one ratio"
-        ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
-        num_anchors = len(size) -1 + len(ratio)
+        if not python_anchor:
+            size = sizes[k]
+            assert len(size) > 0, "must provide at least one size"
+            size_str = "(" + ",".join([str(x) for x in size]) + ")"
+            ratio = ratios[k]
+            assert len(ratio) > 0, "must provide at least one ratio"
+            ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
+            num_anchors = len(size) -1 + len(ratio)
+        else:
+            if shifts:
+                shift = shifts[k]
+                num_anchors = sum([1 if sh == 0 else 4 for sh in shift]) * len(ratios[k])
+            else:
+                num_anchors = len(sizes[k]) * len(ratios[k])
         upscale = upscales[k]
 
         if mimic_fc > 0:
@@ -345,29 +354,35 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         if upscale > 1:
             cls_pred_conv = subpixel_upsample(cls_pred_conv, num_cls_pred, upscale, upscale,
                     name='{}_cls_pred_conv_up'.format(from_name[0]))
+        shape_layers.append(cls_pred_conv)
         cls_pred = mx.symbol.transpose(cls_pred_conv, axes=(0,2,3,1))
         cls_pred = mx.symbol.Flatten(data=cls_pred)
         cls_pred_layers.append(cls_pred)
 
         # create anchor generation layer
-        if steps:
-            step = (steps[k], steps[k])
-        else:
-            step = '(-1.0, -1.0)'
-        anchors = mx.contrib.symbol.MultiBoxPrior(cls_pred_conv, sizes=size_str, ratios=ratio_str, \
-            clip=clip, name="{}_anchors".format(from_name), steps=step)
-        anchors = mx.symbol.Flatten(data=anchors)
-        anchor_layers.append(anchors)
+        if not python_anchor:
+            if steps:
+                step = (steps[k], steps[k])
+            else:
+                step = '(-1.0, -1.0)'
+            anchors = mx.contrib.symbol.MultiBoxPrior(cls_pred_conv, sizes=size_str, ratios=ratio_str, \
+                clip=clip, name="{}_anchors".format(from_name), steps=step)
+            anchors = mx.symbol.Flatten(data=anchors)
+            anchor_layers.append(anchors)
 
-    loc_preds = mx.symbol.Concat(*loc_pred_layers, num_args=len(loc_pred_layers), \
-        dim=1, name="multibox_loc_pred")
-    cls_preds = mx.symbol.Concat(*cls_pred_layers, num_args=len(cls_pred_layers), \
-        dim=1)
+    loc_preds = mx.symbol.concat(*loc_pred_layers, dim=1, name="multibox_loc_pred")
+    cls_preds = mx.symbol.concat(*cls_pred_layers, dim=1)
+    # loc_preds = mx.symbol.Concat(*loc_pred_layers, num_args=len(loc_pred_layers), dim=1, name="multibox_loc_pred")
+    # cls_preds = mx.symbol.Concat(*cls_pred_layers, num_args=len(cls_pred_layers), dim=1)
     cls_preds = mx.symbol.Reshape(data=cls_preds, shape=(0, -1, num_classes))
     cls_preds = mx.symbol.transpose(cls_preds, axes=(0, 2, 1), name="multibox_cls_pred")
-    anchor_boxes = mx.symbol.Concat(*anchor_layers, \
-        num_args=len(anchor_layers), dim=1)
-    anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
-    # anchor_boxes = mx.symbol.Custom(*from_layers, op_type='multibox_prior',
-    #         name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps)
+    if not python_anchor:
+        anchor_boxes = mx.symbol.Concat(*anchor_layers, \
+            num_args=len(anchor_layers), dim=1)
+        anchor_boxes = mx.symbol.Reshape(data=anchor_boxes, shape=(0, -1, 4), name="multibox_anchors")
+    else:
+        for u in upscales:
+            assert u == 1
+        anchor_boxes = mx.symbol.Custom(*shape_layers, op_type='multibox_prior',
+                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps, shifts=shifts)
     return [loc_preds, cls_preds, anchor_boxes]
