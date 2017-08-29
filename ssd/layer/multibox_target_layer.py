@@ -43,8 +43,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         labels_all = in_data[1].asnumpy().astype(np.float32) # (batch, num_label, 6)
         labels_all = labels_all[:, :, :5]
-        max_cids = mx.nd.argmax( \
-                mx.nd.slice_axis(in_data[2], axis=1, begin=1, end=None), axis=1).asnumpy().astype(int) + 1
+        max_cids = mx.nd.argmax(in_data[2], axis=1).asnumpy().astype(int)
         probs_bg_cls = mx.nd.slice_axis(in_data[2], axis=1, begin=0, end=1).asnumpy()
         probs_bg_cls = 1 - np.reshape(probs_bg_cls, (n_batch, -1))
 
@@ -122,7 +121,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
-            gt_sz = np.maximum(label[3]-label[1], label[4]-label[2])
+            gt_sz = np.minimum(label[3]-label[1], label[4]-label[2])
             if gt_sz < self.th_small and np.max(iou) < self.th_iou_neg:
                 continue
             # skip oob boxes

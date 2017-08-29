@@ -193,7 +193,7 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
 
     # hyper0
     up32 = upsample_feature(inc3e, name='up32', scale=2,
-            num_filter_proj=96, num_filter_upsample=96, use_global_stats=use_global_stats)
+            num_filter_proj=64, num_filter_upsample=128, use_global_stats=use_global_stats)
     up42 = upsample_feature(inc4e, name='up42', scale=4,
             num_filter_proj=128, num_filter_upsample=64, use_global_stats=use_global_stats)
     hyper0 = mx.sym.concat(conv3, up32, up42)

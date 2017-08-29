@@ -5,11 +5,11 @@ from symbol.net_block import *
 def prepare_groups(group_i, n_curr_ch, use_global_stats):
     ''' prepare basic groups '''
     # 48 24 12 6 3
-    nf_3x3 = [(80, 40), (96, 48), (128, 64), (96, 48), (96,)]
-    nf_1x1 = [40, 48, 64, 48, 48]
-    n_unit = [3, 4, 2, 1, 1]
+    nf_3x3 = [(80, 40), (96, 48), (128, 64), (96, 48), (96,), ()]
+    nf_1x1 = [40, 48, 64, 48, 48, 128]
+    n_unit = [2, 3, 2, 1, 1, 1]
 
-    nf_dn = [32, 32, 32, 64, 64]
+    nf_dn = [32, 32, 32, 64, 64, 64]
 
     # prepare groups
     n_group = len(nf_1x1)
@@ -17,12 +17,15 @@ def prepare_groups(group_i, n_curr_ch, use_global_stats):
     dn_groups = [[] for _ in nf_1x1]
     for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
         if nf_dn[i] > 0:
+            pad = (1, 1) if i < 5 else (0, 0)
+            stride = (2, 2) if i < 5 else (1, 1)
             d = relu_conv_bn(group_i, 'dn{}{}/'.format(i-1, i),
-                    num_filter=nf_dn[i], kernel=(3, 3), pad=(1, 1), stride=(2, 2),
+                    num_filter=nf_dn[i], kernel=(3, 3), pad=pad, stride=stride,
                     use_global_stats=use_global_stats)
             dn_groups[i].append(d)
 
-        group_i = pool(group_i)
+        kernel = (2, 2) if i < 5 else (3,3)
+        group_i = pool(group_i, kernel=kernel)
         group_i = relu_conv_bn(group_i, 'gp{}/'.format(i), num_filter=sum(nf3)+nf1,
                 kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
@@ -60,26 +63,22 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=24, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=24, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
-    pool1 = pool(bn1)
+    pool1 = bn1
 
     bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=32, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
+            num_filter=24, kernel=(3, 3), pad=(1, 1), stride=(2, 2), use_crelu=True,
             use_global_stats=use_global_stats)
     bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=16, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
             use_global_stats=use_global_stats)
-    pool2 = pool(bn2_2)
-    concat2 = mx.sym.concat(bn2_1, pool2)
+    bn2 = mx.sym.concat(bn2_1, bn2_2)
 
-    bn3_0 = relu_conv_bn(concat2, '3/0/', num_filter=128,
-            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
-    bn3_1 = conv_group(bn3_0, '3/1/',
+    bn3_1 = conv_group(bn2, '3/1/',
             num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=True,
             use_global_stats=use_global_stats)
-    bn3_1 = bn3_1 + bn3_0
     bn3_2 = conv_group(bn3_1, '3/2/',
             num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=True,
             use_global_stats=use_global_stats)
@@ -89,14 +88,10 @@ def get_symbol(num_classes=1000, **kwargs):
     groups, dn_groups, up_groups = prepare_groups(bn3, n_curr_ch, use_global_stats)
 
     hyper_groups = []
-    nf_hyper = [256] * 5
-    # nf_hyper_proj = [64] * 5
+    nf_hyper = [256, 256, 256, 256, 192, 128]
 
     for i, (g, u, d) in enumerate(zip(groups, up_groups, dn_groups)):
-        p = mx.sym.concat(*([g] + d + u))
-        # p = relu_conv_bn(p, 'hyperp{}/'.format(i),
-        #         num_filter=nf_hyper_proj[i], kernel=(1, 1), pad=(0, 0),
-        #         use_global_stats=use_global_stats)
+        p = mx.sym.concat(*([g] + d + u), name='hyperconcat{}'.format(i))
         p1 = relu_conv_bn(p, 'hyperc1{}/'.format(i),
                 num_filter=nf_hyper[i], kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
@@ -114,7 +109,6 @@ def get_symbol(num_classes=1000, **kwargs):
         pooled.append(p)
 
     pooled_all = mx.sym.flatten(mx.sym.concat(*pooled), name='flatten')
-    # softmax = mx.sym.SoftmaxOutput(data=pooled_all, label=label, name='softmax')
     fc1 = mx.sym.FullyConnected(pooled_all, num_hidden=4096, name='fc1')
     softmax = mx.sym.SoftmaxOutput(data=fc1, label=label, name='softmax')
     return softmax

@@ -405,3 +405,54 @@ def _compute_overlap_1d(p0, p1, q0, q1):
     I = np.maximum(0.0, np.minimum(p1, q1) - np.maximum(p0, q0))
     U = np.maximum(1e-08, p1 - p0)
     return np.minimum(1.0, I / U)
+
+
+class RandEraser(object):
+    '''
+    Randomly erase regions from input patches.
+    https://arxiv.org/abs/1708.04896
+    '''
+    def __init__(self):
+        self.erase_prob = 0.5
+        self.aspect_exp = 0.3
+        self.min_area = 0.02
+        self.max_area = 0.2
+
+    def sample(self, patch, labels):
+        '''
+        patch: input patch as numpy array to be augmented.
+        labels: (n_label, 4), GT object labels.
+        '''
+        hh, ww, _ = patch.shape
+
+        # per image erase
+        if np.random.uniform() < self.erase_prob:
+            x0, y0, x1, y1 = _get_erase_rect([0, 0, ww, hh])
+            patch[y0:y1, x0:x1] = np.random.randint(0, 255, (y1-y0, x1-x0))
+        # per object erase
+        for label in labels:
+            if np.random.uniform() < self.erase_prob:
+                x0, y0, x1, y1 = _get_erase_rect(label)
+                patch[y0:y1, x0:x1] = np.random.randint(0, 255, (y1-y0, x1-x0))
+        return patch
+
+    def _get_erase_rect(self, bb):
+        ww = bb[2] - bb[0]
+        hh = bb[3] - bb[1]
+
+        xe = np.random.randint(bb[0], bb[2]-1)
+        ye = np.random.randint(bb[1], bb[3]-1)
+
+        area = np.random.uniform(self.min_area, self.max_area) * ww * hh
+        asp = np.random.uniform(self.aspect_exp, 1.0)
+        if np.random.randint(0, 2) == 1:
+            asp = 1.0 / asp
+        we = sqrt(area / asp)
+        he = area / we
+
+        x0 = np.round(np.maximum(bb[0], xe - we / 2.0))
+        x1 = np.round(np.minimum(bb[2], xe + we / 2.0))
+        y0 = np.round(np.maximum(bb[1], ye - he / 2.0))
+        y1 = np.round(np.minimum(bb[3], ye + he / 2.0))
+
+        return x0, y0, x1, y1

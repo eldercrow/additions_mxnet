@@ -10,12 +10,12 @@ class MultiBoxPrior(mx.operator.CustomOp):
     Will handle anchor box layer in a different way.
     Also I will handle sizes and ratios in a different - like rcnn - way.
     '''
-    def __init__(self, sizes, ratios, strides, shifts, clip):
+    def __init__(self, sizes, ratios, strides, dense_vh, clip):
         super(MultiBoxPrior, self).__init__()
         self.sizes = sizes
         self.ratios = ratios
         self.strides = strides
-        self.shifts = shifts
+        self.dense_vh = dense_vh
         self.clip = clip
         self.anchor_data = None
 
@@ -32,11 +32,13 @@ class MultiBoxPrior(mx.operator.CustomOp):
 
         anchors_all = np.empty((0, 4), dtype=np.float32)
 
-        for ii, (s, r, sh) in enumerate(zip(self.sizes, self.ratios, self.shifts)):
+        for ii, (s, r) in enumerate(zip(self.sizes, self.ratios)):
             h = in_data[ii].shape[2]
             w = in_data[ii].shape[3]
 
-            apc = sum([len(shi) for shi in sh]) * len(r)
+            if self.dense_vh:
+                apc = sum([2 if ri != 1.0 else 1 for ri in r]) * len(s)
+            apc = len(s) * len(r)
 
             if not self.strides:
                 stride = (1.0 / w, 1.0 / h)
@@ -53,14 +55,20 @@ class MultiBoxPrior(mx.operator.CustomOp):
             # compute heights and widths
             wh = np.zeros((apc, 4))
             k = 0
-            for i, nn in zip(s, sh):
+            for i in s:
                 for j in r:
                     j2 = np.sqrt(float(j))
+                    if not self.dense_vh or j2 == 1:
+                        nn = [(0, 0),]
+                    elif j2 > 1:
+                        nn = [(0, -stride[1]/4), (0, stride[1]/4)]
+                    else:
+                        nn = [(-stride[0]/4, 0), (stride[0]/4, 0)]
                     for n in nn:
-                        wh[k, 0] = -(i * j2) * 0.5 + n[0]
-                        wh[k, 1] = -(i / j2) * 0.5 + n[1]
-                        wh[k, 2] =  (i * j2) * 0.5 + n[0]
-                        wh[k, 3] =  (i / j2) * 0.5 + n[1]
+                        wh[k, 0] = -(i * j2) * 0.5 + n[0] # width
+                        wh[k, 1] = -(i / j2) * 0.5 + n[1] # height
+                        wh[k, 2] =  (i * j2) * 0.5 + n[0] # width
+                        wh[k, 3] =  (i / j2) * 0.5 + n[1] # height
                         k += 1
 
             # build anchors
@@ -89,7 +97,7 @@ class MultiBoxPrior(mx.operator.CustomOp):
 
 @mx.operator.register("multibox_prior")
 class MultiBoxPriorProp(mx.operator.CustomOpProp):
-    def __init__(self, sizes, ratios, strides=None, shifts=None, clip=False):
+    def __init__(self, sizes, ratios, strides=None, dense_vh=False, clip=False):
         super(MultiBoxPriorProp, self).__init__(need_top_grad=False)
         self.sizes = make_tuple(sizes)
         self.ratios = make_tuple(ratios)
@@ -99,11 +107,8 @@ class MultiBoxPriorProp(mx.operator.CustomOpProp):
         self.strides = make_tuple(strides) if strides else None
         if strides:
             assert len(self.sizes) == len(self.strides)
-        if shifts:
-            shifts = make_tuple(str(shifts))
-        self.shifts = shifts if shifts else None
-        self._generate_shifts()
         self.clip = int(clip)
+        self.dense_vh = bool(make_tuple(str(dense_vh)))
         # self.strides = [2.0**i for i in range(len(self.sizes))]
 
     def list_arguments(self):
@@ -114,27 +119,15 @@ class MultiBoxPriorProp(mx.operator.CustomOpProp):
 
     def infer_shape(self, in_shape):
         n_anchor = 0
-        for ii, (sh, r) in enumerate(zip(self.shifts, self.ratios)):
+        for ii, (s, r) in enumerate(zip(self.sizes, self.ratios)):
             h = in_shape[ii][2]
             w = in_shape[ii][3]
-            apc = sum([len(shi) for shi in sh]) * len(r)
+            if self.dense_vh:
+                apc = sum([2 if ri != 1.0 else 1 for ri in r]) * len(s)
+            else:
+                apc = len(s) * len(r)
             n_anchor += h*w*apc
         return in_shape, [(1, n_anchor, 4),], []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return MultiBoxPrior(self.sizes, self.ratios, self.strides, self.shifts, self.clip)
-
-    def _generate_shifts(self):
-        shifts = []
-        if not self.shifts:
-            for s in self.sizes:
-                shifts.append([0.0 for _ in s])
-        else:
-            shifts = self.shifts
-
-        self.shifts = []
-        for shift in shifts:
-            shift = [[(0.0, 0.0),] if sh == 0.0 else [(-sh, -sh), (-sh, sh), (sh, -sh), (sh, sh)] \
-                    for sh in shift]
-            self.shifts.append(shift)
-
+        return MultiBoxPrior(self.sizes, self.ratios, self.strides, self.dense_vh, self.clip)
