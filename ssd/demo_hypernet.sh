@@ -1,9 +1,9 @@
 #!/bin/bash
 
 python demo.py \
-    --network hypernetv3 \
-    --prefix ./model/ssd_hypernetv3_384 \
-    --epoch 1000 \
+    --network pva101 \
+    --prefix ./model/ssd_pva101_384 \
+    --epoch 40 \
     --images ./data/demo/street.jpg \
     --data-shape 384 \
     --thresh 0.5 \
