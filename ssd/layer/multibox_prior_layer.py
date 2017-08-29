@@ -51,23 +51,25 @@ class MultiBoxPrior(mx.operator.CustomOp):
             xv, yv = np.meshgrid(x, y)
 
             # compute heights and widths
-            wh = np.zeros((apc, 2))
+            wh = np.zeros((apc, 4))
             k = 0
             for i, nn in zip(s, sh):
                 for j in r:
                     j2 = np.sqrt(float(j))
                     for n in nn:
-                        wh[k, 0] = (i * j2) * 0.5 + n[0] # width
-                        wh[k, 1] = (i / j2) * 0.5 + n[1] # height
+                        wh[k, 0] = -(i * j2) * 0.5 + n[0]
+                        wh[k, 1] = -(i / j2) * 0.5 + n[1]
+                        wh[k, 2] =  (i * j2) * 0.5 + n[0]
+                        wh[k, 3] =  (i / j2) * 0.5 + n[1]
                         k += 1
 
             # build anchors
             anchors = np.zeros((h, w, apc, 4), dtype=np.float32)
             for i in range(apc):
-                anchors[:, :, i, 0] = xv - wh[i, 0]
-                anchors[:, :, i, 1] = yv - wh[i, 1]
-                anchors[:, :, i, 2] = xv + wh[i, 0]
-                anchors[:, :, i, 3] = yv + wh[i, 1]
+                anchors[:, :, i, 0] = xv + wh[i, 0]
+                anchors[:, :, i, 1] = yv + wh[i, 1]
+                anchors[:, :, i, 2] = xv + wh[i, 2]
+                anchors[:, :, i, 3] = yv + wh[i, 3]
 
             anchors = np.reshape(anchors, (-1, 4))
             anchors_all = np.vstack((anchors_all, anchors))

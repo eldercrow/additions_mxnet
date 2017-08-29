@@ -71,7 +71,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     use_focal_loss = cfg.train['use_focal_loss']
 
     label = mx.sym.Variable('label')
-    kwargs['use_global_stats'] = True
+    kwargs['use_global_stats'] = False
 
     mimic_fc = 0 if not 'mimic_fc' in kwargs else kwargs['mimic_fc']
     python_anchor = False if not 'python_anchor' in kwargs else kwargs['python_anchor']
