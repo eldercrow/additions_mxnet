@@ -1,5 +1,5 @@
 python train_imdb.py \
-    --network hypernetv4 \
+    --network hypernetv3 \
     --dataset pascal_voc \
     --devkit-path ./data/VOCdevkit \
     --year 2007,2012 \

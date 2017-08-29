@@ -171,7 +171,7 @@ def multi_layer_feature(body, from_layers, num_filters, strides, pads, min_filte
 
 def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
                     ratios=[1], normalization=-1, num_channels=[],
-                    clip=False, interm_layer=0, steps=[], shifts=[],
+                    clip=False, interm_layer=0, steps=[], dense_vh=False,
                     upscales=1, mimic_fc=0, python_anchor=False,
                     use_global_stats=True, data_shape=(0, 0)):
     """
@@ -311,9 +311,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
             ratio_str = "(" + ",".join([str(x) for x in ratio]) + ")"
             num_anchors = len(size) -1 + len(ratio)
         else:
-            if shifts:
-                shift = shifts[k]
-                num_anchors = sum([1 if sh == 0 else 4 for sh in shift]) * len(ratios[k])
+            if dense_vh:
+                num_anchors = sum([2 if r != 1.0 else 1 for r in ratios[k]]) * len(sizes[k])
             else:
                 num_anchors = len(sizes[k]) * len(ratios[k])
         upscale = upscales[k]
@@ -384,5 +383,6 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         for u in upscales:
             assert u == 1
         anchor_boxes = mx.symbol.Custom(*shape_layers, op_type='multibox_prior',
-                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps, shifts=shifts)
+                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps,
+                dense_vh=dense_vh)
     return [loc_preds, cls_preds, anchor_boxes]

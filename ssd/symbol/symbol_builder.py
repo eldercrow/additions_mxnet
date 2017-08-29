@@ -15,7 +15,7 @@ def import_module(module_name):
     return importlib.import_module(module_name)
 
 def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pads,
-                     sizes, ratios, normalizations=-1, steps=[], shifts=[],
+                     sizes, ratios, normalizations=-1, steps=[],
                      min_filter=128, square_bb=False,
                      nms_thresh=0.5, upscales=1, force_suppress=False, nms_topk=400, **kwargs):
     """Build network symbol for training SSD
@@ -75,6 +75,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     mimic_fc = 0 if not 'mimic_fc' in kwargs else kwargs['mimic_fc']
     python_anchor = False if not 'python_anchor' in kwargs else kwargs['python_anchor']
+    dense_vh = False if not 'dense_vh' in kwargs else kwargs['dense_vh']
     data_shape = (0, 0) if not 'data_shape' in kwargs else kwargs['data_shape']
     if isinstance(data_shape, int):
         data_shape = (data_shape, data_shape)
@@ -85,7 +86,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, shifts=shifts, \
+        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, dense_vh=dense_vh, \
         data_shape=data_shape, upscales=upscales, mimic_fc=mimic_fc, python_anchor=python_anchor)
 
     if use_python_layer:
