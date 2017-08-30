@@ -141,7 +141,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     return out
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
-               strides, pads, normalizations=-1, steps=[], shifts=[], upscales=1, min_filter=128,
+               strides, pads, normalizations=-1, steps=[], min_filter=128,
                nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
     """Build network for testing SSD
 
@@ -197,6 +197,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
         data_shape = (data_shape, data_shape)
     mimic_fc = 0 if not 'mimic_fc' in kwargs else kwargs['mimic_fc']
     python_anchor = False if not 'python_anchor' in kwargs else kwargs['python_anchor']
+    dense_vh = False if not 'dense_vh' in kwargs else kwargs['dense_vh']
 
     kwargs['use_global_stats'] = True
     body = import_module(network).get_symbol(num_classes, **kwargs)
@@ -205,8 +206,8 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
 
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
-        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, shifts=shifts,
-        data_shape=data_shape, upscales=upscales, mimic_fc=mimic_fc, python_anchor=python_anchor)
+        num_channels=num_filters, clip=False, interm_layer=0, steps=steps, dense_vh=dense_vh,
+        data_shape=data_shape, mimic_fc=mimic_fc, python_anchor=python_anchor)
     # body = import_module(network).get_symbol(num_classes, **kwargs)
     # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
     #     min_filter=min_filter)
