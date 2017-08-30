@@ -223,16 +223,18 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
     hyper_group.append(mx.sym.concat(hyper2_0, hyper2_1))
 
     # hyper3, 4
-    nf_hyper = [256, 192]
+    nf_hyper = [256, 192, 128]
     convi = hyper2
     for i, nfh in enumerate(nf_hyper, 3):
-        pooli = mx.sym.Pooling(convi, kernel=(2, 2), stride=(2, 2), pool_type='max')
+        kernel = (2, 2) if i < 5 else (3, 3)
+        pooli = mx.sym.Pooling(convi, kernel=kernel, stride=(2, 2), pool_type='max')
         hyperres = conv_bn_relu(pooli, 'hyperres/{}'.format(i), num_filter=nfh,
                 kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
         hyper1x1 = conv_bn_relu(convi, 'hyper1x1/{}'.format(i), num_filter=nfh/4,
                 kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        pad = (1, 1) if i < 5 else (0, 0)
         hyper3x3 = conv_bn_relu(hyper1x1, 'hyper3x3/{}'.format(i), num_filter=nfh,
-                kernel=(3, 3), pad=(1, 1), stride=(2, 2), use_global_stats=use_global_stats)
+                kernel=(3, 3), pad=pad, stride=(2, 2), use_global_stats=use_global_stats)
         hyperi = hyperres + hyper3x3
         hyperi_0 = conv_bn_relu(hyperi, 'hyper{}_0'.format(i), num_filter=nfh,
                 kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)

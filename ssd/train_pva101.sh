@@ -4,7 +4,7 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_pva101v2_384 \
+    --pretrained ./model/ssd_pva101_384 \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \

@@ -383,6 +383,5 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         for u in upscales:
             assert u == 1
         anchor_boxes = mx.symbol.Custom(*shape_layers, op_type='multibox_prior',
-                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps,
-                dense_vh=dense_vh)
+                name='multibox_anchors', sizes=sizes, ratios=ratios, strides=steps, dense_vh=dense_vh)
     return [loc_preds, cls_preds, anchor_boxes]
