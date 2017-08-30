@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 """
 RPN:
 data =
@@ -28,7 +45,7 @@ def get_rpn_testbatch(roidb):
     :return: data, label, im_info
     """
     assert len(roidb) == 1, 'Single batch only'
-    imgs, roidb = get_image(roidb, True)
+    imgs, roidb = get_image(roidb)
     im_array = imgs[0]
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
 
@@ -225,202 +242,3 @@ def assign_anchor(feat_shape, gt_boxes, im_info, feat_stride=16,
              'bbox_target': bbox_targets,
              'bbox_weight': bbox_weights}
     return label
-
-
-def assign_anchor_multiscale(feat_shape_list, gt_boxes, im_info, feat_stride_list=[16, 32, 64, 128],
-                  scales=(3,), ratios=(0.5, 1, 2), allowed_border=0):
-    """
-    assign ground truth boxes to anchor positions
-    :param feat_shape: infer output shape
-    :param gt_boxes: assign ground truth
-    :param im_info: filter out anchors overlapped with edges
-    :param feat_stride: anchor position step
-    :param scales: used to generate anchors, affects num_anchors (per location)
-    :param ratios: aspect ratios of generated anchors
-    :param allowed_border: filter out anchors with edge overlap > allowed_border
-    :return: dict of label
-    'label': of shape (batch_size, 1) <- (batch_size, num_anchors, feat_height, feat_width)
-    'bbox_target': of shape (batch_size, num_anchors * 4, feat_height, feat_width)
-    'bbox_inside_weight': *todo* mark the assigned anchors
-    'bbox_outside_weight': used to normalize the bbox_loss, all weights sums to RPN_POSITIVE_WEIGHT
-    """
-    def _unmap(data, count, inds, fill=0):
-        """" unmap a subset inds of data into original data of size count """
-        if len(data.shape) == 1:
-            ret = np.empty((count,), dtype=np.float32)
-            ret.fill(fill)
-            ret[inds] = data
-        else:
-            ret = np.empty((count,) + data.shape[1:], dtype=np.float32)
-            ret.fill(fill)
-            ret[inds, :] = data
-        return ret
-
-    im_info = im_info[0]
-    scales = np.array(scales, dtype=np.float32)
-
-    anchors_ms = None
-    inds_inside_list = []
-    num_inds_list = []
-    total_anchors_list = []
-
-    for k, (feat_shape, feat_stride) in enumerate(zip(feat_shape_list, feat_stride_list)):
-        base_anchors = generate_anchors(base_size=feat_stride, ratios=list(ratios), scales=scales)
-        num_anchors = base_anchors.shape[0]
-        feat_height, feat_width = feat_shape[-2:]
-
-        logger.debug('anchors: %s' % base_anchors)
-        logger.debug('anchor shapes: %s' % np.hstack((base_anchors[:, 2::4] - base_anchors[:, 0::4],
-                                                     base_anchors[:, 3::4] - base_anchors[:, 1::4])))
-        logger.debug('im_info %s' % im_info)
-        logger.debug('height %d width %d' % (feat_height, feat_width))
-        logger.debug('gt_boxes shape %s' % np.array(gt_boxes.shape))
-        logger.debug('gt_boxes %s' % gt_boxes)
-
-        # 1. generate proposals from bbox deltas and shifted anchors
-        shift_x = np.arange(0, feat_width) * feat_stride
-        shift_y = np.arange(0, feat_height) * feat_stride
-        shift_x, shift_y = np.meshgrid(shift_x, shift_y)
-        shifts = np.vstack((shift_x.ravel(), shift_y.ravel(), shift_x.ravel(), shift_y.ravel())).transpose()
-        # add A anchors (1, A, 4) to
-        # cell K shifts (K, 1, 4) to get
-        # shift anchors (K, A, 4)
-        # reshape to (K*A, 4) shifted anchors
-        A = num_anchors
-        K = shifts.shape[0]
-        all_anchors = base_anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2))
-        all_anchors = all_anchors.reshape((K * A, 4))
-        total_anchors = int(K * A)
-
-        # only keep anchors inside the image
-        inds_inside = np.where((all_anchors[:, 0] >= -allowed_border) &
-                               (all_anchors[:, 1] >= -allowed_border) &
-                               (all_anchors[:, 2] < im_info[1] + allowed_border) &
-                               (all_anchors[:, 3] < im_info[0] + allowed_border))[0]
-        logger.debug('total_anchors %d' % total_anchors)
-        logger.debug('inds_inside %d' % len(inds_inside))
-
-        # keep only inside anchors
-        anchors = all_anchors[inds_inside, :]
-        logger.debug('anchors shape %s' % np.array(anchors.shape))
-        inds_inside_list.append(inds_inside)
-        num_inds_list.append(len(inds_inside))
-        total_anchors_list.append(total_anchors)
-
-        if anchors_ms is None:
-            anchors_ms = anchors.copy()
-        else:
-            anchors_ms = np.vstack((anchors_ms, anchors))
-
-    num_anchors_ms = len(anchor_ids)
-
-    # label: 1 is positive, 0 is negative, -1 is dont care
-    labels = np.empty((num_anchors_ms,), dtype=np.float32)
-    labels.fill(-1)
-
-    if gt_boxes.size > 0:
-        # overlap between the anchors and the gt boxes
-        # overlaps (ex, gt)
-        overlaps = bbox_overlaps(anchors_ms.astype(np.float), gt_boxes.astype(np.float))
-        argmax_overlaps = overlaps.argmax(axis=1)
-        max_overlaps = overlaps[np.arange(num_anchors_ms), argmax_overlaps]
-        gt_max_overlaps = np.max(overlaps, axis=0)
-        gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
-
-        if not config.TRAIN.RPN_CLOBBER_POSITIVES:
-            # assign bg labels first so that positive labels can clobber them
-            labels[max_overlaps < config.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
-
-        # fg label: for each gt, anchor with highest overlap
-        labels[gt_argmax_overlaps] = 1
-        gt_argmax_aids = anchor_ids[gt_argmax_overlaps]
-
-        # fg label: above threshold IoU
-        labels[max_overlaps >= config.TRAIN.RPN_POSITIVE_OVERLAP] = 1
-
-        if config.TRAIN.RPN_CLOBBER_POSITIVES:
-            # assign bg labels last so that negative labels can clobber positives
-            labels[max_overlaps < config.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
-    else:
-        labels[:] = 0
-
-    # subsample positive labels if we have too many
-    num_fg = int(config.TRAIN.RPN_FG_FRACTION * config.TRAIN.RPN_BATCH_SIZE)
-    fg_inds = np.where(labels == 1)[0]
-    if len(fg_inds) > num_fg:
-        disable_inds = npr.choice(fg_inds, size=(len(fg_inds) - num_fg), replace=False)
-        if logger.level == logging.INFO:
-            disable_inds = fg_inds[:(len(fg_inds) - num_fg)]
-        labels[disable_inds] = -1
-
-    # subsample negative labels if we have too many
-    num_bg = config.TRAIN.RPN_BATCH_SIZE - np.sum(labels == 1)
-    bg_inds = np.where(labels == 0)[0]
-    if len(bg_inds) > num_bg:
-        disable_inds = npr.choice(bg_inds, size=(len(bg_inds) - num_bg), replace=False)
-        if logger.level == logging.INFO:
-            disable_inds = bg_inds[:(len(bg_inds) - num_bg)]
-        labels[disable_inds] = -1
-
-    bbox_targets = np.zeros((num_anchors_ms, 4), dtype=np.float32)
-    if gt_boxes.size > 0:
-        bbox_targets[:] = bbox_transform(anchors_ms, gt_boxes[argmax_overlaps, :4])
-
-    bbox_weights = np.zeros((num_anchors_ms, 4), dtype=np.float32)
-    bbox_weights[labels == 1, :] = np.array(config.TRAIN.RPN_BBOX_WEIGHTS)
-
-    if logger.level == logging.DEBUG:
-        _sums = bbox_targets[labels == 1, :].sum(axis=0)
-        _squared_sums = (bbox_targets[labels == 1, :] ** 2).sum(axis=0)
-        _counts = np.sum(labels == 1)
-        means = _sums / (_counts + 1e-14)
-        stds = np.sqrt(_squared_sums / _counts - means ** 2)
-        logger.debug('means %s' % means)
-        logger.debug('stdevs %s' % stds)
-
-    # divide labels, bbox_targets, bbox_weights
-    labels_list = []
-    bbox_targets_list = []
-    bbox_weights_list = []
-    s = 0
-    e = 0
-    for n in num_inds_list:
-        s = e
-        e = s + n
-        labels_list.append(labels[s:e])
-        bbox_targets_list.append(bbox_targets[s:e, :])
-        bbox_weights_list.append(bbox_weights[s:e, :])
-
-    for k, (feat_shape, inds_inside, total_anchors) in \
-            (feat_shape_list, inds_inside_list, total_anchors_list):
-        # map up to original set of anchors
-        labels = _unmap(labels_list[k], total_anchors, inds_inside, fill=-1)
-        bbox_targets = _unmap(bbox_targets_list[k], total_anchors, inds_inside, fill=0)
-        bbox_weights = _unmap(bbox_weights_list[k], total_anchors, inds_inside, fill=0)
-
-        # if logger.level == logging.DEBUG:
-        #     if gt_boxes.size > 0:
-        #         logger.debug('rpn: max max_overlaps %f' % np.max(max_overlaps))
-        #     logger.debug('rpn: num_positives %f' % np.sum(labels == 1))
-        #     logger.debug('rpn: num_negatives %f' % np.sum(labels == 0))
-        #     _fg_sum = np.sum(labels == 1)
-        #     _bg_sum = np.sum(labels == 0)
-        #     _count = 1
-        #     logger.debug('rpn: num_positive avg %f' % (_fg_sum / _count))
-        #     logger.debug('rpn: num_negative avg %f' % (_bg_sum / _count))
-        feat_height, feat_width = feat_shape[-2:]
-
-        labels = labels.reshape((1, feat_height, feat_width, A)).transpose(0, 3, 1, 2)
-        labels = labels.reshape((1, A * feat_height * feat_width))
-        bbox_targets = bbox_targets.reshape((1, feat_height, feat_width, A * 4)).transpose(0, 3, 1, 2)
-        bbox_weights = bbox_weights.reshape((1, feat_height, feat_width, A * 4)).transpose((0, 3, 1, 2))
-
-        labels_list[k] = labels
-        bbox_targets_list[k] = bbox_targets
-        bbox_weights_list[k] = bbox_weights
-
-    label = {'label': labels_list,
-             'bbox_target': bbox_targets_list,
-             'bbox_weight': bbox_weights_list}
-    return label
-
