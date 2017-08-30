@@ -451,8 +451,8 @@ class RandEraser(object):
         ww = bb[2] - bb[0]
         hh = bb[3] - bb[1]
 
-        xe = np.random.randint(np.maximum(0, bb[0]), np.minimum(patch_hw[1], bb[2])-1)
-        ye = np.random.randint(np.maximum(0, bb[1]), np.minimum(patch_hw[0], bb[3])-1)
+        xe = np.random.randint(bb[0], bb[2]-1)
+        ye = np.random.randint(bb[1], bb[3]-1)
 
         area = np.random.uniform(self.min_area, self.max_area) * ww * hh
         asp = np.random.uniform(self.aspect_exp, 1.0)

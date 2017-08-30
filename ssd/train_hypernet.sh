@@ -25,8 +25,7 @@ python train_imdb.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained none \
-    --epoch 1000 \
+    --resume 15 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-factor 0.316227766 \
@@ -34,3 +33,5 @@ python train_imdb.py \
     --end-epoch 250 \
     --frequent 100 \
     --gpus 0,1
+    # --pretrained none \
+    # --epoch 1000 \
