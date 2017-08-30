@@ -1,7 +1,7 @@
 import mxnet as mx
 import numpy as np
 import cv2
-from tools.rand_sampler import RandSampler
+from tools.rand_sampler import RandSampler, RandEraser
 from tools.crop_roi_patch import crop_roi_patch
 
 class DetRecordIter(mx.io.DataIter):
@@ -107,6 +107,7 @@ class DetRecordIter(mx.io.DataIter):
         self._batch.label = [mx.nd.array(label)]
         return True
 
+
 class DetIter(mx.io.DataIter):
     """
     Detection Iterator, which will feed data and label to network
@@ -151,6 +152,7 @@ class DetIter(mx.io.DataIter):
         self._data_shape = data_shape
         self._mean_pixels = mx.nd.array(mean_pixels).reshape((3,1,1))
         self._rand_sampler = rand_sampler
+        self._rand_eraser = RandEraser()
         self.is_train = is_train
         self._rand_mirror = rand_mirror
         self._shuffle = shuffle
@@ -252,6 +254,11 @@ class DetIter(mx.io.DataIter):
             interp_methods = [cv2.INTER_LINEAR]
         interp_method = interp_methods[int(np.random.uniform(0, 1) * len(interp_methods))]
         data = mx.img.imresize(data, self._data_shape[1], self._data_shape[0], interp_method)
+        import ipdb
+        ipdb.set_trace()
+        label_scaler = np.array((self._data_shape[0], self._data_shape[1]))
+        label_scaler = np.tile(np.reshape(label_scaler, (1, -1)), (1, 2))
+        data = self._rand_eraser.sample(data, label[:, 1:] * label_scaler)
         if self.is_train:
             valid_mask = np.where(np.any(label != -1, axis=1))[0]
             if self._rand_mirror:
