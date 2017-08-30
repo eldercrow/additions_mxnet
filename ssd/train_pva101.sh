@@ -4,8 +4,8 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_pva101_384 \
-    --epoch 1000 \
+    --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100_21cls \
+    --epoch 0 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,4,4,6,6,8 \
