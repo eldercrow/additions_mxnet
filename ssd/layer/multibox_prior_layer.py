@@ -37,7 +37,7 @@ class MultiBoxPrior(mx.operator.CustomOp):
             w = in_data[ii].shape[3]
 
             if self.dense_vh:
-                apc = sum([2 if ri != 1.0 else 1 for ri in r]) * len(s)
+                apc = sum([2 if (ri >= 2.0 or ri <= 0.5) else 1 for ri in r]) * len(s)
             else:
                 apc = len(s) * len(r)
 
@@ -59,9 +59,9 @@ class MultiBoxPrior(mx.operator.CustomOp):
             for i in s:
                 for j in r:
                     j2 = np.sqrt(float(j))
-                    if not self.dense_vh or j2 == 1:
+                    if not self.dense_vh or (j < 2.0 and j > 0.5):
                         nn = [(0, 0),]
-                    elif j2 > 1:
+                    elif j >= 2:
                         nn = [(0, -stride[1]/4), (0, stride[1]/4)]
                     else:
                         nn = [(-stride[0]/4, 0), (stride[0]/4, 0)]
@@ -124,7 +124,7 @@ class MultiBoxPriorProp(mx.operator.CustomOpProp):
             h = in_shape[ii][2]
             w = in_shape[ii][3]
             if self.dense_vh:
-                apc = sum([2 if ri != 1.0 else 1 for ri in r]) * len(s)
+                apc = sum([2 if ri >= 2.0 or ri <= 0.5 else 1 for ri in r]) * len(s)
             else:
                 apc = len(s) * len(r)
             n_anchor += h*w*apc

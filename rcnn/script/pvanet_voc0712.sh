@@ -15,12 +15,11 @@ python train_end2end.py \
   --prefix model/pva100_voc0712 \
   --image_set 2007_trainval+2012_trainval \
   --frequent 500 \
-  --begin_epoch 42 \
-  --end_epoch 100 \
   --lr 1e-04 \
   --lr_step 30,60,90 \
-  --resume \
-  # --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100_21cls \
-  # --pretrained_epoch 0
+  --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100 \
+  --pretrained_epoch 0
+  # --resume \
+  # --begin_epoch 42 \
+  # --end_epoch 100 \
 # python test.py --network resnet --gpu 1
-

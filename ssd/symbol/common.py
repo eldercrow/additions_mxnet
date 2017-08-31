@@ -312,7 +312,7 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
             num_anchors = len(size) -1 + len(ratio)
         else:
             if dense_vh:
-                num_anchors = sum([2 if r != 1.0 else 1 for r in ratios[k]]) * len(sizes[k])
+                num_anchors = sum([2 if r >= 2.0 or r <= 0.5 else 1 for r in ratios[k]]) * len(sizes[k])
             else:
                 num_anchors = len(sizes[k]) * len(ratios[k])
         upscale = upscales[k]

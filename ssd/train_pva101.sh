@@ -2,13 +2,13 @@ python train.py \
     --network pva101v2 \
     --batch-size 16 \
     --data-shape 384 \
-    --optimizer-name nadam \
+    --optimizer-name sgd \
     --freeze '' \
-    --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100_21cls \
-    --epoch 0 \
-    --lr 1e-03 \
+    --pretrained ./model/ssd_pva101v2_384 \
+    --epoch 1000 \
+    --lr 1e-02 \
     --use-plateau 1 \
-    --lr-steps 3,4,4,6,6,8 \
+    --lr-steps 2,3,3,4,4,3,3 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \

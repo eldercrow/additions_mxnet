@@ -67,7 +67,7 @@ def downsample_feature(data, name, scale, num_filter_proj, use_global_stats=Fals
     ''' Downsample w/ pooling, followed by 1 by 1 projection. '''
     pool = mx.sym.Pooling(data, kernel=(scale, scale), stride=(scale, scale), pool_type='max')
     relu = conv_bn_relu(pool, name+'/conv',
-            num_filter=num_filter_proj, kernel=(1, 1), pad=(0, 0),
+            num_filter=num_filter_proj, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     return relu
 
@@ -142,7 +142,7 @@ def residual_inc(lhs, rhs, prefix_lhs, prefix_rhs, num_filter, stride, no_bias, 
 def pvanet_preact(data, use_global_stats=True, no_bias=False):
     ''' pvanet 10.0 '''
     conv1 = conv_bn_relu(data, group_name='conv1',
-            num_filter=16, kernel=(4,4), pad=(1,1), stride=(2,2), no_bias=no_bias,
+            num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=no_bias,
             use_global_stats=use_global_stats, use_crelu=True)
     # conv2
     conv2 = mcrelu(conv1, prefix_group='conv2',
@@ -204,8 +204,9 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
             num_filter=256, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
 
     groups = [conv3, inc3e, inc4e]
-    nf_group = [256, 256, 256]
-    convi = inc4e 
+    nf_group = [192, 192, 192]
+    convi = conv_bn_relu(inc4e, 'inc4e/dilate', num_filter=256,
+            kernel=(3, 3), dilate=(6, 6), pad=(6, 6), use_global_stats=use_global_stats)
     for i, nfg in enumerate(nf_group, 3):
         kernel = (2, 2) if i < 5 else (3, 3)
         conv1x1 = conv_bn_relu(convi, 'conv1x1/{}'.format(i), num_filter=nfg/2,
@@ -217,23 +218,29 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
 
     dn_groups = []
     dn_groups.append([])
-    nf_dn = [96, 96, 96, 128, 128]
+    nf_dn = [0, 0, 64, 64, 64]
     scale_dn = [2, 2, 2, 2, 3]
     for i, (g, nfd, ss) in enumerate(zip(groups[:-1], nf_dn, scale_dn)):
-        d = downsample_feature(g, name='dn{}{}'.format(i, i+1), scale=ss,
-                num_filter_proj=nfd, use_global_stats=use_global_stats)
-        dn_groups.append([d])
+        if nfd > 0:
+            d = downsample_feature(g, name='dn{}{}'.format(i, i+1), scale=ss,
+                    num_filter_proj=nfd, use_global_stats=use_global_stats)
+            dn_groups.append([d])
+        else:
+            dn_groups.append([])
 
     up_groups = []
-    nf_up = [128, 128, 96, 96, 96]
+    nf_up = [64, 64, 0, 0, 0]
     scale_up = [2, 2, 2, 2, 3]
     for i, (g, nfu, ss) in enumerate(zip(groups[1:], nf_up, scale_up)):
-        u = upsample_feature(g, name='up{}{}'.format(i+1, i), scale=ss,
-                num_filter_proj=nfu, use_global_stats=use_global_stats)
-        up_groups.append([u])
+        if nfu > 0:
+            u = upsample_feature(g, name='up{}{}'.format(i+1, i), scale=ss,
+                    num_filter_proj=nfu/2, num_filter_upsample=nfu, use_global_stats=use_global_stats)
+            up_groups.append([u])
+        else:
+            up_groups.append([])
     up_groups.append([])
     u20 = upsample_feature(groups[2], name='up20', scale=4,
-            num_filter_proj=128, use_global_stats=use_global_stats)
+            num_filter_proj=32, num_filter_upsample=64, use_global_stats=use_global_stats)
     up_groups[0].append(u20)
 
     hyper_group = []

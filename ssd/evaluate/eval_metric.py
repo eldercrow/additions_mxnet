@@ -106,6 +106,7 @@ class MApMetric(mx.metric.EvalMetric):
             ious[uni < 1e-12] = 0  # in case bad boxes
             return ious
 
+
         # independant execution for each image
         for i in range(labels[0].shape[0]):
             # get as numpy arrays
