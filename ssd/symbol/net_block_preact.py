@@ -95,8 +95,37 @@ def upsample_feature(data,
                 use_global_stats=use_global_stats)
     else:
         proj = data
-    nf = num_filter_upsample * scale * scale
-    conv = bn_relu_conv(proj, prefix_name=name+'conv/',
-            num_filter=nf, kernel=(3, 3), pad=(1, 1),
+    if num_filter_upsample > 0:
+        nf = num_filter_upsample * scale * scale
+        conv = bn_relu_conv(proj, prefix_name=name+'conv/',
+                num_filter=nf, kernel=(3, 3), pad=(1, 1),
+                use_global_stats=use_global_stats)
+        return subpixel_upsample(conv, num_filter_upsample, scale, scale, name=name+'subpixel')
+    else:
+        conv = mx.sym.UpSampling(proj, name=name+'conv/', scale=scale,
+                num_filter=num_filter_proj, sample_type='bilinear')
+        return conv
+
+
+def multiple_conv(data,
+                  prefix_name,
+                  num_filter_3x3,
+                  num_filter_1x1=0,
+                  use_crelu=False,
+                  use_global_stats=False):
+    '''
+    '''
+    if num_filter_1x1 > 0:
+        conv_ = bn_relu_conv(data, prefix_name=prefix_name+'init/',
+                num_filter=num_filter_1x1, kernel=(1,1), pad=(0,0),
+                use_global_stats=use_global_stats)
+    else:
+        conv_ = data
+
+    for ii, nf3 in enumerate(num_filter_3x3):
+        conv_ = bn_relu_conv(
+            conv_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
+            num_filter=nf3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu,
             use_global_stats=use_global_stats)
-    return subpixel_upsample(conv, num_filter_upsample, scale, scale, name=name+'subpixel')
+
+    return conv_

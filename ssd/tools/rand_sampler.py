@@ -427,16 +427,27 @@ class RandEraser(object):
 
         # per image erase
         if np.random.uniform() < self.erase_prob:
-            x0, y0, x1, y1 = _get_erase_rect([0, 0, ww, hh])
-            patch[y0:y1, x0:x1] = np.random.randint(0, 255, (y1-y0, x1-x0))
+            try:
+                x0, y0, x1, y1 = self._get_erase_rect([0, 0, ww, hh], (hh, ww))
+            except ValueError:
+                pass
+            else:
+                patch[y0:y1, x0:x1, :] = np.random.randint(0, 255, (y1-y0, x1-x0, 3)).astype(patch.dtype)
         # per object erase
         for label in labels:
+            if np.all(label < 0):
+                continue
             if np.random.uniform() < self.erase_prob:
-                x0, y0, x1, y1 = _get_erase_rect(label)
-                patch[y0:y1, x0:x1] = np.random.randint(0, 255, (y1-y0, x1-x0))
+                try:
+                    x0, y0, x1, y1 = self._get_erase_rect(label, (hh, ww))
+                except ValueError:
+                    pass
+                else:
+                    patch[y0:y1, x0:x1, :] = np.random.randint(0, 255, (y1-y0, x1-x0, 3)).astype(patch.dtype)
         return patch
 
-    def _get_erase_rect(self, bb):
+    def _get_erase_rect(self, bb, patch_hw):
+        bb = np.round(bb)
         ww = bb[2] - bb[0]
         hh = bb[3] - bb[1]
 
@@ -447,12 +458,15 @@ class RandEraser(object):
         asp = np.random.uniform(self.aspect_exp, 1.0)
         if np.random.randint(0, 2) == 1:
             asp = 1.0 / asp
-        we = sqrt(area / asp)
+        we = np.sqrt(area / asp)
         he = area / we
 
-        x0 = np.round(np.maximum(bb[0], xe - we / 2.0))
-        x1 = np.round(np.minimum(bb[2], xe + we / 2.0))
-        y0 = np.round(np.maximum(bb[1], ye - he / 2.0))
-        y1 = np.round(np.minimum(bb[3], ye + he / 2.0))
+        x0 = np.round(np.maximum(0, xe - we / 2.0))
+        x1 = np.round(np.minimum(patch_hw[1], xe + we / 2.0))
+        y0 = np.round(np.maximum(0, ye - he / 2.0))
+        y1 = np.round(np.minimum(patch_hw[0], ye + he / 2.0))
 
-        return x0, y0, x1, y1
+        if x1 <= x0 or y1 <= y0:
+            raise ValueError
+
+        return int(x0), int(y0), int(x1), int(y1)

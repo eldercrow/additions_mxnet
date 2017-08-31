@@ -1,10 +1,26 @@
-from __future__ import print_function
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import argparse
-import logging
 import pprint
 import mxnet as mx
 import numpy as np
 
+from rcnn.logger import logger
 from rcnn.config import config, default, generate_config
 from rcnn.symbol import *
 from rcnn.core import callback, metric
@@ -16,15 +32,9 @@ from rcnn.utils.load_model import load_param
 
 def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
               lr=0.001, lr_step='5'):
-    # set up logger
-    logging.basicConfig()
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-
     # setup config
     config.TRAIN.BATCH_IMAGES = 1
-    config.TRAIN.BATCH_ROIS = 256
-    config.TRAIN.FG_FRACTION = 0.25
+    config.TRAIN.BATCH_ROIS = 128
     config.TRAIN.END2END = True
     config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED = True
 
@@ -37,7 +47,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     input_batch_size = config.TRAIN.BATCH_IMAGES * batch_size
 
     # print config
-    pprint.pprint(config)
+    logger.info(pprint.pformat(config))
 
     # load dataset and prepare imdb for training
     image_sets = [iset for iset in args.image_set.split('+')]
@@ -57,7 +67,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     max_data_shape = [('data', (input_batch_size, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
     max_data_shape, max_label_shape = train_data.infer_shape(max_data_shape)
     max_data_shape.append(('gt_boxes', (input_batch_size, 100, 5)))
-    print('providing maximum shape', max_data_shape, max_label_shape)
+    logger.info('providing maximum shape %s %s' % (max_data_shape, max_label_shape))
 
     # infer shape
     data_shape_dict = dict(train_data.provide_data + train_data.provide_label)
@@ -65,30 +75,23 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     arg_shape_dict = dict(zip(sym.list_arguments(), arg_shape))
     out_shape_dict = dict(zip(sym.list_outputs(), out_shape))
     aux_shape_dict = dict(zip(sym.list_auxiliary_states(), aux_shape))
-    print('output shape')
-    pprint.pprint(out_shape_dict)
+    logger.info('output shape %s' % pprint.pformat(out_shape_dict))
 
     # load and initialize params
     if args.resume:
         arg_params, aux_params = load_param(prefix, begin_epoch, convert=True)
     else:
         arg_params, aux_params = load_param(pretrained, epoch, convert=True)
-        if 'bbox_pred_weight' in arg_params:
-            stds = np.tile(config.TRAIN.BBOX_STDS, config.NUM_CLASSES)
-            stds = np.reshape(stds, (-1, 1))
-            arg_params['bbox_pred_weight'] /= mx.nd.array(stds)
-            if 'bbox_pred_bias' in arg_params:
-                arg_params['bbox_pred_bias'] /= mx.nd.array(stds.ravel())
-        # arg_params['rpn_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_conv_3x3_weight'])
-        # arg_params['rpn_conv_3x3_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_conv_3x3_bias'])
-        # arg_params['rpn_cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_cls_score_weight'])
-        # arg_params['rpn_cls_score_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_cls_score_bias'])
-        # arg_params['rpn_bbox_pred_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_bbox_pred_weight'])
-        # arg_params['rpn_bbox_pred_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_bbox_pred_bias'])
-        # arg_params['cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['cls_score_weight'])
-        # arg_params['cls_score_bias'] = mx.nd.zeros(shape=arg_shape_dict['cls_score_bias'])
-        # arg_params['bbox_pred_weight'] = mx.random.normal(0, 0.001, shape=arg_shape_dict['bbox_pred_weight'])
-        # arg_params['bbox_pred_bias'] = mx.nd.zeros(shape=arg_shape_dict['bbox_pred_bias'])
+        arg_params['rpn_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_conv_3x3_weight'])
+        arg_params['rpn_conv_3x3_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_conv_3x3_bias'])
+        arg_params['rpn_cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_cls_score_weight'])
+        arg_params['rpn_cls_score_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_cls_score_bias'])
+        arg_params['rpn_bbox_pred_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_bbox_pred_weight'])
+        arg_params['rpn_bbox_pred_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_bbox_pred_bias'])
+        arg_params['cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['cls_score_weight'])
+        arg_params['cls_score_bias'] = mx.nd.zeros(shape=arg_shape_dict['cls_score_bias'])
+        arg_params['bbox_pred_weight'] = mx.random.normal(0, 0.001, shape=arg_shape_dict['bbox_pred_weight'])
+        arg_params['bbox_pred_bias'] = mx.nd.zeros(shape=arg_shape_dict['bbox_pred_bias'])
 
     # check parameter shapes
     for k in sym.list_arguments():
@@ -98,7 +101,6 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
         assert arg_params[k].shape == arg_shape_dict[k], \
             'shape inconsistent for ' + k + ' inferred ' + str(arg_shape_dict[k]) + ' provided ' + str(arg_params[k].shape)
     for k in sym.list_auxiliary_states():
-        if k.endswith('_aux_thres'): continue
         assert k in aux_params, k + ' not initialized'
         assert aux_params[k].shape == aux_shape_dict[k], \
             'shape inconsistent for ' + k + ' inferred ' + str(aux_shape_dict[k]) + ' provided ' + str(aux_params[k].shape)
@@ -135,29 +137,21 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     lr_epoch_diff = [epoch - begin_epoch for epoch in lr_epoch if epoch > begin_epoch]
     lr = base_lr * (lr_factor ** (len(lr_epoch) - len(lr_epoch_diff)))
     lr_iters = [int(epoch * len(roidb) / batch_size) for epoch in lr_epoch_diff]
-    print('lr', lr, 'lr_epoch_diff', lr_epoch_diff, 'lr_iters', lr_iters)
+    logger.info('lr %f lr_epoch_diff %s lr_iters %s' % (lr, lr_epoch_diff, lr_iters))
     lr_scheduler = mx.lr_scheduler.MultiFactorScheduler(lr_iters, lr_factor)
     # optimizer
-    optimizer_params = {'wd': 0.0005,
+    optimizer_params = {'momentum': 0.9,
+                        'wd': 0.0005,
                         'learning_rate': lr,
                         'lr_scheduler': lr_scheduler,
                         'rescale_grad': (1.0 / batch_size),
                         'clip_gradient': 5}
-    # optimizer_params = {'momentum': 0.9,
-    #                     'wd': 0.0005,
-    #                     'learning_rate': lr,
-    #                     'lr_scheduler': lr_scheduler,
-    #                     'rescale_grad': (1.0 / batch_size),
-    #                     'clip_gradient': 5}
-    initializer = mx.init.Xavier(magnitude=2.34)
 
     # train
     mod.fit(train_data, eval_metric=eval_metrics, epoch_end_callback=epoch_end_callback,
             batch_end_callback=batch_end_callback, kvstore=args.kvstore,
-            optimizer='adam', optimizer_params=optimizer_params,
-            initializer=initializer,
-            arg_params=arg_params, aux_params=aux_params, allow_missing=False, 
-            begin_epoch=begin_epoch, num_epoch=end_epoch)
+            optimizer='sgd', optimizer_params=optimizer_params,
+            arg_params=arg_params, aux_params=aux_params, begin_epoch=begin_epoch, num_epoch=end_epoch)
 
 
 def parse_args():
@@ -191,11 +185,9 @@ def parse_args():
 
 
 def main():
-    import os
-    # os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     args = parse_args()
-    print('Called with argument:', args)
-    ctx = [mx.gpu_naive(int(i)) for i in args.gpus.split(',')]
+    logger.info('Called with argument: %s' % args)
+    ctx = [mx.gpu(int(i)) for i in args.gpus.split(',')]
     train_net(args, ctx, args.pretrained, args.pretrained_epoch, args.prefix, args.begin_epoch, args.end_epoch,
               lr=args.lr, lr_step=args.lr_step)
 

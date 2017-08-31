@@ -9,7 +9,7 @@ from dataset.iterator import DetIter
 from dataset.dataset_loader import load_pascal, load_wider #, load_pascal_patch
 from train.metric import MultiBoxMetric #, FacePatchMetric, RONMetric
 from train.train_net_common import train_net_common
-from tools.rand_sampler import RandScaler
+from tools.rand_sampler import RandScaler, RandEraser
 from plateau_lr import PlateauScheduler
 from plateau_module import PlateauModule
 from config.config import cfg
@@ -128,14 +128,16 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     patch_size = data_shape[1]
     min_gt_scale = min_obj_size / float(patch_size)
     rand_scaler = RandScaler(patch_size, min_gt_scale=min_gt_scale, force_resize=force_resize)
+    rand_eraser = RandEraser()
     train_iter = DetIter(imdb, batch_size, data_shape[1], rand_scaler,
-                         mean_pixels, cfg.train['rand_mirror_prob'] > 0,
-                         cfg.train['shuffle'], cfg.train['seed'],
+                         rand_eraser=rand_eraser,
+                         mean_pixels=mean_pixels, rand_mirror=cfg.train['rand_mirror_prob'] > 0,
+                         shuffle=cfg.train['shuffle'], rand_seed=cfg.train['seed'],
                          is_train=True)
     if val_imdb:
         rand_scaler = RandScaler(patch_size, no_random=True, force_resize=force_resize)
         val_iter = DetIter(val_imdb, batch_size, data_shape[1], rand_scaler,
-                           mean_pixels, is_train=True)
+                           mean_pixels=mean_pixels, is_train=True)
     else:
         val_iter = None
 

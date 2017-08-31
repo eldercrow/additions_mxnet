@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 import numpy as np
 from easydict import EasyDict as edict
 
@@ -135,19 +152,6 @@ network.resnet.RPN_FEAT_STRIDE = 16
 network.resnet.RCNN_FEAT_STRIDE = 16
 network.resnet.FIXED_PARAMS = ['conv0', 'stage1', 'gamma', 'beta']
 network.resnet.FIXED_PARAMS_SHARED = ['conv0', 'stage1', 'stage2', 'stage3', 'gamma', 'beta']
-
-network.pvanet = edict()
-ss = [(i*32, 1440) for i in range(13, 28)] # from 416 to 864
-ss[0], ss[7] = ss[7], ss[0] # set 608 to the front for test and demo
-network.pvanet.SCALES = ss
-network.pvanet.IMAGE_STRIDE = 32
-network.pvanet.RPN_FEAT_STRIDE = 16
-network.pvanet.RCNN_FEAT_STRIDE = 16
-network.pvanet.ANCHOR_SCALES = (3, 6, 9, 16, 32)
-network.pvanet.ANCHOR_RATIOS = (0.5, 2.0/3.0, 1.0, 1.5, 2.0)
-network.pvanet.NUM_ANCHORS = 25
-network.pvanet.FIXED_PARAMS = ['conv1']
-network.pvanet.FIXED_PARAMS_SHARED = ['conv1']
 
 # dataset settings
 dataset = edict()

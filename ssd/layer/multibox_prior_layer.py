@@ -38,7 +38,8 @@ class MultiBoxPrior(mx.operator.CustomOp):
 
             if self.dense_vh:
                 apc = sum([2 if ri != 1.0 else 1 for ri in r]) * len(s)
-            apc = len(s) * len(r)
+            else:
+                apc = len(s) * len(r)
 
             if not self.strides:
                 stride = (1.0 / w, 1.0 / h)
