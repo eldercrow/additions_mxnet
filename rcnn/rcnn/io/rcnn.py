@@ -85,18 +85,8 @@ def get_rcnn_batch(roidb):
     for im_i in range(num_images):
         roi_rec = roidb[im_i]
 
-        # infer num_classes from gt_overlaps
-        num_classes = roi_rec['gt_overlaps'].shape[1]
-
-        # label = class RoI has max overlap with
-        rois = roi_rec['boxes']
-        labels = roi_rec['max_classes']
-        overlaps = roi_rec['max_overlaps']
-        bbox_targets = roi_rec['bbox_targets']
-
         im_rois, labels, bbox_targets, bbox_weights = \
-            sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
-                        labels, overlaps, bbox_targets)
+            sample_rois(roi_rec, fg_rois_per_image, rois_per_image)
 
         # project im_rois
         # do not round roi
@@ -124,8 +114,7 @@ def get_rcnn_batch(roidb):
     return data, label
 
 
-def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
-                labels=None, overlaps=None, bbox_targets=None, gt_boxes=None):
+def sample_rois(roi_rec, fg_rois_per_image, rois_per_image, gt_boxes=None):
     """
     generate random sample of ROIs comprising foreground and background examples
     :param rois: all_rois [n, 4]; e2e: [n, 5] with batch_index
@@ -138,6 +127,15 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
     :param gt_boxes: optional for e2e [n, 5] (x1, y1, x2, y2, cls)
     :return: (labels, rois, bbox_targets, bbox_weights)
     """
+    # infer num_classes from gt_overlaps
+    num_classes = roi_rec['gt_overlaps'].shape[1]
+
+    # label = class RoI has max overlap with
+    rois = roi_rec['boxes']
+    labels = roi_rec['max_classes']
+    overlaps = roi_rec['max_overlaps']
+    bbox_targets = roi_rec['bbox_targets']
+
     if labels is None:
         overlaps = bbox_overlaps(rois[:, 1:].astype(np.float), gt_boxes[:, :4].astype(np.float))
         gt_assignment = overlaps.argmax(axis=1)
@@ -192,3 +190,8 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes,
 
     return rois, labels, bbox_targets, bbox_weights
 
+def _sample_part_info(roi_rec, fg_indexes):
+    '''
+    '''
+    rois = rois[fg_indexes]
+    head_bbs = roi_rec[fg_indexes]

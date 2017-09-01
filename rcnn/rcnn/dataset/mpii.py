@@ -31,7 +31,7 @@ from ..logger import logger
 from imdb import IMDB
 from pascal_voc_eval import voc_eval
 from ds_utils import unique_boxes, filter_small_boxes
-
+from collections import defaultdict
 
 class MPII(IMDB):
     def __init__(self, image_set, root_path, devkit_path):
@@ -114,7 +114,7 @@ class MPII(IMDB):
 
         filename = os.path.join(self.data_path, 'Annotations', index + '.xml')
         tree = ET.parse(filename)
-        objs = tree.findall('object')
+        objs = [obj for obj in tree.iter('object')]
         # if not self.config['use_diff']:
         #     non_diff_objs = [obj for obj in objs if int(obj.find('difficult').text) == 0]
         #     objs = non_diff_objs
@@ -144,55 +144,70 @@ class MPII(IMDB):
                         'max_classes': overlaps.argmax(axis=1),
                         'max_overlaps': overlaps.max(axis=1),
                         'flipped': False})
+
+        # load part data: head bndbox and the four joint positions.
+        joint_name = ('lshoulder', 'rshoulder', 'lhip', 'rhip')
+        parts_all = {k: np.zeros((num_objs, 3), dtype=np.int16) for k in joint_name}
+        parts_all['head'] = np.zeros((num_objs, 4), dtype=np.int16)
+        for ix, obj in enumerate(objs):
+            try:
+                part_data = _load_part_data(obj)
+            except ValueError:
+                pass
+            else:
+                for k, v in part_data:
+                    parts_all[k][ix, :] = v
+
+        roi_rec.update(parts_all)
         return roi_rec
-
-    def load_selective_search_roidb(self, gt_roidb):
-        """
-        turn selective search proposals into selective search roidb
-        :param gt_roidb: [image_index]['boxes', 'gt_classes', 'gt_overlaps', 'flipped']
-        :return: roidb: [image_index]['boxes', 'gt_classes', 'gt_overlaps', 'flipped']
-        """
-        import scipy.io
-        matfile = os.path.join(self.root_path, 'selective_search_data', self.name + '.mat')
-        assert os.path.exists(matfile), 'selective search data does not exist: {}'.format(matfile)
-        raw_data = scipy.io.loadmat(matfile)['boxes'].ravel()  # original was dict ['images', 'boxes']
-
-        box_list = []
-        for i in range(raw_data.shape[0]):
-            boxes = raw_data[i][:, (1, 0, 3, 2)] - 1  # pascal voc dataset starts from 1.
-            keep = unique_boxes(boxes)
-            boxes = boxes[keep, :]
-            keep = filter_small_boxes(boxes, self.config['min_size'])
-            boxes = boxes[keep, :]
-            box_list.append(boxes)
-
-        return self.create_roidb_from_box_list(box_list, gt_roidb)
-
-    def selective_search_roidb(self, gt_roidb, append_gt=False):
-        """
-        get selective search roidb and ground truth roidb
-        :param gt_roidb: ground truth roidb
-        :param append_gt: append ground truth
-        :return: roidb of selective search
-        """
-        cache_file = os.path.join(self.cache_path, self.name + '_ss_roidb.pkl')
-        if os.path.exists(cache_file):
-            with open(cache_file, 'rb') as fid:
-                roidb = cPickle.load(fid)
-            logger.info('%s ss roidb loaded from %s' % (self.name, cache_file))
-            return roidb
-
-        if append_gt:
-            logger.info('%s appending ground truth annotations' % self.name)
-            ss_roidb = self.load_selective_search_roidb(gt_roidb)
-            roidb = IMDB.merge_roidbs(gt_roidb, ss_roidb)
-        else:
-            roidb = self.load_selective_search_roidb(gt_roidb)
-        with open(cache_file, 'wb') as fid:
-            cPickle.dump(roidb, fid, cPickle.HIGHEST_PROTOCOL)
-        logger.info('%s wrote ss roidb to %s' % (self.name, cache_file))
-
-        return roidb
+    #
+    # def load_selective_search_roidb(self, gt_roidb):
+    #     """
+    #     turn selective search proposals into selective search roidb
+    #     :param gt_roidb: [image_index]['boxes', 'gt_classes', 'gt_overlaps', 'flipped']
+    #     :return: roidb: [image_index]['boxes', 'gt_classes', 'gt_overlaps', 'flipped']
+    #     """
+    #     import scipy.io
+    #     matfile = os.path.join(self.root_path, 'selective_search_data', self.name + '.mat')
+    #     assert os.path.exists(matfile), 'selective search data does not exist: {}'.format(matfile)
+    #     raw_data = scipy.io.loadmat(matfile)['boxes'].ravel()  # original was dict ['images', 'boxes']
+    #
+    #     box_list = []
+    #     for i in range(raw_data.shape[0]):
+    #         boxes = raw_data[i][:, (1, 0, 3, 2)] - 1  # pascal voc dataset starts from 1.
+    #         keep = unique_boxes(boxes)
+    #         boxes = boxes[keep, :]
+    #         keep = filter_small_boxes(boxes, self.config['min_size'])
+    #         boxes = boxes[keep, :]
+    #         box_list.append(boxes)
+    #
+    #     return self.create_roidb_from_box_list(box_list, gt_roidb)
+    #
+    # def selective_search_roidb(self, gt_roidb, append_gt=False):
+    #     """
+    #     get selective search roidb and ground truth roidb
+    #     :param gt_roidb: ground truth roidb
+    #     :param append_gt: append ground truth
+    #     :return: roidb of selective search
+    #     """
+    #     cache_file = os.path.join(self.cache_path, self.name + '_ss_roidb.pkl')
+    #     if os.path.exists(cache_file):
+    #         with open(cache_file, 'rb') as fid:
+    #             roidb = cPickle.load(fid)
+    #         logger.info('%s ss roidb loaded from %s' % (self.name, cache_file))
+    #         return roidb
+    #
+    #     if append_gt:
+    #         logger.info('%s appending ground truth annotations' % self.name)
+    #         ss_roidb = self.load_selective_search_roidb(gt_roidb)
+    #         roidb = IMDB.merge_roidbs(gt_roidb, ss_roidb)
+    #     else:
+    #         roidb = self.load_selective_search_roidb(gt_roidb)
+    #     with open(cache_file, 'wb') as fid:
+    #         cPickle.dump(roidb, fid, cPickle.HIGHEST_PROTOCOL)
+    #     logger.info('%s wrote ss roidb to %s' % (self.name, cache_file))
+    #
+    #     return roidb
 
     def evaluate_detections(self, detections):
         """
@@ -204,12 +219,12 @@ class MPII(IMDB):
         result_dir = os.path.join(self.devkit_path, 'results')
         if not os.path.exists(result_dir):
             os.mkdir(result_dir)
-        year_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year)
-        if not os.path.exists(year_folder):
-            os.mkdir(year_folder)
-        res_file_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year, 'Main')
-        if not os.path.exists(res_file_folder):
-            os.mkdir(res_file_folder)
+        # year_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year)
+        # if not os.path.exists(year_folder):
+        #     os.mkdir(year_folder)
+        # res_file_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year, 'Main')
+        # if not os.path.exists(res_file_folder):
+        #     os.mkdir(res_file_folder)
 
         self.write_pascal_results(detections)
         self.do_python_eval()
@@ -217,12 +232,11 @@ class MPII(IMDB):
     def get_result_file_template(self):
         """
         this is a template
-        VOCdevkit/results/VOC2007/Main/<comp_id>_det_test_aeroplane.txt
+        mpii/results/det_test_aeroplane.txt
         :return: a string template
         """
-        res_file_folder = os.path.join(self.devkit_path, 'results', 'VOC' + self.year, 'Main')
-        comp_id = self.config['comp_id']
-        filename = comp_id + '_det_' + self.image_set + '_{:s}.txt'
+        res_file_folder = os.path.join(self.devkit_path, 'results')
+        filename = 'det_' + self.image_set + '_{:s}.txt'
         path = os.path.join(res_file_folder, filename)
         return path
 
@@ -235,7 +249,7 @@ class MPII(IMDB):
         for cls_ind, cls in enumerate(self.classes):
             if cls == '__background__':
                 continue
-            logger.info('Writing %s VOC results file' % cls)
+            logger.info('Writing %s MPII results file' % cls)
             filename = self.get_result_file_template().format(cls)
             with open(filename, 'wt') as f:
                 for im_ind, index in enumerate(self.image_set_index):
@@ -254,7 +268,7 @@ class MPII(IMDB):
         :return: None
         """
         annopath = os.path.join(self.data_path, 'Annotations', '{0!s}.xml')
-        imageset_file = os.path.join(self.data_path, 'ImageSets', 'Main', self.image_set + '.txt')
+        imageset_file = os.path.join(self.data_path, 'ImageSets', self.image_set + '.txt')
         annocache = os.path.join(self.cache_path, self.name + '_annotations.pkl')
         aps = []
         # The PASCAL VOC metric changed in 2010
@@ -269,3 +283,26 @@ class MPII(IMDB):
             aps += [ap]
             logger.info('AP for {} = {:.4f}'.format(cls, ap))
         logger.info('Mean AP = {:.4f}'.format(np.mean(aps)))
+
+    def _load_part_data(obj):
+        '''
+        '''
+        parts = [p for p in obj.iter('part')]
+
+        heads = []
+        parse_res = defaultdict(list)
+        for part in parts:
+            part_dict = {}
+            try:
+                name = part.findtext('name').lower()
+                if name == 'head':
+                    bndbox = part.find('bndbox')
+                    bb = [int(bndbox.findtext(k)) for k in ('xmin', 'ymin', 'xmax', 'ymax')]
+                    parse_res['head'].append(bb)
+                else:
+                    ptr = [int(part.findtext(k)) for k in ('centerx', 'centery', 'valid')]
+                    parse_res[name].append(ptr)
+            except:
+                raise ValueError
+
+        return parse_res
