@@ -204,44 +204,45 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
             num_filter=256, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
 
     groups = [conv3, inc3e, inc4e]
-    nf_group = [192, 192, 192]
-    convi = conv_bn_relu(inc4e, 'inc4e/dilate', num_filter=256,
-            kernel=(3, 3), dilate=(6, 6), pad=(6, 6), use_global_stats=use_global_stats)
-    for i, nfg in enumerate(nf_group, 3):
+    nf_group = [256, 384, 512, 384, 384, 256]
+    for i, (g, nf) in enumerate(zip(groups, nf_group)):
+        groups[i] = conv_bn_relu(g, 'g{}'.format(i), num_filter=nf,
+                kernel=(3, 3), pad=(1, 1), use_global_stats=use_global_stats)
+
+    convi = conv_bn_relu(inc4e, 'g2/d', num_filter=512,
+            kernel=(3, 3), pad=(6, 6), dilate=(6, 6), use_global_stats=use_global_stats)
+    for i, nf in enumerate(nf_group[3:], 3):
         kernel = (2, 2) if i < 5 else (3, 3)
-        conv1x1 = conv_bn_relu(convi, 'conv1x1/{}'.format(i), num_filter=nfg/2,
+        conv1x1 = conv_bn_relu(convi, 'g{}/conv1x1'.format(i), num_filter=nf/2,
                 kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
         pad = (1, 1) if i < 5 else (0, 0)
-        convi = conv_bn_relu(conv1x1, 'conv3x3/{}'.format(i), num_filter=nfg,
+        convi = conv_bn_relu(conv1x1, 'g{}/conv3x3'.format(i), num_filter=nf,
                 kernel=(3, 3), pad=pad, stride=(2, 2), use_global_stats=use_global_stats)
         groups.append(convi)
 
-    dn_groups = []
-    dn_groups.append([])
-    nf_dn = [0, 0, 64, 64, 64]
-    scale_dn = [2, 2, 2, 2, 3]
-    for i, (g, nfd, ss) in enumerate(zip(groups[:-1], nf_dn, scale_dn)):
-        if nfd > 0:
-            d = downsample_feature(g, name='dn{}{}'.format(i, i+1), scale=ss,
-                    num_filter_proj=nfd, use_global_stats=use_global_stats)
-            dn_groups.append([d])
-        else:
-            dn_groups.append([])
-
-    up_groups = []
-    nf_up = [64, 64, 0, 0, 0]
+    up_groups = [[] for _ in groups]
+    nf_up = [128, 128, 0, 0, 0]
     scale_up = [2, 2, 2, 2, 3]
     for i, (g, nfu, ss) in enumerate(zip(groups[1:], nf_up, scale_up)):
         if nfu > 0:
             u = upsample_feature(g, name='up{}{}'.format(i+1, i), scale=ss,
-                    num_filter_proj=nfu/2, num_filter_upsample=nfu, use_global_stats=use_global_stats)
-            up_groups.append([u])
-        else:
-            up_groups.append([])
-    up_groups.append([])
+                    num_filter_proj=nfu, num_filter_upsample=0, use_global_stats=use_global_stats)
+            up_groups[i].append(u)
     u20 = upsample_feature(groups[2], name='up20', scale=4,
-            num_filter_proj=32, num_filter_upsample=64, use_global_stats=use_global_stats)
+            num_filter_proj=128, num_filter_upsample=0, use_global_stats=use_global_stats)
     up_groups[0].append(u20)
+
+    dn_groups = [[] for _ in groups]
+    # dn_groups.append([])
+    # nf_dn = [0, 0, 0, 0, 0]
+    # scale_dn = [2, 2, 2, 2, 3]
+    # for i, (g, nfd, ss) in enumerate(zip(groups[:-1], nf_dn, scale_dn)):
+    #     if nfd > 0:
+    #         d = downsample_feature(g, name='dn{}{}'.format(i, i+1), scale=ss,
+    #                 num_filter_proj=nfd, use_global_stats=use_global_stats)
+    #         dn_groups.append([d])
+    #     else:
+    #         dn_groups.append([])
 
     hyper_group = []
     for i, (g, d, u) in enumerate(zip(groups, dn_groups, up_groups)):
