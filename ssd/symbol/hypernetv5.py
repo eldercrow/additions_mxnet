@@ -5,11 +5,11 @@ from symbol.net_block_preact import *
 def prepare_groups(group_i, n_curr_ch, use_global_stats):
     ''' prepare basic groups '''
     # 48 24 12 6 3
-    nf_3x3 = [(96, 48), (128, 64), (160, 80), (128, 64), (128,), ()]
-    nf_1x1 = [48, 64, 80, 64, 128, 256]
-    n_unit = [3, 4, 2, 1, 1, 1]
+    nf_3x3 = [(128, 64), (256, 128), (384, 192), (128, 64), (128,), ()]
+    nf_1x1 = [64, 128, 192, 64, 128, 192]
+    n_unit = [2, 2, 2, 1, 1, 1]
 
-    nf_dn = [64, 64, 64, 128, 128, 64]
+    nf_dn = [0, 0, 0, 128, 128, 192]
 
     # prepare groups
     n_group = len(nf_1x1)
@@ -25,25 +25,24 @@ def prepare_groups(group_i, n_curr_ch, use_global_stats):
 
         kernel = (2, 2) if i < 5 else (3, 3)
         group_i = pool(group_i, kernel=kernel)
-        group_i = bn_relu_conv(group_i, 'gp{}/'.format(i), num_filter=sum(nf3)+nf1,
-                kernel=(1, 1), pad=(0, 0),
-                use_global_stats=use_global_stats)
+        g0 = group_i
         for j in range(n_unit[i]):
             prefix_name = 'g{}/u{}/'.format(i, j)
-            g = conv_group(group_i, prefix_name,
-                    num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=True,
+            group_i = conv_group(group_i, prefix_name,
+                    num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=False,
                     use_global_stats=use_global_stats)
-            group_i = g + group_i
+        group_i = proj_add(g0, group_i, 'g{}/'.format(i),
+                num_filter=sum(nf3)+nf1, use_global_stats=use_global_stats)
         groups.append(group_i)
 
     up_groups = [[] for _ in groups]
     for i, g in enumerate(groups[1:3]):
         up_groups[i].append( \
                 upsample_feature(g, name='up{}{}/'.format(i+1, i), scale=2,
-                    num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
+                    num_filter_proj=128, num_filter_upsample=0, use_global_stats=use_global_stats))
     up_groups[0].append( \
             upsample_feature(groups[2], name='up20/', scale=4,
-                num_filter_proj=128, num_filter_upsample=64, use_global_stats=use_global_stats))
+                num_filter_proj=128, num_filter_upsample=0, use_global_stats=use_global_stats))
 
     return groups, dn_groups, up_groups
 
@@ -71,12 +70,9 @@ def get_symbol(num_classes=1000, **kwargs):
     pool2 = pool(bn2)
 
     bn3_1 = conv_group(pool2, '3/1/',
-            num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=True,
+            num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=False,
             use_global_stats=use_global_stats)
-    bn3_2 = conv_group(bn3_1, '3/2/',
-            num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=True,
-            use_global_stats=use_global_stats)
-    bn3 = bn3_1 + bn3_2
+    bn3 = proj_add(pool2, bn3_1, '3/', num_filter=128, use_global_stats=use_global_stats)
 
     n_curr_ch = 128
     groups, dn_groups, up_groups = prepare_groups(bn3, n_curr_ch, use_global_stats)
@@ -90,12 +86,17 @@ def get_symbol(num_classes=1000, **kwargs):
         # p = bn_relu_conv(p, 'hyperp{}/'.format(i),
         #         num_filter=nf_hyper_proj[i], kernel=(1, 1), pad=(0, 0),
         #         use_global_stats=use_global_stats)
-        h1 = bn_relu_conv(p, 'hyper{}/1/'.format(i),
+        h1 = bn_relu_conv(p, 'hyperc{}/1/'.format(i),
                 num_filter=nf_hyper[i], kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
-        h2 = bn_relu_conv(p, 'hyper{}/2/'.format(i),
+        h1 = mx.sym.BatchNorm(h1, use_global_stats=use_global_stats, fix_gamma=False)
+        h1 = mx.sym.Activation(h1, name='hyper{}/1'.format(i), act_type='relu')
+
+        h2 = bn_relu_conv(p, 'hyperc{}/2/'.format(i),
                 num_filter=nf_hyper[i], kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
+        h2 = mx.sym.BatchNorm(h2, use_global_stats=use_global_stats, fix_gamma=False)
+        h2 = mx.sym.Activation(h2, name='hyper{}/2'.format(i), act_type='relu')
         hyper_groups.append((h1, h2))
 
     pooled = []
