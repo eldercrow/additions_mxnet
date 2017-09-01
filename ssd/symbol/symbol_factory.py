@@ -203,7 +203,7 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         th_small = 16.0 / data_shape
-        mimic_fc = 2
+        mimic_fc = 1
         dense_vh = True
         python_anchor = True
         return locals()
