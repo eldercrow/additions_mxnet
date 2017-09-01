@@ -4,16 +4,16 @@ python train_imdb.py \
     --devkit-path ./data/wider \
     --network hyperface \
     --prefix ./model/ssd_hyperface \
-    --batch-size 64 \
+    --batch-size 32 \
     --data-shape 384 \
     --force-resize 0 \
     --freeze '' \
-    --pretrained ./model/ssd_hyperface_384 \
+    --pretrained none \
     --epoch 1000 \
-    --optimizer-name sgd \
-    --lr 1e-05 \
-    --use-plateau 0 \
-    --lr-steps 10,10 \
+    --optimizer-name adam \
+    --lr 1e-03 \
+    --use-plateau 1 \
+    --lr-steps 2,3,3,4,4,3,3 \
     --lr-factor 0.316227766 \
     --frequent 50 \
     --gpus 0,1

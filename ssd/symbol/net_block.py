@@ -104,11 +104,11 @@ def conv_group(data,
     return concat_
 
 
-def proj_add(lhs, rhs, num_filter, use_global_stats):
-    lhs = relu_conv_bn(lhs, prefix_name=lhs.name+'proj/',
+def proj_add(lhs, rhs, name, num_filter, use_global_stats):
+    lhs = relu_conv_bn(lhs, prefix_name=name+'lhs/',
             num_filter=num_filter, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-    rhs = relu_conv_bn(rhs, prefix_name=rhs.name+'proj/',
+    rhs = relu_conv_bn(rhs, prefix_name=name+'rhs/',
             num_filter=num_filter, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
     return lhs + rhs

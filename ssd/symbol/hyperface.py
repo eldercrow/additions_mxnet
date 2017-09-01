@@ -4,15 +4,17 @@ from symbol.net_block import *
 
 def prepare_groups(group_i, n_curr_ch, use_global_stats):
     ''' prepare basic groups '''
-    nf_3x3 = [(48, 24), (64, 32), (80, 40), (64, 32), (64,)]
-    nf_1x1 = [24, 32, 40, 32, 32]
-    n_unit = [2, 3, 3, 1, 1]
+    # 96 48 24 12 6 3
+    nf_3x3 = [(64, 32), (96, 48), (128, 64), (64, 32), (64, 32), (64,)]
+    nf_1x1 = [32, 48, 64, 32, 32, 64]
+    n_unit = [2, 2, 2, 2, 1, 1]
 
-    nf_dn = [0, 0, 0, 32, 32]
+    nf_dn = [0, 0, 0, 0, 0, 0]
 
     # prepare groups
     n_group = len(nf_1x1)
     groups = []
+    ctx_groups = []
     dn_groups = [[] for _ in nf_1x1]
     for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
         if nf_dn[i] > 0:
@@ -21,31 +23,41 @@ def prepare_groups(group_i, n_curr_ch, use_global_stats):
                     use_global_stats=use_global_stats)
             dn_groups[i].append(d)
 
-        group_i = pool(group_i)
+        g0 = pool(group_i)
+        if i in range(1, 4):
+            ctx_groups.append(g0)
+        group_i = relu_conv_bn(g0, 'gp{}/'.format(i), num_filter=sum(nf3)+nf1,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
         for j in range(n_unit[i]):
             prefix_name = 'g{}/u{}/'.format(i, j)
             g = conv_group(group_i, prefix_name,
                     num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=True,
                     use_global_stats=use_global_stats)
-            if j > 0:
-                group_i = g + group_i
-            else:
-                group_i = g
-        # group_i = proj_add(gp, group_i, nfa, use_global_stats)
+            group_i = g + group_i
         groups.append(group_i)
-    # dn_groups[-1].append( \
-    #         relu_conv_bn(groups[2], 'dn24/',
-    #             num_filter=nf_dn[-1], kernel=(5, 5), pad=(2, 2), stride=(4, 4),
-    #             use_global_stats=use_global_stats))
+
+    nf3_ctx = [(16, 8), (32, 16), (64, 32)]
+    nf1_ctx = [8, 16, 32]
+    ctx_units = [2, 2, 2]
+    for i, (ctx, nf3, nf1) in enumerate(zip(ctx_groups, nf3_ctx, nf1_ctx)):
+        group_i = relu_conv_bn(ctx, 'ctxp{}/'.format(i), num_filter=sum(nf3)+nf1,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        for j in range(ctx_units[i]):
+            prefix_name = 'ctx{}/u{}/'.format(i, j)
+            g = conv_group(group_i, prefix_name,
+                    num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=True,
+                    use_global_stats=use_global_stats)
+            group_i = g + group_i
+        ctx_groups[i] = group_i
 
     up_groups = [[] for _ in groups]
-    for i, g in enumerate(groups[1:3]):
-        up_groups[i].append( \
-                upsample_feature(g, name='up{}{}/'.format(i+1, i), scale=2,
-                    num_filter_proj=32, num_filter_upsample=32, use_global_stats=use_global_stats))
-    up_groups[0].append( \
-            upsample_feature(groups[2], name='up20/', scale=4,
-                num_filter_proj=64, num_filter_upsample=32, use_global_stats=use_global_stats))
+    for i, g in enumerate(up_groups[:3]):
+        ss = 2
+        for j, ctx in enumerate(ctx_groups[i:], 1):
+            u = upsample_feature(ctx, name='up{}{}/'.format(j, i), scale=ss,
+                    num_filter_proj=32, num_filter_upsample=32, use_global_stats=use_global_stats)
+            up_groups[i].append(u)
+            ss *= 2
 
     return groups, dn_groups, up_groups
 
@@ -59,29 +71,26 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=24, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
+        num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
 
     bn2 = relu_conv_bn(bn1, '2/',
-            num_filter=48, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
+            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
-    pool2 = pool(bn1)
 
-    bn3 = mx.sym.concat(bn2, pool2, name='bn3')
-
-    n_curr_ch = 96
-    groups, dn_groups, up_groups = prepare_groups(bn3, n_curr_ch, use_global_stats)
+    n_curr_ch = 64
+    groups, dn_groups, up_groups = prepare_groups(bn2, n_curr_ch, use_global_stats)
 
     hyper_groups = []
-    nf_hyper = [128] * 5
-    # nf_hyper_proj = [64] * 5
+    nf_hyper = [128] * 6
+    nf_hyper_proj = [32, 64, 96, 128, 128, 128]
 
     for i, (g, u, d) in enumerate(zip(groups, up_groups, dn_groups)):
+        g = relu_conv_bn(g, 'hyperp{}/'.format(i),
+                num_filter=nf_hyper_proj[i], kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
         p = mx.sym.concat(*([g] + d + u))
-        # p = relu_conv_bn(p, 'hyperp{}/'.format(i),
-        #         num_filter=nf_hyper_proj[i], kernel=(1, 1), pad=(0, 0),
-        #         use_global_stats=use_global_stats)
         p1 = relu_conv_bn(p, 'hyperc1{}/'.format(i),
                 num_filter=nf_hyper[i], kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)

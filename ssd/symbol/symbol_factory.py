@@ -222,27 +222,28 @@ def get_config(network, data_shape, **kwargs):
         steps = []
         th_small = 18.0 / data_shape
         return locals()
-    elif network == 'facenet':
+    elif network in ('facenet', 'hyperface'):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
-        sz_ratio = np.power(2.0, 0.25)
-        while sz0 <= data_shape:
+        sz_ratio = np.power(2.0, 0.5)
+        for _ in range(6):
             sz_list.append(sz0)
             sz0 *= 2
-        from_layers = ['hyper{}'.format(i) for i in range(len(sz_list))]
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * len(from_layers)
         strides = [-1] * len(from_layers)
         pads = [-1] * len(from_layers)
         ratios = [[0.8,]] * len(from_layers)
-        sizes = [[s / sz_ratio, s * sz_ratio] for s in sz_list]
+        sizes = [[s, s * sz_ratio] for s in sz_list]
+        sizes[-1] = [s,]
         normalizations = -1
         steps = [2**(2+i) for i in range(len(sz_list))]
         th_small = 8.0
-        upscale = 1
+        mimic_fc = 1
         del sz_list, sz0, sz_ratio
         return locals()
-    elif network in ('hyperface', 'fasterface'):
+    elif network in ('fasterface',):
         # network = 'facenet'
         sz_list = []
         sz0 = 24.0 * np.sqrt(0.8)

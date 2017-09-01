@@ -128,7 +128,7 @@ def train_net(net, dataset, image_set, devkit_path, batch_size,
     patch_size = data_shape[1]
     min_gt_scale = min_obj_size / float(patch_size)
     rand_scaler = RandScaler(patch_size, min_gt_scale=min_gt_scale, force_resize=force_resize)
-    rand_eraser = RandEraser()
+    rand_eraser = RandEraser() if force_resize else None
     train_iter = DetIter(imdb, batch_size, data_shape[1], rand_scaler,
                          rand_eraser=rand_eraser,
                          mean_pixels=mean_pixels, rand_mirror=cfg.train['rand_mirror_prob'] > 0,
