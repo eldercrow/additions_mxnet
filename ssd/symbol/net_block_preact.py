@@ -107,6 +107,15 @@ def upsample_feature(data,
         return conv
 
 
+def proj_add(lhs, rhs, name, num_filter, use_global_stats):
+    ''' 1x1 convolution followed by elewise add. '''
+    lhs = bn_relu_conv(lhs, name+'lhs/', num_filter=num_filter,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    rhs = bn_relu_conv(rhs, name+'rhs/', num_filter=num_filter,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+    return lhs + rhs
+
+
 def multiple_conv(data,
                   prefix_name,
                   num_filter_3x3,
