@@ -35,6 +35,8 @@ config.ANCHOR_SCALES = (8, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 1, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
 
+config.PART_GRID_HW = (5, 5)
+
 config.TRAIN = edict()
 
 # R-CNN and RPN
@@ -165,6 +167,10 @@ dataset.coco.test_image_set = 'val2014'
 dataset.coco.root_path = 'data'
 dataset.coco.dataset_path = 'data/coco'
 dataset.coco.NUM_CLASSES = 81
+
+dataset.mpii = edict()
+dataset.mpii.HAS_PART = True
+dataset.mpii.PART_GRID_HW = (5, 5)
 
 
 def generate_config(_network, _dataset):

@@ -146,9 +146,9 @@ class MPII(IMDB):
                         'flipped': False})
 
         # load part data: head bndbox and the four joint positions.
-        joint_name = ('lshoulder', 'rshoulder', 'lhip', 'rhip')
-        parts_all = {k: np.zeros((num_objs, 3), dtype=np.int16) for k in joint_name}
+        joint_pos = {'lshoulder': (0, 3), 'rshoulder': (3, 6), 'lhip': (6, 9), 'rhip': (9, 12)}
         parts_all['head'] = np.zeros((num_objs, 4), dtype=np.int16)
+        parts_all['joint'] = np.zeros((num_objs, 12), dtype=np.int16)
         for ix, obj in enumerate(objs):
             try:
                 part_data = _load_part_data(obj)
@@ -156,7 +156,11 @@ class MPII(IMDB):
                 pass
             else:
                 for k, v in part_data:
-                    parts_all[k][ix, :] = v
+                    if k == 'head':
+                        parts_all[k][ix, :] = np.array(v)
+                    else:
+                        sidx, eidx = joint_pos[k]
+                        parts_all['joint'][ix, sidx:eidx] = np.array(v)
 
         roi_rec.update(parts_all)
         return roi_rec
@@ -292,7 +296,6 @@ class MPII(IMDB):
         heads = []
         parse_res = defaultdict(list)
         for part in parts:
-            part_dict = {}
             try:
                 name = part.findtext('name').lower()
                 if name == 'head':

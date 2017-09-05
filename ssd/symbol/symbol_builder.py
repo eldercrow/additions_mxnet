@@ -217,10 +217,10 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     #     num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
 
     cls_prob = mx.symbol.SoftmaxActivation(data=cls_preds, mode='channel', name='cls_prob')
-    cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
-    out = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
-            th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'])
-    # out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
-    #         name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
-    #         variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk, clip=False)
+    # cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
+    # out = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
+    #         th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'])
+    out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
+            name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
+            variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk, clip=False)
     return out

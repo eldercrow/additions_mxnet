@@ -184,7 +184,7 @@ def get_config(network, data_shape, **kwargs):
         mimic_fc = 2
         python_anchor = True
         return locals()
-    elif network == 'pva101v2':
+    elif network in ('pva101v2', 'pva101v3'):
         # network = 'pva101'
         assert data_shape == 384
         from_layers = [('hyper{}_0/relu'.format(i), 'hyper{}_1/relu'.format(i)) for i in range(6)]
@@ -193,7 +193,7 @@ def get_config(network, data_shape, **kwargs):
         pads = [-1] * 6
         r1 = [1, 2.0, 0.5]
         r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
-        ratios = [r1, r2, r2, r1, r1, r1]
+        ratios = [r1, r2, r2, r2, r1, r1]
         del r1, r2
         sizes = [[36, 24], [72, 48], [144, 96], \
                  [288, 192], [data_shape-72, data_shape-48], [data_shape-24, data_shape]]
