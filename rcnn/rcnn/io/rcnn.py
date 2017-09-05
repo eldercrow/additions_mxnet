@@ -36,6 +36,7 @@ from ..config import config
 from ..io.image import get_image, tensor_vstack
 from ..processing.bbox_transform import bbox_overlaps, bbox_transform
 from ..processing.bbox_regression import expand_bbox_regression_targets
+from ..processing.part_transform import transform_head, transform_joint
 
 
 def get_rcnn_testbatch(roidb):
@@ -114,7 +115,8 @@ def get_rcnn_batch(roidb):
     return data, label
 
 
-def sample_rois(roi_rec, fg_rois_per_image, rois_per_image, gt_boxes=None):
+def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes, gt_boxes,
+                gt_head_boxes=None, gt_joints=None):
     """
     generate random sample of ROIs comprising foreground and background examples
     :param rois: all_rois [n, 4]; e2e: [n, 5] with batch_index
@@ -128,19 +130,18 @@ def sample_rois(roi_rec, fg_rois_per_image, rois_per_image, gt_boxes=None):
     :return: (labels, rois, bbox_targets, bbox_weights)
     """
     # infer num_classes from gt_overlaps
-    num_classes = roi_rec['gt_overlaps'].shape[1]
+    # num_classes = roi_rec['gt_overlaps'].shape[1]
 
     # label = class RoI has max overlap with
-    rois = roi_rec['boxes']
-    labels = roi_rec['max_classes']
-    overlaps = roi_rec['max_overlaps']
-    bbox_targets = roi_rec['bbox_targets']
+    # rois = roi_rec['boxes']
+    # labels = roi_rec['max_classes']
+    # overlaps = roi_rec['max_overlaps']
+    # bbox_targets = roi_rec['bbox_targets']
 
-    if labels is None:
-        overlaps = bbox_overlaps(rois[:, 1:].astype(np.float), gt_boxes[:, :4].astype(np.float))
-        gt_assignment = overlaps.argmax(axis=1)
-        overlaps = overlaps.max(axis=1)
-        labels = gt_boxes[gt_assignment, 4]
+    overlaps = bbox_overlaps(rois[:, 1:].astype(np.float), gt_boxes[:, :4].astype(np.float))
+    gt_assignment = overlaps.argmax(axis=1)
+    overlaps = overlaps.max(axis=1)
+    labels = gt_boxes[gt_assignment, 4]
 
     # foreground RoI with FG_THRESH overlap
     fg_indexes = np.where(overlaps >= config.TRAIN.FG_THRESH)[0]
@@ -175,23 +176,49 @@ def sample_rois(roi_rec, fg_rois_per_image, rois_per_image, gt_boxes=None):
     labels[fg_rois_per_this_image:] = 0
     rois = rois[keep_indexes]
 
-    # load or compute bbox_target
-    if bbox_targets is not None:
-        bbox_target_data = bbox_targets[keep_indexes, :]
-    else:
-        targets = bbox_transform(rois[:, 1:], gt_boxes[gt_assignment[keep_indexes], :4])
-        if config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED:
-            targets = ((targets - np.array(config.TRAIN.BBOX_MEANS))
-                       / np.array(config.TRAIN.BBOX_STDS))
-        bbox_target_data = np.hstack((labels[:, np.newaxis], targets))
+    # compute bbox_target
+    targets = bbox_transform(rois[:, 1:], gt_boxes[gt_assignment[keep_indexes], :4])
+    if config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED:
+        targets = ((targets - np.array(config.TRAIN.BBOX_MEANS))
+                   / np.array(config.TRAIN.BBOX_STDS))
+    bbox_target_data = np.hstack((labels[:, np.newaxis], targets))
 
     bbox_targets, bbox_weights = \
         expand_bbox_regression_targets(bbox_target_data, num_classes)
 
-    return rois, labels, bbox_targets, bbox_weights
+    # part handling
+    if config.HAS_PART and gt_head_boxes is not None:
+        gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint = \
+                _sample_part_info(rois, fg_indexes, gt_head_boxes, gt_joints)
+        return (rois, labels, bbox_targets, bbox_weights, \
+                gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint)
+    else:
+        return rois, labels, bbox_targets, bbox_weights
 
-def _sample_part_info(roi_rec, fg_indexes):
+
+def _sample_part_info(rois, fg_indexes, head_bbs, joints):
     '''
+    Required part information (currently MPII only):
+        * Grid id for head location.
+        * Head regression target w.r.t grid info.
+        * Grid id for each joint location.
+        * Joint regression target w.r.t grid info.
     '''
     rois = rois[fg_indexes]
-    head_bbs = roi_rec[fg_indexes]
+
+    gids_head, targets_head, weights_head = \
+            transform_head(rois, head_bbs, config.PART_GRID_HW)
+
+    part_gids = {}
+    part_targets = {}
+    part_weights = {}
+    joint_names = ('lshoulder', 'rshoulder', 'lhip', 'rhip')
+    for i, j in enumerate(joint_names):
+        part_gids[j], part_targets[j], part_weights[j] = \
+                transform_joint(rois, joints[:, (i*3):(i+1)*3], config.PART_GRID_HW)
+
+    gids_joint = np.hstack([part_gids[j] for j in joint_names])
+    targets_joint = np.hstack([part_targets[j] for j in joint_names])
+    weights_joint = np.hstack([part_weights[j] for j in joint_names])
+
+    return gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint

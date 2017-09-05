@@ -51,16 +51,22 @@ def upsample_feature(data, name, scale,
                 use_global_stats=use_global_stats)
     else:
         proj = data
-    if num_filter_upsample > 0:
-        nf = num_filter_upsample * scale * scale
-        relu = conv_bn_relu(proj, name+'/conv',
-                num_filter=nf, kernel=(3, 3), pad=(1, 1),
-                use_global_stats=use_global_stats)
-        return subpixel_upsample(relu, num_filter_upsample, scale, scale)
-    else:
-        relu = mx.sym.UpSampling(proj, scale=scale, sample_type='bilinear',
-                num_filter=num_filter_proj, name=name+'/conv')
-        return relu
+    relu = conv_bn_relu(proj, name+'/conv',
+            num_filter=num_filter_upsample, kernel=(3, 3), pad=(1, 1),
+            use_global_stats=use_global_stats)
+    relu = mx.sym.UpSampling(relu, scale=scale, sample_type='bilinear',
+            num_filter=num_filter_upsample, name=name+'/upsample')
+    return relu
+    # if num_filter_upsample > 0:
+    #     nf = num_filter_upsample * scale * scale
+    #     relu = conv_bn_relu(proj, name+'/conv',
+    #             num_filter=nf, kernel=(3, 3), pad=(1, 1),
+    #             use_global_stats=use_global_stats)
+    #     return subpixel_upsample(relu, num_filter_upsample, scale, scale)
+    # else:
+    #     relu = mx.sym.UpSampling(proj, scale=scale, sample_type='bilinear',
+    #             num_filter=num_filter_proj, name=name+'/conv')
+    #     return relu
 
 
 def downsample_feature(data, name, scale, num_filter_proj, use_global_stats=False):
@@ -206,6 +212,8 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
     groups = [conv3, inc3e, inc4e]
     nf_group = [256, 384, 512, 384, 384, 256]
     for i, (g, nf) in enumerate(zip(groups, nf_group)):
+        g = conv_bn_relu(g, 'gp{}'.format(i), num_filter=nf/2,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
         groups[i] = conv_bn_relu(g, 'g{}'.format(i), num_filter=nf,
                 kernel=(3, 3), pad=(1, 1), use_global_stats=use_global_stats)
 
@@ -226,10 +234,10 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
     for i, (g, nfu, ss) in enumerate(zip(groups[1:], nf_up, scale_up)):
         if nfu > 0:
             u = upsample_feature(g, name='up{}{}'.format(i+1, i), scale=ss,
-                    num_filter_proj=nfu, num_filter_upsample=0, use_global_stats=use_global_stats)
+                    num_filter_proj=nfu/2, num_filter_upsample=nfu, use_global_stats=use_global_stats)
             up_groups[i].append(u)
     u20 = upsample_feature(groups[2], name='up20', scale=4,
-            num_filter_proj=128, num_filter_upsample=0, use_global_stats=use_global_stats)
+            num_filter_proj=64, num_filter_upsample=128, use_global_stats=use_global_stats)
     up_groups[0].append(u20)
 
     dn_groups = [[] for _ in groups]

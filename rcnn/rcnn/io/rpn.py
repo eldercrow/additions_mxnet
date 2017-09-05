@@ -73,12 +73,21 @@ def get_rpn_batch(roidb):
         gt_boxes = np.empty((roidb[0]['boxes'].shape[0], 5), dtype=np.float32)
         gt_boxes[:, 0:4] = roidb[0]['boxes'][gt_inds, :]
         gt_boxes[:, 4] = roidb[0]['gt_classes'][gt_inds]
+        if config.HAS_PART:
+            gt_head_boxes = roidb[0]['head'].astype(np.float32)
+            gt_joints = roidb[0]['joint'].astype(np.float32)
     else:
         gt_boxes = np.empty((0, 5), dtype=np.float32)
+        if config.HAS_PART:
+            gt_head_boxes = np.empty((0, 4), dtype=np.float32)
+            gt_joints = np.empty((0, 12), dtype=np.float32)
 
     data = {'data': im_array,
             'im_info': im_info}
     label = {'gt_boxes': gt_boxes}
+    if config.HAS_PART:
+        label['gt_head_boxes'] = gt_head_boxes
+        label['gt_joints'] = gt_joints
 
     return data, label
 
