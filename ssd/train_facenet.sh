@@ -2,15 +2,16 @@ python train_imdb.py \
     --dataset wider \
     --image-set train \
     --devkit-path ./data/wider \
-    --network hyperface \
-    --prefix ./model/ssd_hyperface \
-    --batch-size 32 \
+    --network hyperfacev2 \
+    --prefix ./model/ssd \
+    --batch-size 24 \
     --data-shape 384 \
+    --min-obj-size 6 \
     --force-resize 0 \
     --freeze '' \
-    --pretrained none \
+    --pretrained ./model/ssd_hyperfacev2_384 \
     --epoch 1000 \
-    --optimizer-name adam \
+    --optimizer-name nadam \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 2,3,3,4,4,3,3 \

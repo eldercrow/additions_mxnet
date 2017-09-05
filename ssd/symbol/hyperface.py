@@ -5,35 +5,26 @@ from symbol.net_block import *
 def prepare_groups(group_i, n_curr_ch, use_global_stats):
     ''' prepare basic groups '''
     # 96 48 24 12 6 3
-    nf_3x3 = [(64, 32), (96, 48), (128, 64), (64, 32), (64, 32), (64,)]
-    nf_1x1 = [32, 48, 64, 32, 32, 64]
+    nf_3x3 = [(48, 24), (64, 32), (80, 40), (80, 40), (48, 24), (48,)]
+    nf_1x1 = [24, 32, 40, 40, 24, 48]
     n_unit = [2, 2, 2, 2, 1, 1]
-
-    nf_dn = [0, 0, 0, 0, 0, 0]
 
     # prepare groups
     n_group = len(nf_1x1)
     groups = []
-    ctx_groups = []
-    dn_groups = [[] for _ in nf_1x1]
     for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
-        if nf_dn[i] > 0:
-            d = relu_conv_bn(group_i, 'dn{}{}/'.format(i-1, i),
-                    num_filter=nf_dn[i], kernel=(3, 3), pad=(1, 1), stride=(2, 2),
-                    use_global_stats=use_global_stats)
-            dn_groups[i].append(d)
-
-        g0 = pool(group_i)
-        if i in range(1, 4):
-            ctx_groups.append(g0)
-        group_i = relu_conv_bn(g0, 'gp{}/'.format(i), num_filter=sum(nf3)+nf1,
-                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        group_i = pool(group_i)
         for j in range(n_unit[i]):
+            if j == 0:
+                g0 = relu_conv_bn(g0, 'gp{}/'.format(i), num_filter=sum(nf3)+nf1,
+                        kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+            else:
+                g0 = group_i
             prefix_name = 'g{}/u{}/'.format(i, j)
-            g = conv_group(group_i, prefix_name,
+            group_i = conv_group(group_i, prefix_name,
                     num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=True,
                     use_global_stats=use_global_stats)
-            group_i = g + group_i
+            group_i = g0 + group_i
         groups.append(group_i)
 
     nf3_ctx = [(16, 8), (32, 16), (64, 32)]
@@ -71,15 +62,15 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
+        num_filter=12, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
 
     bn2 = relu_conv_bn(bn1, '2/',
-            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
 
-    n_curr_ch = 64
+    n_curr_ch = 48
     groups, dn_groups, up_groups = prepare_groups(bn2, n_curr_ch, use_global_stats)
 
     hyper_groups = []

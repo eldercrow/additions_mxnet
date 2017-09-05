@@ -30,7 +30,7 @@ class FaceDetector(object):
     """
 
     def __init__(self, symbol, model_prefix, epoch, data_hw, mean_pixels,
-                 img_stride=128, th_nms=0.3333, ctx=None):
+                 img_stride=32, th_nms=0.3333, ctx=None):
         '''
         '''
         self.ctx = mx.cpu() if not ctx else ctx
@@ -167,13 +167,13 @@ class FaceDetector(object):
                     class_name = str(cls_id)
                     if classes and len(classes) > cls_id:
                         class_name = classes[cls_id]
-                    plt.gca().text(
-                        xmin,
-                        ymin - 2,
-                        '{:.3f}'.format(score),
-                        bbox=dict(facecolor=colors[cls_id], alpha=0.5),
-                        fontsize=7,
-                        color='white')
+                    # plt.gca().text(
+                    #     xmin,
+                    #     ymin - 2,
+                    #     '{:.3f}'.format(score),
+                    #     bbox=dict(facecolor=colors[cls_id], alpha=0.5),
+                    #     fontsize=7,
+                    #     color='white')
                     # plt.gca().text(
                     #     xmin,
                     #     ymin - 2,

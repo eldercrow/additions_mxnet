@@ -211,15 +211,16 @@ def upsample_feature(data,
             use_global_stats=use_global_stats)
     else:
         proj = data
-    nf = num_filter_upsample * scale * scale
-    bn = relu_conv_bn(
-        proj,
-        prefix_name=name + 'conv/',
-        num_filter=nf,
-        kernel=(3, 3),
-        pad=(1, 1),
-        use_global_stats=use_global_stats)
-    return subpixel_upsample(bn, num_filter_upsample, scale, scale, name=name+'subpixel')
+    if num_filter_upsample > 0:
+        nf = num_filter_upsample * scale * scale
+        bn = relu_conv_bn(proj, prefix_name=name + 'conv/',
+            num_filter=nf, kernel=(3, 3), pad=(1, 1),
+            use_global_stats=use_global_stats)
+        return subpixel_upsample(bn, num_filter_upsample, scale, scale, name=name+'subpixel')
+    else:
+        conv = mx.sym.UpSampling(proj, name=name+'conv/', scale=scale,
+                num_filter=num_filter_proj, sample_type='bilinear')
+        return conv
 
 
 def upsample_pred(data,

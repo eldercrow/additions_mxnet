@@ -245,28 +245,32 @@ def get_config(network, data_shape, **kwargs):
         steps = [2**(2+i) for i in range(len(sz_list))]
         th_small = 8.0
         mimic_fc = 1
+        python_anchor = True
         del sz_list, sz0, sz_ratio
         return locals()
-    elif network in ('fasterface',):
+    elif network in ('fasterface', 'hyperfacev2'):
         # network = 'facenet'
         sz_list = []
-        sz0 = 24.0 * np.sqrt(0.8)
-        sz_ratio = np.power(2.0, 0.33333)
-        for _ in range(5):
+        sz0 = 12.0
+        sz_ratio = np.power(2.0, 0.333333)
+        for _ in range(6):
             sz_list.append(sz0)
             sz0 *= 2
-        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(5)]
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(len(sz_list))]
         num_filters = [-1] * len(from_layers)
         strides = [-1] * len(from_layers)
         pads = [-1] * len(from_layers)
-        ratios = [[0.8, 0.5]] * len(from_layers)
+        ratios = [[1.0, 0.5]] * len(from_layers)
         sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
+        # sizes[0] = [12.0, 12.0 * sz_ratio]
         sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
         normalizations = -1
         upscales = 1
-        steps = [2**(3+i) for i in range(len(sz_list))]
-        th_small = 16.0
-        mimic_fc = 2
+        steps = [2**(2+i) for i in range(len(sz_list))]
+        th_small = 8.0
+        python_anchor = True
+        dense_vh = True
+        # mimic_fc = 1
         del sz_list, sz0, sz_ratio
         return locals()
     else:
