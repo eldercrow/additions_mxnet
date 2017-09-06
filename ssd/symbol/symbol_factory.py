@@ -99,24 +99,6 @@ def get_config(network, data_shape, **kwargs):
         mimic_fc = 2
         python_anchor = True
         return locals()
-    elif network == 'hypernetv3':
-        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
-        num_filters = [-1] * 6
-        strides = [-1] * 6
-        pads = [-1] * 6
-        ratios = [[1, 0.5, 2.0]] * 6
-        sizes = [[36, 24], [72, 48], [144, 96], \
-                 [288, 192], [data_shape-72, data_shape-48], [data_shape-24, data_shape]]
-        sizes = np.array(sizes) / float(data_shape)
-        sizes = sizes.tolist()
-        sizes[-1] = [sizes[-1][0],]
-        normalizations = -1
-        steps = []
-        th_small = 16.0 / data_shape
-        mimic_fc = 2
-        dense_vh = True
-        python_anchor = True
-        return locals()
     elif network == 'hypernetv4':
         from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(5)]
         num_filters = [-1] * 5
@@ -142,7 +124,7 @@ def get_config(network, data_shape, **kwargs):
         del i, sz0, szr
         # del r1, r2, i, sz0, szr
         return locals()
-    elif network == 'hypernetv5':
+    elif network in ('hypernetv5', 'hypernetv3'):
         from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
@@ -159,7 +141,7 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         th_small = 16.0 / data_shape
-        mimic_fc = 2
+        mimic_fc = 2 if network == 'hypernetv5' else 1
         dense_vh = True
         python_anchor = True
         return locals()

@@ -56,14 +56,15 @@ def get_symbol(num_classes=1000, **kwargs):
     pool1 = pool(bn1)
 
     bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), stride=(2, 2), use_crelu=True,
+            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
     bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
+            num_filter=16, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn2 = mx.sym.concat(bn2_1, bn2_2)
+    pool2 = pool(bn2)
 
-    bn3 = multiple_conv(bn2, '3/',
+    bn3 = multiple_conv(pool2, '3/',
             num_filter_3x3=(64, 128), num_filter_1x1=64,
             use_global_stats=use_global_stats)
 

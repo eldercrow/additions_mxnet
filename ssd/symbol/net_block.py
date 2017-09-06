@@ -26,15 +26,22 @@ def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
 
 
 def subpixel_upsample(data, ch, c, r, name=None):
+    '''
+    Transform input data shape of (n, ch*r*c, h, w) to (n, ch, h*r, c*w).
+
+    ch: number of channels after upsample
+    r: row scale factor
+    c: column scale factor
+    '''
     if r == 1 and c == 1:
         return data
-    X = mx.sym.reshape(data=data, shape=(-3, 0, 0))  # (bsize*ch*r*c, a, b)
+    X = mx.sym.reshape(data=data, shape=(-3, 0, 0))  # (n*ch*r*c, h, w)
     X = mx.sym.reshape(
-        data=X, shape=(-4, -1, r * c, 0, 0))  # (bsize*ch, r*c, a, b)
-    X = mx.sym.transpose(data=X, axes=(0, 3, 2, 1))  # (bsize*ch, b, a, r*c)
-    X = mx.sym.reshape(data=X, shape=(0, 0, -1, c))  # (bsize*ch, b, a*r, c)
-    X = mx.sym.transpose(data=X, axes=(0, 2, 1, 3))  # (bsize*ch, a*r, b, c)
-    X = mx.sym.reshape(data=X, name=name, shape=(-4, -1, ch, 0, -3))  # (bsize, ch, a*r, b*c)
+        data=X, shape=(-4, -1, r * c, 0, 0))  # (n*ch, r*c, h, w)
+    X = mx.sym.transpose(data=X, axes=(0, 3, 2, 1))  # (n*ch, w, h, r*c)
+    X = mx.sym.reshape(data=X, shape=(0, 0, -1, c))  # (n*ch, w, h*r, c)
+    X = mx.sym.transpose(data=X, axes=(0, 2, 1, 3))  # (n*ch, h*r, w, c)
+    X = mx.sym.reshape(data=X, name=name, shape=(-4, -1, ch, 0, -3))  # (n, ch, h*r, w*c)
     return X
 
 
