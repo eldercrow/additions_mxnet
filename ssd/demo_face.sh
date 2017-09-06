@@ -1,7 +1,7 @@
 #!/bin/bash
 python demo_face.py \
   --network hyperfacev3 \
-  --images ./data/demo/1_20.jpg \
+  --images ./data/demo/1_104.jpg \
   --prefix ./model/ssd_hyperfacev3_768 \
   --epoch 1000 \
   --cpu \
