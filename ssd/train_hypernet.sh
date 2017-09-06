@@ -1,14 +1,14 @@
 python train.py \
-    --network hypernetv5 \
+    --network hypernetv3 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv5_384 \
+    --pretrained ./model/ssd_hypernetv3_384 \
     --epoch 1000 \
-    --lr 2e-03 \
+    --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 3,4,4,6,6,8 \
+    --lr-steps 3,3,4,4,6,6,8 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \
