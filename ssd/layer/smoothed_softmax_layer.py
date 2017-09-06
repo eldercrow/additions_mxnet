@@ -47,7 +47,7 @@ class SmoothedSoftmaxLoss(mx.operator.CustomOp):
         self.assign(in_grad[1], req[1], 0)
 
 
-@mx.operator.register("reweight_loss")
+@mx.operator.register("smoothed_softmax_loss")
 class SmoothedSoftmaxLossProp(mx.operator.CustomOpProp):
     '''
     '''
