@@ -111,7 +111,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         for i, label in enumerate(labels):
             gt_cls = int(label[0]) + 1
             if self.square_bb:
-                lsq = _fit_box_ratio(label[1:], 0.8)
+                lsq = _fit_box_ratio(label[1:], 1.0)
             else:
                 lsq = label[1:]
             iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)

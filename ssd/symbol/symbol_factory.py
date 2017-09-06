@@ -226,7 +226,7 @@ def get_config(network, data_shape, **kwargs):
         steps = []
         th_small = 18.0 / data_shape
         return locals()
-    elif network in ('facenet', 'hyperface'):
+    elif network in ('facenet',):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
@@ -248,7 +248,7 @@ def get_config(network, data_shape, **kwargs):
         python_anchor = True
         del sz_list, sz0, sz_ratio
         return locals()
-    elif network in ('fasterface', 'hyperfacev2'):
+    elif network in ('fasterface', 'hyperface', 'hyperfacev2'):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
@@ -260,7 +260,8 @@ def get_config(network, data_shape, **kwargs):
         num_filters = [-1] * len(from_layers)
         strides = [-1] * len(from_layers)
         pads = [-1] * len(from_layers)
-        ratios = [[1.0, 0.5]] * len(from_layers)
+        rr = [[1.0,]] if network == 'hyperface' else [[1.0, 0.5]]
+        ratios = rr * len(from_layers)
         sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
         # sizes[0] = [12.0, 12.0 * sz_ratio]
         sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
@@ -270,6 +271,32 @@ def get_config(network, data_shape, **kwargs):
         th_small = 8.0
         python_anchor = True
         dense_vh = True
+        square_bb = True if network == 'hyperface' else False
+        # mimic_fc = 1
+        del sz_list, sz0, sz_ratio, rr
+        return locals()
+    elif network in ('hyperfacev3',):
+        # network = 'facenet'
+        sz_list = []
+        sz0 = 12.0
+        sz_ratio = np.power(2.0, 0.333333)
+        for _ in range(7):
+            sz_list.append(sz0)
+            sz0 *= 2
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(len(sz_list))]
+        num_filters = [-1] * len(from_layers)
+        strides = [-1] * len(from_layers)
+        pads = [-1] * len(from_layers)
+        ratios = [[1.0,]] * len(from_layers)
+        sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
+        # sizes[0] = [12.0, 12.0 * sz_ratio]
+        sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
+        normalizations = -1
+        upscales = 1
+        steps = [2**(2+i) for i in range(len(sz_list))]
+        th_small = 8.0
+        python_anchor = True
+        square_bb = True
         # mimic_fc = 1
         del sz_list, sz0, sz_ratio
         return locals()

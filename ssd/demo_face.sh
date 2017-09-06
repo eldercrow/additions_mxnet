@@ -1,10 +1,10 @@
 #!/bin/bash
 python demo_face.py \
-  --network hyperfacev2 \
-  --images ./data/demo/iclr17.jpg \
-  --prefix ./model/ssd_hyperfacev2_384 \
+  --network hyperfacev3 \
+  --images ./data/demo/1_20.jpg \
+  --prefix ./model/ssd_hyperfacev3_768 \
   --epoch 1000 \
-  --gpu 0 \
-  --data-shape 384 \
+  --cpu \
+  --data-shape 768 \
   --thresh 0.5 \
   # --gpu 0 \
