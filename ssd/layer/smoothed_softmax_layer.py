@@ -15,36 +15,38 @@ class SmoothedSoftmaxLoss(mx.operator.CustomOp):
         '''
         Just pass the data.
         '''
-        self.assign(out_data[0], req[0], in_data[0])
+        self.assign(out_data[0], req[0], in_data[1])
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         '''
         Reweight loss according to focal loss.
         '''
-        p = mx.nd.pick(in_data[0], in_data[1], axis=1, keepdims=True)
+        n_class = in_data[1].shape[1]
+        p = mx.nd.pick(in_data[1], in_data[2], axis=1, keepdims=True)
         pmask = p > self.th_prob
 
-        alpha = mx.nd.one_hot(mx.nd.reshape(in_data[1], (0, -1)), n_class,
+        alpha = mx.nd.one_hot(mx.nd.reshape(in_data[2], (0, -1)), n_class,
                 on_value=1, off_value=0)
         alpha = mx.nd.transpose(alpha, (0, 2, 1))
 
         # ordinary cross entropy
-        g0 = in_data[0] - alpha
+        g0 = in_data[1] - alpha
 
         # p < th_prob
         g1 = g0 * p / self.th_prob
 
         # combined
         g = g0 * pmask + g1 * (1 - pmask)
-        g *= (in_data[1] >= 0)
+        g *= (in_data[2] >= 0)
 
         if self.normalization == 'valid':
-            g /= mx.nd.sum(in_data[1] >= 0).asscalar()
+            g /= mx.nd.sum(in_data[2] >= 0).asscalar()
         elif self.normalization == 'batch':
-            g /= in_data[1].shape[2]
+            g /= in_data[2].shape[2]
 
         self.assign(in_grad[0], req[0], g)
         self.assign(in_grad[1], req[1], 0)
+        self.assign(in_grad[2], req[2], 0)
 
 
 @mx.operator.register("smoothed_softmax_loss")
@@ -58,7 +60,7 @@ class SmoothedSoftmaxLossProp(mx.operator.CustomOpProp):
         self.normalization = normalization
 
     def list_arguments(self):
-        return ['cls_prob', 'cls_target']
+        return ['cls_pred', 'cls_prob', 'cls_target']
 
     def list_outputs(self):
         # return ['cls_target', 'bbox_weight']
@@ -69,4 +71,4 @@ class SmoothedSoftmaxLossProp(mx.operator.CustomOpProp):
         return in_shape, out_shape, []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return SmoothedSoftmaxLoss(self.alpha, self.gamma, self.normalize)
+        return SmoothedSoftmaxLoss(self.th_prob, self.normalization)

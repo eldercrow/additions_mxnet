@@ -3,6 +3,8 @@ from common import multi_layer_feature, multibox_layer
 from layer.multibox_target_layer import *
 from layer.dummy_layer import *
 from layer.reweight_loss_layer import *
+from layer.smoothed_softmax_layer import *
+from layer.smoothed_focal_loss_layer import *
 from layer.multibox_detection_layer import *
 from config.config import cfg
 
@@ -69,6 +71,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     """
     use_python_layer = True
     use_focal_loss = cfg.train['use_focal_loss']
+    use_smooth_ce = cfg.train['use_smooth_ce']
 
     label = mx.sym.Variable('label')
     kwargs['use_global_stats'] = False
@@ -112,14 +115,20 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         gamma = cfg.train['focal_loss_gamma']
         alpha = cfg.train['focal_loss_alpha']
         cls_prob = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
-        # cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
-        #     ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
-        #     normalization='null', name="cls_prob", out_grad=True)
-        cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='reweight_loss', name='cls_loss',
-                gamma=gamma, alpha=alpha, normalize=True)
+        if not use_smooth_ce:
+            cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='reweight_loss', name='cls_loss',
+                    gamma=gamma, alpha=alpha, normalize=True)
+        else:
+            th_prob = cfg.train['smooth_ce_th']
+            cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='smoothed_focal_loss', name='cls_loss',
+                    gamma=gamma, alpha=alpha, th_prob=th_prob, normalize=True)
         # cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
+    elif use_smooth_ce:
+        th_prob = cfg.train['smooth_ce_th']
+        cls_prob = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
+        cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='smoothed_softmax_loss', name='cls_loss',
+                th_prob=th_prob, normalization='valid')
     else:
-        # cls_preds = mx.sym.Custom(cls_preds, op_type='dummy')
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='valid', name="cls_loss")
@@ -217,10 +226,13 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     #     num_channels=num_filters, clip=False, interm_layer=0, steps=steps)
 
     cls_prob = mx.symbol.SoftmaxActivation(data=cls_preds, mode='channel', name='cls_prob')
-    cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
-    out = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
-            th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'])
-    # out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
-    #         name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
-    #         variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk, clip=False)
+    ###
+    # cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
+    # out = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
+    #         th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'])
+    ###
+    out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
+            name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
+            variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk, clip=False)
+    ###
     return out

@@ -108,8 +108,8 @@ def evaluate_net(net, imdb, mean_pixels, data_shape,
 
         if i % 10 == 0:
             print('processed {} images.'.format(i))
-        if i == 10:
-            break
+        # if i == 10:
+        #     break
 
     results = metric.get_name_value()
     for k, v in results:
