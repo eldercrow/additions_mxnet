@@ -16,6 +16,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
 
         super(MultiBoxMetric, self).__init__('MultiBox')
         self.use_focal_loss = cfg.train['use_focal_loss']
+        self.use_smooth_ce = cfg.train['use_smooth_ce']
         self.num = 2
         self.name = ['CrossEntropy', 'SmoothL1']
 
@@ -63,9 +64,19 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         if self.use_focal_loss:
             gamma = float(cfg.train['focal_loss_gamma'])
             alpha = float(cfg.train['focal_loss_alpha'])
+            if self.use_smooth_ce:
+                th_prob = float(cfg.train['smooth_ce_th'])
+                loss1 = -cls_prob / th_prob - np.log(th_prob) + 1
+                idx = cls_prob < th_prob
+                loss[idx] = loss1[idx]
             loss *= np.power(1 - cls_prob, gamma)
             loss[cls_label > 0] *= alpha
             loss[cls_label ==0] *= 1 - alpha
+        elif self.use_smooth_ce:
+            th_prob = float(cfg.train['smooth_ce_th'])
+            loss1 = -cls_prob / th_prob - np.log(th_prob) + 1
+            idx = cls_prob < th_prob
+            loss[idx] = loss1[idx]
         loss *= (cls_label >= 0)
 
         self.sum_metric[0] += loss.sum()
