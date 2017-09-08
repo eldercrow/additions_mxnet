@@ -1,10 +1,10 @@
 python train.py \
-    --network hypernetv3 \
+    --network hypernetv2 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv3_384 \
+    --pretrained ./model/ssd_hypernetv2_384 \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \

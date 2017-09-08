@@ -104,7 +104,7 @@ class MultiBoxPriorProp(mx.operator.CustomOpProp):
         self.ratios = make_tuple(ratios)
         assert len(self.sizes) == len(self.ratios)
         self.strides = make_tuple(strides) if strides else None
-        if strides:
+        if self.strides:
             assert len(self.sizes) == len(self.strides)
         self.clip = int(clip)
         self.dense_vh = bool(make_tuple(str(dense_vh)))
