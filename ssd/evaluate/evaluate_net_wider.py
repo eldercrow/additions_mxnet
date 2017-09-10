@@ -3,12 +3,14 @@ import os
 import sys
 import importlib
 import mxnet as mx
+import numpy as np
 from collections import OrderedDict
 from dataset.face_test_iter import FaceTestIter
 from config.config import cfg
 from evaluate.eval_metric import MApMetric, VOC07MApMetric
 import logging
 from symbol.symbol_factory import get_symbol
+from tools.do_nms import do_nms
 
 def evaluate_net(net, imdb, mean_pixels, data_shape,
                  model_prefix, epoch, ctx=mx.cpu(), batch_size=1,
@@ -68,7 +70,7 @@ def evaluate_net(net, imdb, mean_pixels, data_shape,
     model_prefix += '_' + str(data_shape[1])
 
     # iterator
-    eval_iter = FaceTestIter(imdb, mean_pixels, img_stride=128)
+    eval_iter = FaceTestIter(imdb, mean_pixels, img_stride=128, fix_hw=True)
     # model params
     load_net, args, auxs = mx.model.load_checkpoint(model_prefix, epoch)
     # network
@@ -99,6 +101,11 @@ def evaluate_net(net, imdb, mean_pixels, data_shape,
         mod.forward(datum)
 
         preds = mod.get_outputs()
+
+        det0 = preds[0][0].asnumpy() # (n_anchor, 6)
+        det0 = do_nms(det0, 1, nms_thresh)
+        preds[0][0] = mx.nd.array(det0, ctx=preds[0].context)
+
         sy, sx, _ = im_info['im_shape']
         scaler = mx.nd.array((1.0, sx, sy, sx, sy, 1.0))
         scaler = mx.nd.reshape(scaler, (1, 1, -1))
@@ -114,3 +121,21 @@ def evaluate_net(net, imdb, mean_pixels, data_shape,
     results = metric.get_name_value()
     for k, v in results:
         print("{}: {}".format(k, v))
+
+
+def _do_nms(dets, th_nms):
+    #
+    areas = (dets[:, 4] - dets[:, 2]) * (dets[:, 5] - dets[:, 3])
+    vmask = np.ones((dets.shape[0],), dtype=int)
+    vidx = []
+    for i, d in enumerate(dets):
+        if vmask[i] == 0:
+            continue
+        iw = np.minimum(d[4], dets[i:, 4]) - np.maximum(d[2], dets[i:, 2])
+        ih = np.minimum(d[5], dets[i:, 5]) - np.maximum(d[3], dets[i:, 3])
+        I = np.maximum(iw, 0) * np.maximum(ih, 0)
+        iou = I / np.maximum(areas[i:] + areas[i] - I, 1e-08)
+        nidx = np.where(iou > th_nms)[0] + i
+        vmask[nidx] = 0
+        vidx.append(i)
+    return vidx

@@ -1,8 +1,8 @@
 #!/bin/bash
 python demo_face.py \
-  --network hyperface \
-  --images ./data/demo/1_78.jpg \
-  --prefix ./model/ssd_sce04_hyperface_384 \
+  --network hyperfacev2 \
+  --images ./data/demo/1_104.jpg \
+  --prefix ./model/ssd_hyperfacev2_384 \
   --epoch 1000 \
   --gpu 0 \
   --data-shape 384 \

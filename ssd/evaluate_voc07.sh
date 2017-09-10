@@ -1,8 +1,9 @@
 #!/bin/bash
 
 python evaluate.py \
-    --network pva101v2 \
+    --network hypernetv2 \
     --data-shape 384 \
-    --prefix ./model/ssd_pva101v2 \
+    --prefix ./model/ssd_hypernetv2 \
     --epoch 1000 \
-    --gpus 0 
+    --batch-size 16 \
+    --gpus 0

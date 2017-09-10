@@ -79,6 +79,7 @@ def conv_group(data,
                prefix_name,
                num_filter_3x3,
                num_filter_1x1=0,
+               do_pool=False,
                do_proj=False,
                use_crelu=False,
                use_global_stats=False):
@@ -87,9 +88,14 @@ def conv_group(data,
     cgroup = []
 
     if num_filter_1x1 > 0:
-        bn_ = relu_conv_bn(data, prefix_name=prefix_name+'init/',
-                num_filter=num_filter_1x1, kernel=(1,1), pad=(0,0),
-                use_global_stats=use_global_stats)
+        if do_pool:
+            bn_ = relu_conv_bn(data, prefix_name=prefix_name+'init/',
+                    num_filter=num_filter_1x1, kernel=(3,3), pad=(1,1), stride=(2,2),
+                    use_global_stats=use_global_stats)
+        else:
+            bn_ = relu_conv_bn(data, prefix_name=prefix_name+'init/',
+                    num_filter=num_filter_1x1, kernel=(1,1), pad=(0,0),
+                    use_global_stats=use_global_stats)
         cgroup.append(bn_)
     else:
         bn_ = data
@@ -225,7 +231,10 @@ def upsample_feature(data,
             use_global_stats=use_global_stats)
         return subpixel_upsample(bn, num_filter_upsample, scale, scale, name=name+'subpixel')
     else:
-        conv = mx.sym.UpSampling(proj, name=name+'conv/', scale=scale,
+        bn = relu_conv_bn(proj, prefix_name=name + 'conv/',
+            num_filter=num_filter_proj, kernel=(3, 3), pad=(1, 1),
+            use_global_stats=use_global_stats)
+        conv = mx.sym.UpSampling(bn, name=name+'conv/', scale=scale,
                 num_filter=num_filter_proj, sample_type='bilinear')
         return conv
 

@@ -16,13 +16,16 @@ class FaceTestIter(mx.io.DataIter):
     mean_pixels : float or float list
         [R, G, B], mean pixel values
     """
-    def __init__(self, imdb, has_label=False,
-            min_hw=(384, 384), mean_pixels=[128, 128, 128], img_stride=128):
+    def __init__(self, imdb, has_label=False, fix_hw=False,
+            min_hw=(1920, 1920), mean_pixels=[128, 128, 128], img_stride=128):
         super(FaceTestIter, self).__init__()
 
         self._imdb = imdb
         self.batch_size = 1 # always 1
         self._min_hw = min_hw
+        self._fix_hw = fix_hw
+        if fix_hw:
+            assert min_hw[0] % img_stride == 0 and min_hw[1] % img_stride == 0
         self._mean_pixels = mx.nd.array(mean_pixels).reshape((3,1,1))
         self._img_stride = img_stride
 
@@ -128,6 +131,12 @@ class FaceTestIter(mx.io.DataIter):
         # pad image w.r.t. image stride
         sy = np.ceil(sy / float(self._img_stride)) * self._img_stride
         sx = np.ceil(sx / float(self._img_stride)) * self._img_stride
+        if self._fix_hw:
+            sx1, sy1 = mx.img.scale_down((self._min_hw[1], self._min_hw[0]), (sx, sy))
+            if sx1 != sx or sy1 != sy:
+                data = cv2.resize(data, (sx1, sy1), interpolation=cv2.INTER_LINEAR)
+                sf_x, sf_y = float(sx1) / sx, float(sy1) / sy1
+                sx, sy = sx1, sy1
         sy = int(np.maximum(sy, self._min_hw[0]))
         sx = int(np.maximum(sx, self._min_hw[1]))
         padded = np.reshape(self._mean_pixels.asnumpy(), (1, 1, 3))

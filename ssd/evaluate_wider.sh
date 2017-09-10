@@ -7,4 +7,5 @@ python evaluate_wider.py \
   --network hyperface \
   --epoch 1000 \
   --prefix ./model/ssd_sce_hyperface \
-  --gpu 1
+  --gpu 1 \
+  --voc07 ''

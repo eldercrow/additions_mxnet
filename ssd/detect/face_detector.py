@@ -6,6 +6,7 @@ from dataset.face_test_iter import FaceTestIter
 # from mutable_module import MutableModule
 import mxnet as mx
 import numpy as np
+from tools.do_nms import do_nms
 
 class FaceDetector(object):
     """
@@ -79,12 +80,13 @@ class FaceDetector(object):
             self.mod.forward(datum)
             out = self.mod.get_outputs()
             det = out[0][0].asnumpy()
+            det = do_nms(det, 1, self.th_nms)
             pidx = np.where(det[:, 0] >= 0)[0]
             det = det[pidx, :]
-            sidx = np.argsort(det[:, 1])[::-1]
-            det = det[sidx, :]
-            vidx = self._do_nms(det)
-            det = det[vidx, :]
+            # sidx = np.argsort(det[:, 1])[::-1]
+            # det = det[sidx, :]
+            # vidx = self._do_nms(det)
+            # det = det[vidx, :]
             time_elapsed += timer() - start
 
             result.append(det)

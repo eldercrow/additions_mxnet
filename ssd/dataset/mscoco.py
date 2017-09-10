@@ -2,7 +2,7 @@ import os
 import numpy as np
 from imdb import Imdb
 from pycocotools.coco import COCO
-
+import cPickle
 
 class Coco(Imdb):
     """
@@ -20,12 +20,13 @@ class Coco(Imdb):
     """
     IDX_VER = '170811_1'
 
-    def __init__(self, anno_file, image_dir, shuffle=True, names='mscoco.names'):
+    def __init__(self, anno_file, image_dir, shuffle=True, is_train=True, names='mscoco.names'):
         assert os.path.isfile(anno_file), "Invalid annotation file: " + anno_file
         basename = os.path.splitext(os.path.basename(anno_file))[0]
         super(Coco, self).__init__('coco_' + basename)
         self.image_dir = image_dir
 
+        self.is_train = is_train
         self.classes = self._load_class_names(names,
             os.path.join(os.path.dirname(__file__), 'names'))
 
@@ -33,7 +34,7 @@ class Coco(Imdb):
 
         # try to load cached data
         cached = self._load_from_cache()
-        if cached is None:  # no cached data, load from DB (and save)
+        if not cached:  # no cached data, load from DB (and save)
             fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
             self._load_all(anno_file, shuffle)
             self._save_to_cache()
@@ -92,7 +93,7 @@ class Coco(Imdb):
         labels = []
         coco = COCO(anno_file)
         img_ids = coco.getImgIds()
-        max_objects == 0
+        max_objects = 0
         for img_id in img_ids:
             # filename
             image_info = coco.loadImgs(img_id)[0]
@@ -114,7 +115,7 @@ class Coco(Imdb):
                 ymax = ymin + float(bbox[3]) / height
                 label.append([cat_id, xmin, ymin, xmax, ymax, 0])
             if label:
-                max_objects = max(max_objects, len(labels))
+                max_objects = max(max_objects, len(label))
                 labels.append(np.array(label))
                 image_set_index.append(os.path.join(subdir, filename))
 
@@ -172,3 +173,14 @@ class Coco(Imdb):
             cPickle.dump({'image_set_index': self.image_set_index}, fh, cPickle.HIGHEST_PROTOCOL)
             if self.is_train:
                 cPickle.dump({'labels': self.labels}, fh, cPickle.HIGHEST_PROTOCOL)
+
+    def pad_labels(self, max_objects=0):
+        """ labels: list of ndarrays """
+        pass
+        # self.max_objects = max(self.max_objects, max_objects)
+        # self.padding = self.max_objects
+        # for (i, label) in enumerate(self.labels):
+        #     padded = np.tile(np.full((6, ), -1, dtype=np.float32), (self.padding, 1))
+        #     padded[:label.shape[0], :] = label
+        #     self.labels[i] = padded
+        #     assert self.labels[i].shape[0] == self.max_objects
