@@ -47,6 +47,8 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+    os.environ['MXNET_CUDNN_AUTOTUNE_DEFAULT'] = '0'
+    os.environ['MXNET_ENGINE_TYPE'] = 'NaiveEngine'
     # choose ctx
     if args.cpu:
         ctx = mx.cpu()

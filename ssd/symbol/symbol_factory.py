@@ -217,7 +217,7 @@ def get_config(network, data_shape, **kwargs):
         num_filters = [-1] * len(from_layers)
         strides = [-1] * len(from_layers)
         pads = [-1] * len(from_layers)
-        rr = [[1.0,]] if network == 'hyperface' else [[1.0, 0.5]]
+        rr = [[1.0,]]
         ratios = rr * len(from_layers)
         sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
         # sizes[0] = [12.0, 12.0 * sz_ratio]
@@ -225,10 +225,10 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         upscales = 1
         steps = [2**(2+i) for i in range(len(sz_list))]
-        th_small = 8.0
+        th_small = 6.0
         python_anchor = True
         dense_vh = True
-        square_bb = True if network == 'hyperface' else False
+        square_bb = True
         # mimic_fc = 1
         del sz_list, sz0, sz_ratio, rr
         return locals()

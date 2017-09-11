@@ -1,14 +1,19 @@
 python train.py \
-    --network hypernetv2 \
+    --train-path ./data/coco/train.rec \
+    --val-path ./data/coco/val.rec \
+    --num-class 80 \
+    --class-names ./dataset/names/mscoco.names \
+    --network hypernetv3 \
+    --label-width 560 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
     --pretrained none \
     --epoch 1000 \
-    --lr 1e-03 \
+    --lr 2e-03 \
     --use-plateau 1 \
-    --lr-steps 3,3,4,4,6,6,8 \
+    --lr-steps 3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \

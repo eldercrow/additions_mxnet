@@ -77,6 +77,8 @@ def _nms(out_t, th_nms):
 
 def _transform_roi(reg, anc, iidx, variances, ratio=1.0):
     #
+    if iidx.size == 0:
+        return reg
     reg_t = mx.nd.transpose(mx.nd.take(reg, iidx))
     anc_t = mx.nd.transpose(mx.nd.take(anc, iidx))
 

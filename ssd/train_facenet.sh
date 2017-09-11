@@ -2,19 +2,19 @@ python train_imdb.py \
     --dataset wider \
     --image-set train \
     --devkit-path ./data/wider \
-    --network hyperface \
-    --prefix ./model/ssd_sce04 \
-    --batch-size 24 \
+    --network hyperfacev2 \
+    --prefix ./model/ssd \
+    --batch-size 32 \
     --data-shape 384 \
     --min-obj-size 6 \
     --force-resize 0 \
     --freeze '' \
-    --pretrained ./model/ssd_hyperface_384 \
+    --pretrained none \
     --epoch 1000 \
     --optimizer-name nadam \
     --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 3,3,4,4,5,5 \
+    --lr-steps 3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \
     --frequent 50 \
     --gpus 0,1

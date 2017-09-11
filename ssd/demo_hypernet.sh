@@ -7,5 +7,5 @@ python demo.py \
     --images ./data/demo/dog.jpg \
     --data-shape 384 \
     --thresh 0.5 \
-    --nms 0.45 \
+    --nms 0.35 \
     --cpu

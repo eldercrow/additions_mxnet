@@ -8,6 +8,7 @@ from config.config import cfg
 from evaluate.eval_metric import MApMetric, VOC07MApMetric
 import logging
 from symbol.symbol_factory import get_symbol
+from tools.do_nms import do_nms
 
 def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
                  model_prefix, epoch, ctx=mx.cpu(), batch_size=1,
@@ -89,6 +90,23 @@ def evaluate_net(net, path_imgrec, num_classes, mean_pixels, data_shape,
         metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names)
     else:
         metric = MApMetric(ovp_thresh, use_difficult, class_names)
-    results = mod.score(eval_iter, metric, num_batch=None)
+
+    for i, datum in enumerate(eval_iter):
+        # mod.reshape(data_shapes=datum.provide_data, label_shapes=datum.provide_label)
+        mod.forward(datum)
+        preds = mod.get_outputs()
+
+        for j in range(preds[0].shape[0]):
+            det0 = preds[0][j].asnumpy() # (n_anchor, 6)
+            det0 = do_nms(det0, n_class=20, th_nms=nms_thresh)
+            preds[0][j] = mx.nd.array(det0, ctx=preds[0][j].context)
+
+        metric.update(datum.label, preds)
+
+        if i % 10 == 0:
+            print('processed {} batches.'.format(i))
+    results = metric.get_name_value()
+    # results = mod.score(eval_iter, metric, num_batch=None)
+
     for k, v in results:
         print("{}: {}".format(k, v))
