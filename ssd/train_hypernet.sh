@@ -4,7 +4,7 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv2_384 \
+    --pretrained none \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \

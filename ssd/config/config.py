@@ -58,11 +58,11 @@ cfg.train.preprocess_threads = 48
 ### [eldercrow] my additions
 # cfg.train.mimic_fc = 2
 cfg.train.use_focal_loss = True # focal loss
-cfg.train.focal_loss_alpha = 0.5
+cfg.train.focal_loss_alpha = 0.25
 cfg.train.focal_loss_gamma = 2.0
 cfg.train.smoothl1_weight = 1.0 if cfg.train.use_focal_loss else 1.0
 cfg.train.use_smooth_ce = True
-cfg.train.smooth_ce_th = 0.4
+cfg.train.smooth_ce_th = 0.001
 
 cfg.train = config_as_dict(cfg.train)  # convert to normal dict
 
