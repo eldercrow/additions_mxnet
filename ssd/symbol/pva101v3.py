@@ -51,9 +51,6 @@ def upsample_feature(data, name, scale,
                 use_global_stats=use_global_stats)
     else:
         proj = data
-    # relu = mx.sym.UpSampling(relu, scale=scale, sample_type='bilinear',
-    #         num_filter=num_filter_upsample, name=name+'/upsample')
-    # return relu
     if num_filter_upsample > 0:
         nf = num_filter_upsample * scale * scale
         relu = conv_bn_relu(proj, name+'/conv',
@@ -61,11 +58,8 @@ def upsample_feature(data, name, scale,
                 use_global_stats=use_global_stats)
         return subpixel_upsample(relu, num_filter_upsample, scale, scale)
     else:
-        relu = conv_bn_relu(proj, name+'/conv',
-                num_filter=num_filter_proj, kernel=(3, 3), pad=(1, 1),
-                use_global_stats=use_global_stats)
         relu = mx.sym.UpSampling(proj, scale=scale, sample_type='bilinear',
-                num_filter=num_filter_proj)
+                num_filter=num_filter_proj, name=name+'/conv')
         return relu
 
 
@@ -210,45 +204,48 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
             num_filter=256, stride=(1,1), no_bias=no_bias, use_global_stats=use_global_stats)
 
     groups = [conv3, inc3e, inc4e]
+    # for i, (g, nf) in enumerate(zip(groups, nf_group)):
+    #     groups[i] = conv_bn_relu(g, 'g{}'.format(i), num_filter=nf,
+    #             kernel=(3, 3), pad=(1, 1), use_global_stats=use_global_stats)
 
-    nf_remain = [192, 192, 128]
-    convi = conv_bn_relu(inc4e, 'inc4e/dilate', num_filter=256,
-            kernel=(3, 3), pad=(6, 6), dilate=(6, 6), use_global_stats=use_global_stats)
-    for i, nf in enumerate(nf_remain, 3):
-        kernel = (2, 2) if i < 5 else (3, 3)
-        conv1x1 = conv_bn_relu(convi, 'g{}/conv1x1'.format(i), num_filter=nf,
-                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
-        pad = (1, 1) if i < 5 else (0, 0)
-        convi = conv_bn_relu(conv1x1, 'g{}/conv3x3'.format(i), num_filter=nf,
-                kernel=(3, 3), pad=pad, stride=(2, 2), use_global_stats=use_global_stats)
-        groups.append(convi)
-
-    up_groups = [[] for _ in groups]
-    nf_up = [64, 64, 0, 0, 0]
-    scale_up = [2, 2, 2, 2, 3]
+    up_groups = [[] for _ in range(3)]
+    nf_up = [64, 64]
+    scale_up = [2, 2]
     for i, (g, nfu, ss) in enumerate(zip(groups[1:], nf_up, scale_up)):
         if nfu > 0:
             u = upsample_feature(g, name='up{}{}'.format(i+1, i), scale=ss,
                     num_filter_proj=nfu, num_filter_upsample=nfu, use_global_stats=use_global_stats)
             up_groups[i].append(u)
     u20 = upsample_feature(groups[2], name='up20', scale=4,
-            num_filter_proj=64, num_filter_upsample=32, use_global_stats=use_global_stats)
+            num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats)
     up_groups[0].append(u20)
 
-    nf_group = [384, 512, 512, 384, 384, 256]
-    for i, (g, u, nf) in enumerate(zip(groups, up_groups, nf_group)):
-        gc = mx.sym.concat(*([g] + u)) if u else g
-        g = conv_bn_relu(gc, 'gp1x1/{}'.format(i), num_filter=nf/2,
+    nf = 512
+    for i, (g, u) in enumerate(zip(groups[:3], up_groups)):
+        gc = mx.sym.concat(*([g] + u))
+        conv1x1 = conv_bn_relu(gc, 'g{}/conv1x1'.format(i), num_filter=nf/2,
                 kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
-        groups[i] = conv_bn_relu(g, 'gp3x3/{}'.format(i), num_filter=nf,
+        convi = conv_bn_relu(conv1x1, 'g{}/conv3x3'.format(i), num_filter=nf,
                 kernel=(3, 3), pad=(1, 1), use_global_stats=use_global_stats)
+        groups[i] = convi
+
+    convi = conv_bn_relu(inc4e, 'g2/d', num_filter=512,
+            kernel=(3, 3), pad=(6, 6), dilate=(6, 6), use_global_stats=use_global_stats)
+    nf_group = [384, 384, 256]
+    for i, nf in enumerate(nf_group, 3):
+        kernel = (2, 2) if i < 5 else (3, 3)
+        conv1x1 = conv_bn_relu(convi, 'g{}/conv1x1'.format(i), num_filter=nf/2,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        pad = (1, 1) if i < 5 else (0, 0)
+        convi = conv_bn_relu(conv1x1, 'g{}/conv3x3'.format(i), num_filter=nf,
+                kernel=(3, 3), pad=pad, stride=(2, 2), use_global_stats=use_global_stats)
+        groups.append(convi)
 
     hyper_group = []
-    nf_hyper = [256, 256, 256, 192, 192, 128]
-    for i, (g, nf) in enumerate(zip(groups, nf_hyper)):
-        hyper0 = conv_bn_relu(g, 'hyper{}_0'.format(i), num_filter=nf,
+    for i, g in enumerate(groups):
+        hyper0 = conv_bn_relu(g, 'hyper{}_0'.format(i), num_filter=256,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
-        hyper1 = conv_bn_relu(g, 'hyper{}_1'.format(i), num_filter=nf,
+        hyper1 = conv_bn_relu(g, 'hyper{}_1'.format(i), num_filter=256,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
         hyper_group.append(mx.sym.concat(hyper0, hyper1))
 

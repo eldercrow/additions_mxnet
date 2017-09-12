@@ -175,7 +175,7 @@ def get_config(network, data_shape, **kwargs):
         pads = [-1] * 6
         r1 = [1, 2.0, 0.5]
         r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
-        ratios = [r1, r2, r2, r2, r1, r1]
+        ratios = [r1, r2, r2, r1, r1, r1]
         del r1, r2
         sizes = [[36, 24], [72, 48], [144, 96], \
                  [288, 192], [data_shape-72, data_shape-48], [data_shape-24, data_shape]]
