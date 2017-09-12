@@ -302,7 +302,7 @@ def get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHO
 
     # RPN layers
     rpn_conv1 = mx.sym.Convolution(reluf_rpn, name='rpn_conv1',
-            num_filter=384, pad=(1,1), kernel=(3,3), stride=(1,1))
+            num_filter=256, pad=(0,0), kernel=(1,1), stride=(1,1))
     rpn_relu1 = mx.sym.Activation(rpn_conv1, name='rpn_relu1', act_type='relu')
     rpn_cls_score = mx.sym.Convolution(rpn_relu1, name='rpn_cls_score',
             num_filter=2*num_anchors, pad=(0,0), kernel=(1,1), stride=(1,1))

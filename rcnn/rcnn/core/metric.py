@@ -35,6 +35,11 @@ def get_rcnn_names():
         rpn_pred, rpn_label = get_rpn_names()
         pred = rpn_pred + pred
         label = rpn_label
+    if config.HAS_PART:
+        pred += ['rcnn_head_prob', 'rcnn_head_loss', 'rcnn_head_label']
+        pred += ['rcnn_joint{}_prob'.format(i) for i in range(4)]
+        pred += ['rcnn_joint{}_loss'.format(i) for i in range(4)]
+        pred += ['rcnn_joint{}_label'.format(i) for i in range(4)]
     return pred, label
 
 
@@ -78,6 +83,53 @@ class RCNNAccMetric(mx.metric.EvalMetric):
         last_dim = pred.shape[-1]
         pred_label = pred.asnumpy().reshape(-1, last_dim).argmax(axis=1).astype('int32')
         label = label.asnumpy().reshape(-1,).astype('int32')
+
+        self.sum_metric += np.sum(pred_label.flat == label.flat)
+        self.num_inst += len(pred_label.flat)
+
+
+class RCNNHeadAccMetric(mx.metric.EvalMetric):
+    def __init__(self):
+        super(RCNNHeadAccMetric, self).__init__('RCNNHeadAcc')
+        assert config.TRAIN.END2END == True
+        self.pred, self.label = get_rcnn_names()
+
+    def update(self, labels, preds):
+        pred = preds[self.pred.index('rcnn_head_prob')]
+        label = preds[self.pred.index('rcnn_head_label')]
+
+        last_dim = pred.shape[-1]
+        pred_label = pred.asnumpy().reshape(-1, last_dim).argmax(axis=1).astype('int32')
+        label = label.asnumpy().reshape(-1,).astype('int32')
+
+        # filter with keep_inds
+        keep_inds = np.where(label != -1)
+        pred_label = pred_label[keep_inds]
+        label = label[keep_inds]
+
+        self.sum_metric += np.sum(pred_label.flat == label.flat)
+        self.num_inst += len(pred_label.flat)
+
+
+class RCNNJointAccMetric(mx.metric.EvalMetric):
+    def __init__(self, joint_id=0):
+        super(RCNNJointAccMetric, self).__init__('RCNNJoint{}Acc'.format(joint_id))
+        assert config.TRAIN.END2END == True
+        self.pred, self.label = get_rcnn_names()
+        self.jid = joint_id
+
+    def update(self, labels, preds):
+        pred = preds[self.pred.index('rcnn_joint{}_prob'.format(self.jid))]
+        label = preds[self.pred.index('rcnn_joint{}_label'.format(self.jid))]
+
+        last_dim = pred.shape[-1]
+        pred_label = pred.asnumpy().reshape(-1, last_dim).argmax(axis=1).astype('int32')
+        label = label.asnumpy().reshape(-1,).astype('int32')
+
+        # filter with keep_inds
+        keep_inds = np.where(label != -1)
+        pred_label = pred_label[keep_inds]
+        label = label[keep_inds]
 
         self.sum_metric += np.sum(pred_label.flat == label.flat)
         self.num_inst += len(pred_label.flat)
@@ -163,6 +215,43 @@ class RCNNL1LossMetric(mx.metric.EvalMetric):
             label = preds[self.pred.index('rcnn_label')].asnumpy()
         else:
             label = labels[self.label.index('rcnn_label')].asnumpy()
+
+        # calculate num_inst
+        keep_inds = np.where(label != 0)[0]
+        num_inst = len(keep_inds)
+
+        self.sum_metric += np.sum(bbox_loss)
+        self.num_inst += num_inst
+
+
+class RCNNHeadL1LossMetric(mx.metric.EvalMetric):
+    def __init__(self):
+        super(RCNNHeadL1LossMetric, self).__init__('RCNNHeadL1Loss')
+        assert config.TRAIN.END2END == True
+        self.pred, self.label = get_rcnn_names()
+
+    def update(self, labels, preds):
+        bbox_loss = preds[self.pred.index('rcnn_head_loss')].asnumpy()
+        label = preds[self.pred.index('rcnn_label')].asnumpy()
+
+        # calculate num_inst
+        keep_inds = np.where(label != 0)[0]
+        num_inst = len(keep_inds)
+
+        self.sum_metric += np.sum(bbox_loss)
+        self.num_inst += num_inst
+
+
+class RCNNJointL1LossMetric(mx.metric.EvalMetric):
+    def __init__(self, joint_id=0):
+        super(RCNNJointL1LossMetric, self).__init__('RCNNJoint{}L1Loss'.format(joint_id))
+        assert config.TRAIN.END2END == True
+        self.pred, self.label = get_rcnn_names()
+        self.jid = joint_id
+
+    def update(self, labels, preds):
+        bbox_loss = preds[self.pred.index('rcnn_joint{}_loss'.format(self.jid))].asnumpy()
+        label = preds[self.pred.index('rcnn_label')].asnumpy()
 
         # calculate num_inst
         keep_inds = np.where(label != 0)[0]
