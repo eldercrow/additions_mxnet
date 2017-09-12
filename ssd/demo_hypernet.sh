@@ -1,8 +1,8 @@
 #!/bin/bash
 
 python demo.py \
-    --network hypernetv3 \
-    --prefix ./model/ssd_hypernetv3_384 \
+    --network hypernetv4 \
+    --prefix ./model/ssd_hypernetv4_384 \
     --epoch 1000 \
     --images ./data/demo/dog.jpg \
     --data-shape 384 \

@@ -28,13 +28,13 @@ def prepare_groups(group_i, use_global_stats):
 
     groups[0].append( \
             upsample_feature(groups[1][0], name='up10/', scale=2,
-                num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
+                num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
     groups[0].append( \
             upsample_feature(groups[2][0], name='up20/', scale=4,
                 num_filter_proj=64, num_filter_upsample=32, use_global_stats=use_global_stats))
     groups[1].append( \
             upsample_feature(groups[2][0], name='up21/', scale=2,
-                num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
+                num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
 
     return groups
 
@@ -48,27 +48,19 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=24, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
-    pool1 = pool(bn1)
 
-    bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+    bn2 = relu_conv_bn(bn1, '2_1/',
+            num_filter=48, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
-    bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-    bn2 = mx.sym.concat(bn2_1, bn2_2)
     pool2 = pool(bn2)
 
-    bn3_1 = relu_conv_bn(pool2, '3_1/',
-            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+    bn3 = conv_group(pool2, '3/',
+            num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=False,
             use_global_stats=use_global_stats)
-    bn3_2 = relu_conv_bn(pool2, '3_2/',
-            num_filter=64, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-    bn3 = mx.sym.concat(bn3_1, bn3_2)
+    bn3 = proj_add(pool2, bn3, '3/res/', 128, use_global_stats)
 
     groups = prepare_groups(bn3, use_global_stats)
 
