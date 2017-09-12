@@ -33,7 +33,7 @@ from pascal_voc_eval import voc_eval
 from ds_utils import unique_boxes, filter_small_boxes
 from collections import defaultdict
 
-class MPII(IMDB):
+class mpii(IMDB):
     def __init__(self, image_set, root_path, devkit_path):
         """
         fill basic information to initialize imdb
@@ -43,7 +43,7 @@ class MPII(IMDB):
         :return: imdb object
         """
         # year, image_set = image_set.split('_')
-        super(MPII, self).__init__('mpii_', image_set, root_path, devkit_path)  # set self.name
+        super(mpii, self).__init__('mpii', image_set, root_path, devkit_path)  # set self.name
         # self.year = year
         self.root_path = root_path
         self.devkit_path = devkit_path
@@ -120,7 +120,7 @@ class MPII(IMDB):
         #     objs = non_diff_objs
         num_objs = len(objs)
 
-        boxes = np.zeros((num_objs, 4), dtype=np.uint16)
+        boxes = np.zeros((num_objs, 4), dtype=np.int16)
         gt_classes = np.zeros((num_objs), dtype=np.int32)
         overlaps = np.zeros((num_objs, self.num_classes), dtype=np.float32)
 
@@ -129,8 +129,8 @@ class MPII(IMDB):
         for ix, obj in enumerate(objs):
             bbox = obj.find('bndbox')
             # Make pixel indexes 0-based
-            x1 = float(bbox.find('xmin').text) - 1
-            y1 = float(bbox.find('ymin').text) - 1
+            x1 = float(bbox.find('xmin').text)
+            y1 = float(bbox.find('ymin').text)
             x2 = float(bbox.find('xmax').text) - 1
             y2 = float(bbox.find('ymax').text) - 1
             cls = class_to_index[obj.find('name').text.lower().strip()]
@@ -146,21 +146,22 @@ class MPII(IMDB):
                         'flipped': False})
 
         # load part data: head bndbox and the four joint positions.
-        joint_pos = {'lshoulder': (0, 3), 'rshoulder': (3, 6), 'lhip': (6, 9), 'rhip': (9, 12)}
-        parts_all['head'] = np.zeros((num_objs, 4), dtype=np.int16)
-        parts_all['joint'] = np.zeros((num_objs, 12), dtype=np.int16)
+        joint_pos = {'rshoulder': (0, 3), 'lshoulder': (3, 6), 'lhip': (6, 9), 'rhip': (9, 12)}
+        parts_all = {'heads': np.zeros((num_objs, 4), dtype=np.int16), \
+                     'joints': np.zeros((num_objs, 12), dtype=np.int16)}
         for ix, obj in enumerate(objs):
             try:
-                part_data = _load_part_data(obj)
+                part_data = self._load_part_data(obj)
             except ValueError:
                 pass
             else:
-                for k, v in part_data:
+                for k, v in part_data.items():
                     if k == 'head':
-                        parts_all[k][ix, :] = np.array(v)
+                        parts_all['heads'][ix, :] = np.array(v)
                     else:
                         sidx, eidx = joint_pos[k]
-                        parts_all['joint'][ix, sidx:eidx] = np.array(v)
+                        parts_all['joints'][ix, sidx:eidx] = np.array(v)
+        parts_all['heads'][:, 2:] -= 1
 
         roi_rec.update(parts_all)
         return roi_rec
@@ -288,23 +289,22 @@ class MPII(IMDB):
             logger.info('AP for {} = {:.4f}'.format(cls, ap))
         logger.info('Mean AP = {:.4f}'.format(np.mean(aps)))
 
-    def _load_part_data(obj):
+    def _load_part_data(self, obj):
         '''
         '''
         parts = [p for p in obj.iter('part')]
 
-        heads = []
-        parse_res = defaultdict(list)
+        parse_res = {}
         for part in parts:
             try:
                 name = part.findtext('name').lower()
                 if name == 'head':
                     bndbox = part.find('bndbox')
                     bb = [int(bndbox.findtext(k)) for k in ('xmin', 'ymin', 'xmax', 'ymax')]
-                    parse_res['head'].append(bb)
+                    parse_res['head'] = bb
                 else:
                     ptr = [int(part.findtext(k)) for k in ('centerx', 'centery', 'valid')]
-                    parse_res[name].append(ptr)
+                    parse_res[name] = ptr
             except:
                 raise ValueError
 

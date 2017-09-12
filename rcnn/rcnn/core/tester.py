@@ -26,6 +26,7 @@ from rcnn.logger import logger
 from rcnn.config import config
 from rcnn.io import image
 from rcnn.processing.bbox_transform import bbox_pred, clip_boxes
+from rcnn.processing.part_transform import pred_head, pred_joint
 from rcnn.processing.nms import py_nms_wrapper, cpu_nms_wrapper, gpu_nms_wrapper
 
 
@@ -142,6 +143,29 @@ def im_detect(predictor, data_batch, data_names, scale):
     # we used scaled image & roi to train, so it is necessary to transform them back
     pred_boxes = pred_boxes / scale
 
+    if config.HAS_PART:
+        head_scores = output['head_prob_reshape_output'].asnumpy()[0]
+        head_gids = np.argmax(head_scores, axis=1)
+        head_deltas = output['head_pred_reshape_output'].asnumpy()[0]
+        # means = config.TRAIN.BBOX_MEANS
+        stds = np.reshape(np.array(config.TRAIN.BBOX_STDS), (-1, 4))
+        head_deltas *= stds
+
+        head_boxes = pred_head(rois, head_deltas, head_gids, config.PART_GRID_HW)
+        head_boxes /= scale
+
+        joints_scores = [output['joint_prob{}_reshape_output'.format(i)].asnumpy()[0] for i in range(4)]
+        joints_gids = [np.argmax(j, axis=1) for j in joints_scores]
+        joints_deltas = [output['joint_pred{}_reshape_output'.format(i)].asnumpy()[0] for i in range(4)]
+        joints_deltas = [j * stds[:, :2] for j in joints_deltas]
+
+        joints = [pred_joint(rois, jd, jid, config.PART_GRID_HW) \
+                for (jd, jid) in zip(joints_deltas, joints_gids)]
+        joints = np.hstack(joints)
+        joints /= scale
+
+        return scores, pred_boxes, head_boxes, joints, data_dict
+
     return scores, pred_boxes, data_dict
 
 
@@ -216,7 +240,7 @@ def pred_eval(predictor, test_data, imdb, vis=False, thresh=1e-3):
     imdb.evaluate_detections(all_boxes)
 
 
-def vis_all_detection(im_array, detections, class_names, scale):
+def vis_all_detection(im_array, detections, class_names, scale, head_boxes=None, joints=None):
     """
     visualize all detections in one image
     :param im_array: [b=1 c h w] in rgb
@@ -245,6 +269,23 @@ def vis_all_detection(im_array, detections, class_names, scale):
             plt.gca().text(bbox[0], bbox[1] - 2,
                            '{:s} {:.3f}'.format(name, score),
                            bbox=dict(facecolor=color, alpha=0.5), fontsize=12, color='white')
+    if head_boxes is not None:
+        color = (random.random(), random.random(), random.random())  # generate a random color
+        for det in head_boxes:
+            bbox = det[:4] * scale
+            rect = plt.Rectangle((bbox[0], bbox[1]),
+                                 bbox[2] - bbox[0],
+                                 bbox[3] - bbox[1], fill=False,
+                                 edgecolor=color, linewidth=3.5)
+            plt.gca().add_patch(rect)
+    if joints is not None:
+        color = (random.random(), random.random(), random.random())  # generate a random color
+        for joint in joints:
+            joint *= scale
+            for (cx, cy) in zip(joint[0::2], joint[1::2]):
+                ptr = plt.Circle((cx, cy), 5.0, color=color)
+                plt.gca().add_artist(ptr)
+
     plt.show()
 
 
