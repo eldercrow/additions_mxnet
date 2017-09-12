@@ -307,6 +307,9 @@ def train_net(net, train_path, num_classes, batch_size,
     if optimizer_name == 'sgd':
         optimizer_params['momentum'] = momentum
 
+    # #7847
+    mod.init_optimizer(optimizer=optimizer_name, optimizer_params=optimizer_params, force_init=True)
+
     if not use_plateau:
         learning_rate, lr_scheduler = get_lr_scheduler(learning_rate, lr_refactor_step,
                 lr_refactor_ratio, num_example, batch_size, begin_epoch)
