@@ -189,14 +189,14 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes, gt_boxes,
     # part handling
     if config.HAS_PART and gt_head_boxes is not None:
         gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint = \
-                _sample_part_info(rois, fg_indexes, gt_head_boxes, gt_joints)
+                _sample_part_info(rois, fg_indexes, gt_head_boxes, gt_joints, gt_assignment)
         return (rois, labels, bbox_targets, bbox_weights, \
                 gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint)
     else:
         return rois, labels, bbox_targets, bbox_weights
 
 
-def _sample_part_info(rois, fg_indexes, head_bbs, joints):
+def _sample_part_info(rois, fg_indexes, head_bbs, joints, gt_assignment):
     '''
     Required part information (currently MPII only):
         * Grid id for head location.
@@ -204,10 +204,25 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints):
         * Grid id for each joint location.
         * Joint regression target w.r.t grid info.
     '''
-    rois = rois[fg_indexes]
+    n_roi = rois.shape[0]
+    n_fg = len(fg_indexes)
 
-    gids_head, targets_head, weights_head = \
-            transform_head(rois, head_bbs, config.PART_GRID_HW)
+    gids_head = np.full((n_roi,), -1, dtype=np.float32)
+    targets_head = np.zeros((n_roi, 4), dtype=np.float32)
+    weights_head = np.zeros_like(targets_head)
+
+    gids_joint = np.full((n_roi, 4), -1, dtype=np.float32)
+    targets_joint = np.zeros((n_roi, 8), dtype=np.float32)
+    weights_joint = np.zeros_like(targets_joint)
+
+    gt_inds = gt_assignment[fg_indexes]
+    rois = rois[:n_fg]
+    head_bbs = head_bbs[gt_inds]
+    joints = joints[gt_inds]
+
+    gids_head[:n_fg], targets_head[:n_fg], weights_head[:n_fg] = \
+            transform_head(rois[:, 1:], head_bbs, config.PART_GRID_HW)
+    # gids_head[:n_fg] += 1
 
     part_gids = {}
     part_targets = {}
@@ -215,10 +230,18 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints):
     joint_names = ('lshoulder', 'rshoulder', 'lhip', 'rhip')
     for i, j in enumerate(joint_names):
         part_gids[j], part_targets[j], part_weights[j] = \
-                transform_joint(rois, joints[:, (i*3):(i+1)*3], config.PART_GRID_HW)
+                transform_joint(rois[:, 1:], joints[:, (i*3):(i+1)*3], config.PART_GRID_HW)
 
-    gids_joint = np.hstack([part_gids[j] for j in joint_names])
-    targets_joint = np.hstack([part_targets[j] for j in joint_names])
-    weights_joint = np.hstack([part_weights[j] for j in joint_names])
+    gids_joint[:n_fg] = np.hstack([part_gids[j] for j in joint_names])
+    # gids_joint[:n_fg] += 1
+    targets_joint[:n_fg] = np.hstack([part_targets[j] for j in joint_names])
+    weights_joint[:n_fg] = np.hstack([part_weights[j] for j in joint_names])
+
+    if config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED:
+        bbox_means = np.reshape(np.array(config.TRAIN.BBOX_MEANS), (-1, 4))
+        bbox_stds = np.reshape(np.array(config.TRAIN.BBOX_STDS), (-1, 4))
+        targets_head[:n_fg] = (targets_head[:n_fg] - bbox_means) / bbox_stds
+        targets_joint[:n_fg] = (targets_joint[:n_fg] - np.tile(bbox_means[:, :2], (1, 4))) / \
+                np.tile(bbox_stds[:, :2], (1, 4))
 
     return gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint

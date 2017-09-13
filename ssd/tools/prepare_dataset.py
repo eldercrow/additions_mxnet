@@ -7,6 +7,7 @@ sys.path.append(os.path.join(curr_path, '..'))
 from dataset.pascal_voc import PascalVoc
 from dataset.mscoco import Coco
 from dataset.openimage import OpenImage
+from dataset.dss16 import DSS
 from dataset.concat_db import ConcatDB
 
 def load_pascal(image_set, year, devkit_path, shuffle=False):
@@ -45,6 +46,46 @@ def load_pascal(image_set, year, devkit_path, shuffle=False):
         imdbs.append(PascalVoc(s, y, devkit_path, shuffle, is_train=True))
     if len(imdbs) > 1:
         return ConcatDB(imdbs, shuffle)
+    else:
+        return imdbs[0]
+
+
+def load_dss(image_set, year, devkit_path, shuffle=False):
+    """
+    wrapper function for loading pascal voc dataset
+
+    Parameters:
+    ----------
+    image_set : str
+        train, trainval...
+    year : str
+        2007, 2012 or combinations splitted by comma
+    devkit_path : str
+        root directory of dataset
+    shuffle : bool
+        whether to shuffle initial list
+
+    Returns:
+    ----------
+    Imdb
+    """
+    image_set = [y.strip() for y in image_set.split(',')]
+    assert image_set, "No image_set specified"
+    year = [y.strip() for y in year.split(',')]
+    assert year, "No year specified"
+
+    # make sure (# sets == # years)
+    if len(image_set) > 1 and len(year) == 1:
+        year = year * len(image_set)
+    if len(image_set) == 1 and len(year) > 1:
+        image_set = image_set * len(year)
+    assert len(image_set) == len(year), "Number of sets and year mismatch"
+
+    imdbs = []
+    for s, y in zip(image_set, year):
+        imdbs.append(DSS(s, y, devkit_path, shuffle, pad_label=False, is_train=True))
+    if len(imdbs) > 1:
+        return ConcatDB(imdbs, shuffle, pad_label=False)
     else:
         return imdbs[0]
 
@@ -131,6 +172,10 @@ if __name__ == '__main__':
         db.save_imglist(args.target, root=args.root_path)
     elif args.dataset == 'openimage':
         db = load_openimage(args.set, args.root_path, args.shuffle)
+        print("saving list to disk...")
+        db.save_imglist(args.target, root=args.root_path)
+    elif args.dataset == 'dss':
+        db = load_dss(args.set, args.year, args.root_path, args.shuffle)
         print("saving list to disk...")
         db.save_imglist(args.target, root=args.root_path)
     else:

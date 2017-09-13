@@ -35,7 +35,8 @@ config.ANCHOR_SCALES = (8, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 1, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
 
-config.PART_GRID_HW = (5, 5)
+config.HAS_PART = False
+config.PART_GRID_HW = (0, 0) # need to be set per-dataset basis
 
 config.TRAIN = edict()
 
@@ -126,7 +127,7 @@ default.frequent = 20
 default.kvstore = 'device'
 # default e2e
 default.e2e_prefix = 'model/e2e'
-default.e2e_epoch = 10
+default.e2e_epoch = 120
 default.e2e_lr = default.base_lr
 default.e2e_lr_step = '7'
 # default rpn
@@ -155,6 +156,19 @@ network.resnet.RCNN_FEAT_STRIDE = 16
 network.resnet.FIXED_PARAMS = ['conv0', 'stage1', 'gamma', 'beta']
 network.resnet.FIXED_PARAMS_SHARED = ['conv0', 'stage1', 'stage2', 'stage3', 'gamma', 'beta']
 
+network.pvanet_mpii = edict()
+ss = [(i*32, 1440) for i in range(13, 28)] # from 416 to 864
+ss[0], ss[7] = ss[7], ss[0] # set 608 to the front for test and demo
+network.pvanet_mpii.SCALES = ss
+network.pvanet_mpii.IMAGE_STRIDE = 32
+network.pvanet_mpii.RPN_FEAT_STRIDE = 16
+network.pvanet_mpii.RCNN_FEAT_STRIDE = 16
+network.pvanet_mpii.ANCHOR_SCALES = (3, 6, 9, 16, 32)
+network.pvanet_mpii.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
+network.pvanet_mpii.NUM_ANCHORS = len(network.pvanet_mpii.ANCHOR_SCALES) * len(network.pvanet_mpii.ANCHOR_RATIOS)
+network.pvanet_mpii.FIXED_PARAMS = [] #['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
+network.pvanet_mpii.FIXED_PARAMS_SHARED = [] #['conv1', 'conv2', 'conv3', 'conv4', 'conv5', 'gamma', 'beta']
+
 # dataset settings
 dataset = edict()
 
@@ -169,8 +183,14 @@ dataset.coco.dataset_path = 'data/coco'
 dataset.coco.NUM_CLASSES = 81
 
 dataset.mpii = edict()
+dataset.mpii.dataset = 'mpii'
+dataset.mpii.image_set = 'train'
+dataset.mpii.test_image_set = 'val'
+dataset.mpii.root_path = 'data'
+dataset.mpii.dataset_path = 'data/mpii'
 dataset.mpii.HAS_PART = True
-dataset.mpii.PART_GRID_HW = (5, 5)
+dataset.mpii.PART_GRID_HW = (6, 3)
+dataset.mpii.NUM_CLASSES = 2
 
 
 def generate_config(_network, _dataset):

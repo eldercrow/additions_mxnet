@@ -19,6 +19,7 @@ import argparse
 import pprint
 import mxnet as mx
 import numpy as np
+import os
 
 from rcnn.logger import logger
 from rcnn.config import config, default, generate_config
@@ -67,6 +68,8 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     max_data_shape = [('data', (input_batch_size, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
     max_data_shape, max_label_shape = train_data.infer_shape(max_data_shape)
     max_data_shape.append(('gt_boxes', (input_batch_size, 100, 5)))
+    max_data_shape.append(('gt_head_boxes', (input_batch_size, 100, 4)))
+    max_data_shape.append(('gt_joints', (input_batch_size, 100, 12)))
     logger.info('providing maximum shape %s %s' % (max_data_shape, max_label_shape))
 
     # infer shape
@@ -82,8 +85,9 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
         arg_params, aux_params = load_param(prefix, begin_epoch, convert=True)
     else:
         arg_params, aux_params = load_param(pretrained, epoch, convert=True)
-        arg_params['rpn_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_conv_3x3_weight'])
-        arg_params['rpn_conv_3x3_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_conv_3x3_bias'])
+        if not 'pvanet' in args.network:
+            arg_params['rpn_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_conv_3x3_weight'])
+            arg_params['rpn_conv_3x3_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_conv_3x3_bias'])
         arg_params['rpn_cls_score_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_cls_score_weight'])
         arg_params['rpn_cls_score_bias'] = mx.nd.zeros(shape=arg_shape_dict['rpn_cls_score_bias'])
         arg_params['rpn_bbox_pred_weight'] = mx.random.normal(0, 0.01, shape=arg_shape_dict['rpn_bbox_pred_weight'])
@@ -94,16 +98,17 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
         arg_params['bbox_pred_bias'] = mx.nd.zeros(shape=arg_shape_dict['bbox_pred_bias'])
 
     # check parameter shapes
-    for k in sym.list_arguments():
-        if k in data_shape_dict:
-            continue
-        assert k in arg_params, k + ' not initialized'
-        assert arg_params[k].shape == arg_shape_dict[k], \
-            'shape inconsistent for ' + k + ' inferred ' + str(arg_shape_dict[k]) + ' provided ' + str(arg_params[k].shape)
-    for k in sym.list_auxiliary_states():
-        assert k in aux_params, k + ' not initialized'
-        assert aux_params[k].shape == aux_shape_dict[k], \
-            'shape inconsistent for ' + k + ' inferred ' + str(aux_shape_dict[k]) + ' provided ' + str(aux_params[k].shape)
+    if not 'pvanet' in args.network:
+        for k in sym.list_arguments():
+            if k in data_shape_dict:
+                continue
+            assert k in arg_params, k + ' not initialized'
+            assert arg_params[k].shape == arg_shape_dict[k], \
+                'shape inconsistent for ' + k + ' inferred ' + str(arg_shape_dict[k]) + ' provided ' + str(arg_params[k].shape)
+        for k in sym.list_auxiliary_states():
+            assert k in aux_params, k + ' not initialized'
+            assert aux_params[k].shape == aux_shape_dict[k], \
+                'shape inconsistent for ' + k + ' inferred ' + str(aux_shape_dict[k]) + ' provided ' + str(aux_params[k].shape)
 
     # create solver
     fixed_param_prefix = config.FIXED_PARAMS
@@ -113,6 +118,11 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
                         logger=logger, context=ctx, work_load_list=args.work_load_list,
                         max_data_shapes=max_data_shape, max_label_shapes=max_label_shape,
                         fixed_param_prefix=fixed_param_prefix)
+    max_data_shape.append(('im_info', (1, 3)))
+    mod.bind(data_shapes=max_data_shape, label_shapes=train_data.provide_label)
+    mod.init_params(initializer=mx.init.Xavier(magnitude=2.34), \
+            arg_params=arg_params, aux_params=aux_params,
+            force_init=True, allow_missing=True, allow_extra=True)
 
     # decide training params
     # metric
@@ -125,6 +135,11 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
     eval_metrics = mx.metric.CompositeEvalMetric()
     for child_metric in [rpn_eval_metric, rpn_cls_metric, rpn_bbox_metric, eval_metric, cls_metric, bbox_metric]:
         eval_metrics.add(child_metric)
+    if config.HAS_PART:
+        eval_metrics.add(metric.RCNNHeadAccMetric())
+        eval_metrics.add(metric.RCNNHeadL1LossMetric())
+        eval_metrics.add(metric.RCNNJointAccMetric(2))
+        eval_metrics.add(metric.RCNNJointL1LossMetric(2))
     # callback
     batch_end_callback = callback.Speedometer(train_data.batch_size, frequent=args.frequent)
     means = np.tile(np.array(config.TRAIN.BBOX_MEANS), config.NUM_CLASSES)

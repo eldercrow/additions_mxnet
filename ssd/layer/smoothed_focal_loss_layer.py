@@ -13,7 +13,7 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         self.th_prob = th_prob
         self.normalize = normalize
 
-        self.eps = 1e-14
+        self.eps = 1e-09
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''
@@ -26,8 +26,9 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         Reweight loss according to focal loss.
         '''
         p = mx.nd.pick(in_data[1], in_data[2], axis=1, keepdims=True)
+        p = mx.nd.maximum(p, self.eps)
 
-        ce = -mx.nd.log(mx.nd.maximum(p, self.eps))
+        ce = -mx.nd.log(p)
         sce = -p / self.th_prob - np.log(self.th_prob) + 1
 
         mask = p > self.th_prob
@@ -35,7 +36,7 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
 
         thp = mx.nd.maximum(p, self.th_prob)
         u = 1 - p if self.gamma == 2.0 else mx.nd.power(1 - p, self.gamma - 1.0)
-        v = p * (self.gamma * sce + (1 - p) / thp)
+        v = p * self.gamma * sce + (p / thp) * (1 - p)
         a = (in_data[2] > 0) * self.alpha + (in_data[2] == 0) * (1 - self.alpha)
         gf = v * u * a
 

@@ -30,6 +30,7 @@ from ..logger import logger
 import os
 import cPickle
 import numpy as np
+from ..config import config
 from ..processing.bbox_transform import bbox_overlaps
 
 
@@ -182,7 +183,7 @@ class IMDB(object):
             oldx2 = boxes[:, 2].copy()
             boxes[:, 0] = roi_rec['width'] - oldx2 - 1
             boxes[:, 2] = roi_rec['width'] - oldx1 - 1
-            assert (boxes[:, 2] >= boxes[:, 0]).all()
+            assert (boxes[:, 2] >= boxes[:, 0]).all(), boxes
             entry = {'image': roi_rec['image'],
                      'height': roi_rec['height'],
                      'width': roi_rec['width'],
@@ -193,6 +194,13 @@ class IMDB(object):
                      'max_overlaps': roidb[i]['max_overlaps'],
                      'flipped': True}
             roidb.append(entry)
+            if config.HAS_PART and 'heads' in roi_rec:
+                w = roi_rec['width']
+                heads = roi_rec['heads'].copy()
+                heads[:, 0], heads[:, 2] = w - heads[:, 2] - 1, w - heads[:, 0] - 1
+                joints = roi_rec['joints'].copy()
+                joints[:, ::3] = w - joints[:, ::3] - 1
+                entry.update({'heads': heads, 'joints': joints})
 
         self.image_set_index *= 2
         return roidb

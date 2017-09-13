@@ -22,7 +22,7 @@ import random
 from ..config import config
 
 
-def get_image(roidb):
+def get_image(roidb, is_test=False):
     """
     preprocess image and return processed roidb
     :param roidb: a list of roidb
@@ -42,7 +42,10 @@ def get_image(roidb):
         if roidb[i]['flipped']:
             im = im[:, ::-1, :]
         new_rec = roi_rec.copy()
-        scale_ind = random.randrange(len(config.SCALES))
+        if is_test:
+            scale_ind = 0
+        else:
+            scale_ind = 0 #random.randrange(len(config.SCALES))
         target_size = config.SCALES[scale_ind][0]
         max_size = config.SCALES[scale_ind][1]
         im, im_scale = resize(im, target_size, max_size, stride=config.IMAGE_STRIDE)
@@ -50,6 +53,10 @@ def get_image(roidb):
         processed_ims.append(im_tensor)
         im_info = [im_tensor.shape[2], im_tensor.shape[3], im_scale]
         new_rec['boxes'] = roi_rec['boxes'].copy() * im_scale
+        if config.HAS_PART:
+            new_rec['heads'] = roi_rec['heads'].copy() * im_scale
+            new_rec['joints'] = roi_rec['joints'].copy() * im_scale
+            new_rec['joints'][:, 2::3] /= im_scale
         new_rec['im_info'] = im_info
         processed_roidb.append(new_rec)
     return processed_ims, processed_roidb

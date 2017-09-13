@@ -45,7 +45,7 @@ def get_rpn_testbatch(roidb):
     :return: data, label, im_info
     """
     assert len(roidb) == 1, 'Single batch only'
-    imgs, roidb = get_image(roidb)
+    imgs, roidb = get_image(roidb, is_test=True)
     im_array = imgs[0]
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
 
@@ -63,7 +63,7 @@ def get_rpn_batch(roidb):
     :return: data, label
     """
     assert len(roidb) == 1, 'Single batch only'
-    imgs, roidb = get_image(roidb)
+    imgs, roidb = get_image(roidb, is_test=False)
     im_array = imgs[0]
     im_info = np.array([roidb[0]['im_info']], dtype=np.float32)
 
@@ -74,8 +74,8 @@ def get_rpn_batch(roidb):
         gt_boxes[:, 0:4] = roidb[0]['boxes'][gt_inds, :]
         gt_boxes[:, 4] = roidb[0]['gt_classes'][gt_inds]
         if config.HAS_PART:
-            gt_head_boxes = roidb[0]['head'].astype(np.float32)
-            gt_joints = roidb[0]['joint'].astype(np.float32)
+            gt_head_boxes = roidb[0]['heads'].astype(np.float32)
+            gt_joints = roidb[0]['joints'].astype(np.float32)
     else:
         gt_boxes = np.empty((0, 5), dtype=np.float32)
         if config.HAS_PART:

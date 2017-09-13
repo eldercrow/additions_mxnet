@@ -45,6 +45,26 @@ def subpixel_upsample(data, ch, c, r, name=None):
     return X
 
 
+def conv_bn(data, prefix_name, num_filter,
+            kernel=(3,3), pad=(0,0), stride=(1,1), no_bias=True,
+            use_crelu=False,
+            use_global_stats=False, fix_gamma=False):
+    #
+    assert prefix_name != ''
+    conv_name = prefix_name + 'conv'
+    bn_name = prefix_name + 'bn'
+
+    conv_ = convolution(data, conv_name, num_filter,
+            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
+
+    if use_crelu:
+        conv_ = mx.sym.concat(conv_, -conv_)
+
+    bn_ = batchnorm(conv_, bn_name, use_global_stats, fix_gamma)
+
+    return bn_
+
+
 def relu_conv_bn(data, prefix_name, num_filter,
                  kernel=(3,3), pad=(0,0), stride=(1,1), no_bias=True,
                  use_crelu=False,

@@ -3,7 +3,17 @@ import logging
 import os
 import time
 
+from common.plateau_lr import PlateauScheduler
+from common.plateau_module import PlateauModule
+from common.smoothed_ce_metric import SmoothedCrossEntropy
+
 def _get_lr_scheduler(args, kv):
+    if args.use_plateau:
+        plateau_lr = PlateauScheduler(patient_epochs=args.lr_step_epochs, factor=args.lr_factor)
+        plateau_metric = mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06))
+        # plateau_metric = mx.metric.CrossEntropy()
+        return (plateau_lr, plateau_metric)
+
     if 'lr_factor' not in args or args.lr_factor >= 1:
         return (args.lr, None)
     epoch_size = args.num_examples / args.batch_size
@@ -31,6 +41,13 @@ def _load_model(args, rank=0):
     sym, arg_params, aux_params = mx.model.load_checkpoint(
         model_prefix, args.load_epoch)
     logging.info('Loaded model %s_%04d.params', model_prefix, args.load_epoch)
+
+    # TODO: Remove this!
+    # arg_params.pop('fc1_weight')
+    # arg_params.pop('fc1_bias')
+    # import ipdb
+    # ipdb.set_trace()
+
     return (sym, arg_params, aux_params)
 
 def _save_model(args, rank=0):
@@ -84,6 +101,8 @@ def add_fit_args(parser):
                        help='report the top-k accuracy. 0 means no report.')
     train.add_argument('--test-io', type=int, default=0,
                        help='1 means test reading speed without training')
+    train.add_argument('--use-plateau', type=bool, default=False,
+                       help='use plateau lr scheduler')
     return train
 
 def fit(args, network, data_loader, **kwargs):
@@ -124,8 +143,8 @@ def fit(args, network, data_loader, **kwargs):
         aux_params = kwargs['aux_params']
     else:
         sym, arg_params, aux_params = _load_model(args, kv.rank)
-        if sym is not None:
-            assert sym.tojson() == network.tojson()
+        # if sym is not None:
+        #     assert sym.tojson() == network.tojson()
 
     # save model
     checkpoint = _save_model(args, kv.rank)
@@ -134,28 +153,28 @@ def fit(args, network, data_loader, **kwargs):
     devs = mx.cpu() if args.gpus is None or args.gpus is '' else [
         mx.gpu(int(i)) for i in args.gpus.split(',')]
 
-    # learning rate
-    lr, lr_scheduler = _get_lr_scheduler(args, kv)
-
     # create model
-    model = mx.mod.Module(
-        context       = devs,
-        symbol        = network
-    )
-
-    lr_scheduler  = lr_scheduler
-    if args.optimizer == 'sgd':
-        optimizer_params = {
-                'learning_rate': lr,
-                'momentum' : args.mom,
-                'wd' : args.wd,
-                'lr_scheduler': lr_scheduler,
-                'multi_precision': True}
+    if args.use_plateau:
+        logging.info('Using plateau module.')
+        model = PlateauModule(network, context=devs)
+        lr_scheduler, plateau_metric = _get_lr_scheduler(args, kv)
+        lr = args.lr
     else:
-        optimizer_params = {
-                'learning_rate': lr,
-                'wd' : args.wd,
-                'lr_scheduler': lr_scheduler}
+        logging.info('Using normal module.')
+        model = mx.mod.Module(network, context=devs)
+        lr, lr_scheduler = _get_lr_scheduler(args, kv)
+
+    optimizer_params = {'learning_rate': lr, 'wd' : args.wd}
+
+    if not args.use_plateau:
+        optimizer_params['lr_scheduler'] = lr_scheduler
+
+    if args.optimizer == 'sgd':
+        optimizer_params['momentum'] = args.mom
+        optimizer_params['multi_precision'] = True
+
+    # #7847
+    model.init_optimizer(optimizer=args.optimizer, optimizer_params=optimizer_params, force_init=True)
 
     monitor = mx.mon.Monitor(args.monitor, pattern=".*") if args.monitor > 0 else None
 
@@ -168,6 +187,8 @@ def fit(args, network, data_loader, **kwargs):
 
     # evaluation metrices
     eval_metrics = ['accuracy']
+    eval_metrics.append(mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06)))
+    # eval_metrics.append(mx.metric.CrossEntropy())
     if args.top_k > 0:
         eval_metrics.append(mx.metric.create('top_k_accuracy', top_k=args.top_k))
 
@@ -178,27 +199,45 @@ def fit(args, network, data_loader, **kwargs):
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
 
     # for debug
-    internals = network.get_internals()
-    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
-    shape_dict = dict(zip(internals.list_outputs(), out_shapes))
-    for k, v in sorted(shape_dict.items()):
-        print k, v
-    # import ipdb
-    # ipdb.set_trace()
+    # internals = network.get_internals()
+    # _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
+    # shape_dict = dict(zip(internals.list_outputs(), out_shapes))
+    # for k, v in sorted(shape_dict.items()):
+    #     print k, v
 
     # run
-    model.fit(train,
-        begin_epoch        = args.load_epoch if args.load_epoch else 0,
-        num_epoch          = args.num_epochs,
-        eval_data          = val,
-        eval_metric        = eval_metrics,
-        kvstore            = kv,
-        optimizer          = args.optimizer,
-        optimizer_params   = optimizer_params,
-        initializer        = initializer,
-        arg_params         = arg_params,
-        aux_params         = aux_params,
-        batch_end_callback = batch_end_callbacks,
-        epoch_end_callback = checkpoint,
-        allow_missing      = True,
-        monitor            = monitor)
+    if not args.use_plateau:
+        model.fit(train,
+            begin_epoch        = args.load_epoch if args.load_epoch else 0,
+            num_epoch          = args.num_epochs,
+            eval_data          = val,
+            eval_metric        = eval_metrics,
+            kvstore            = kv,
+            optimizer          = args.optimizer,
+            optimizer_params   = optimizer_params,
+            initializer        = initializer,
+            arg_params         = arg_params,
+            aux_params         = aux_params,
+            batch_end_callback = batch_end_callbacks,
+            epoch_end_callback = checkpoint,
+            allow_missing      = True,
+            monitor            = monitor)
+    else:
+        model.fit(train, lr_scheduler,
+                begin_epoch         = args.load_epoch if args.load_epoch else 0,
+                num_epoch           = args.num_epochs,
+                plateau_metric      = plateau_metric,
+                fn_curr_model       = args.model_prefix+'-1000.params',
+                plateau_backtrace   = False,
+                eval_data           = val,
+                eval_metric         = eval_metrics,
+                kvstore             = kv,
+                optimizer           = args.optimizer,
+                optimizer_params    = optimizer_params,
+                initializer         = initializer,
+                arg_params          = arg_params,
+                aux_params          = aux_params,
+                batch_end_callback  = batch_end_callbacks,
+                epoch_end_callback  = checkpoint,
+                allow_missing       = True,
+                monitor             = monitor)

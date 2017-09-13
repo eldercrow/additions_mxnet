@@ -1,6 +1,6 @@
 import mxnet as mx
 import proposal
-import proposal_target
+import proposal_target_mpii
 from rcnn.config import config
 
 
@@ -181,7 +181,7 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
     return reluf_rpn, concat_convf
 
 
-def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS):
+def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS):
     ''' network for training '''
     # global parameters, (maybe will be changed)
     no_bias = False
@@ -190,6 +190,8 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
     data = mx.sym.Variable(name='data')
     im_info = mx.sym.Variable(name='im_info')
     gt_boxes = mx.sym.Variable(name='gt_boxes')
+    gt_head_boxes = mx.sym.Variable(name='gt_head_boxes')
+    gt_joints = mx.sym.Variable(name='gt_joints')
     rpn_label = mx.sym.Variable(name='label')
     rpn_bbox_target = mx.sym.Variable(name='bbox_target')
     rpn_bbox_weight = mx.sym.Variable(name='bbox_weight')
@@ -246,13 +248,25 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
 
     # ROI proposal target
     gt_boxes_reshape = mx.sym.Reshape(data=gt_boxes, shape=(-1, 5), name='gt_boxes_reshape')
-    group = mx.sym.Custom(rois=rois, gt_boxes=gt_boxes_reshape, op_type='proposal_target',
-                             num_classes=num_classes, batch_images=config.TRAIN.BATCH_IMAGES,
-                             batch_rois=config.TRAIN.BATCH_ROIS, fg_fraction=config.TRAIN.FG_FRACTION)
+    gt_head_boxes_reshape = mx.sym.Reshape(data=gt_head_boxes, shape=(-1, 4), name='gt_head_boxes_reshape')
+    gt_joints_reshape = mx.sym.Reshape(data=gt_joints, shape=(-1, 12), name='gt_joints_reshape')
+    group = mx.sym.Custom(rois=rois, gt_boxes=gt_boxes_reshape,
+                          gt_head_boxes=gt_head_boxes_reshape, gt_joints=gt_joints_reshape,
+                          op_type='proposal_target',
+                          num_classes=num_classes, batch_images=config.TRAIN.BATCH_IMAGES,
+                          batch_rois=config.TRAIN.BATCH_ROIS, fg_fraction=config.TRAIN.FG_FRACTION)
     rois = group[0]
     label = group[1]
     bbox_target = group[2]
     bbox_weight = group[3]
+
+    head_gid = group[4]
+    head_target = group[5]
+    head_weight = group[6]
+
+    joint_gid = group[7]
+    joint_target = group[8]
+    joint_weight = group[9]
 
     # Fast R-CNN
     roi_pool = mx.sym.ROIPooling(concat_convf, name='roi_pool5', rois=rois,
@@ -278,18 +292,71 @@ def get_pvanet_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCH
             mx.sym.smooth_l1(bbox_pred - bbox_target, name='bbox_loss_', scalar=1.0)
     bbox_loss = mx.sym.MakeLoss(bbox_loss_, name='bbox_loss', grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
 
+    # head classification
+    num_grid = config.PART_GRID_HW[0] * config.PART_GRID_HW[1] # including bg
+    head_score = mx.sym.FullyConnected(fc7_relu, name='head_score', num_hidden=num_grid)
+    head_prob = mx.sym.SoftmaxOutput(head_score, label=head_gid, name='head_prob', normalization='batch',
+            use_ignore=True, ignore_label=-1)
+    head_bbox_pred = mx.sym.FullyConnected(fc7_relu, name='head_pred', num_hidden=4)
+    head_bbox_loss_ = head_weight * \
+            mx.sym.smooth_l1(head_bbox_pred - head_target, name='bbox_loss_', scalar=1.0)
+    head_bbox_loss = mx.sym.MakeLoss(head_bbox_loss_, name='head_bbox_loss', grad_scale=0.2 / config.TRAIN.BATCH_ROIS)
+
+    # joint classification
+    joint_score = mx.sym.FullyConnected(fc7_relu, name='joint_score', num_hidden=num_grid * 4)
+    joint_probs = []
+    joint_gids = []
+    for i in range(4):
+        sidx = i * num_grid
+        eidx = (i+1) * num_grid
+        scorei = mx.sym.slice_axis(joint_score, axis=1, begin=sidx, end=eidx)
+        labeli = mx.sym.slice_axis(joint_gid, axis=1, begin=i, end=i+1)
+        labeli = mx.sym.reshape(labeli, (-1,))
+        joint_gids.append(labeli)
+        joint_probs.append(mx.sym.SoftmaxOutput( \
+                scorei, labeli, name='joint_prob{}'.format(i), normalization='batch',
+                use_ignore=True, ignore_label=-1))
+    joint_pred = mx.sym.FullyConnected(fc7_relu, name='joint_pred', num_hidden=2*4)
+    joint_loss_ = joint_weight * \
+            mx.sym.smooth_l1(joint_pred - joint_target, name='joint_loss_', scalar=1.0)
+    joint_losses = []
+    for i in range(4):
+        sidx = i * 2
+        eidx = (i+1) * 2
+        lossi = mx.sym.slice_axis(joint_loss_, axis=1, begin=sidx, end=eidx)
+        joint_losses.append(mx.sym.MakeLoss( \
+                lossi, name='joint_loss{}'.format(i), grad_scale=0.2 / config.TRAIN.BATCH_ROIS))
+
     # reshape output
     label = mx.sym.Reshape(label, name='label_reshape', shape=(config.TRAIN.BATCH_IMAGES, -1))
     cls_prob = mx.sym.Reshape(cls_prob, name='cls_prob_reshape',
             shape=(config.TRAIN.BATCH_IMAGES, -1, num_classes))
     bbox_loss = mx.sym.Reshape(bbox_loss, name='bbox_loss_reshape',
             shape=(config.TRAIN.BATCH_IMAGES, -1, 4 * num_classes))
+    head_gid = mx.sym.Reshape(head_gid, name='head_gid_reshape', shape=(config.TRAIN.BATCH_IMAGES, -1))
+    head_prob = mx.sym.Reshape(head_prob, name='head_prob_reshape',
+            shape=(config.TRAIN.BATCH_IMAGES, -1, num_grid))
+    head_bbox_loss = mx.sym.Reshape(head_bbox_loss, name='head_bbox_loss_reshape',
+            shape=(config.TRAIN.BATCH_IMAGES, -1, 4))
+    for i in range(4):
+        joint_gids[i] = mx.sym.reshape(joint_gids[i], name='joint_gid{}_reshape'.format(i),
+                shape=(config.TRAIN.BATCH_IMAGES, -1))
+        joint_gids[i] = mx.sym.BlockGrad(joint_gids[i])
+        joint_probs[i] = mx.sym.reshape(joint_probs[i], name='joint_prob{}_reshape'.format(i),
+                shape=(config.TRAIN.BATCH_IMAGES, -1, num_grid))
+        joint_losses[i] = mx.sym.reshape(joint_losses[i], name='joint_loss{}_reshape'.format(i),
+                shape=(config.TRAIN.BATCH_IMAGES, -1, 2))
 
-    group = mx.sym.Group([rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(label)])
-    return group
+    loss_group = [rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(label)]
+    loss_group += [head_prob, head_bbox_loss, mx.sym.BlockGrad(head_gid)]
+    loss_group += joint_probs
+    loss_group += joint_losses
+    loss_group += joint_gids
+
+    return mx.sym.Group(loss_group)
 
 
-def get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS):
+def get_pvanet_mpii_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHORS):
     ''' network for test '''
     data = mx.sym.Variable(name='data')
     im_info = mx.sym.Variable(name='im_info', init=mx.init.Zero())
@@ -357,12 +424,43 @@ def get_pvanet_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_ANCHO
     # bounding box regression
     bbox_pred = mx.sym.FullyConnected(fc7_relu, name='bbox_pred', num_hidden=num_classes*4)
 
+    # head classification
+    num_grid = config.PART_GRID_HW[0] * config.PART_GRID_HW[1] # including bg
+    head_score = mx.sym.FullyConnected(fc7_relu, name='head_score', num_hidden=num_grid)
+    head_prob = mx.sym.SoftmaxActivation(head_score, name='head_prob')
+    head_bbox_pred = mx.sym.FullyConnected(fc7_relu, name='head_pred', num_hidden=4)
+
+    # joint classification
+    joint_score = mx.sym.FullyConnected(fc7_relu, name='joint_score', num_hidden=num_grid*4)
+    joint_pred = mx.sym.FullyConnected(fc7_relu, name='joint_pred', num_hidden=2*4)
+    joint_probs = []
+    joint_preds = []
+    for i in range(4):
+        sidx = i * num_grid
+        eidx = (i+1) * num_grid
+        scorei = mx.sym.slice_axis(joint_score, axis=1, begin=sidx, end=eidx)
+        joint_probs.append(mx.sym.SoftmaxActivation(scorei, name='joint_prob{}'.format(i)))
+        joint_preds.append(mx.sym.slice_axis(joint_pred, axis=1, begin=(i*2), end=(i+1)*2))
+
     # reshape output
     cls_prob = mx.sym.Reshape(cls_prob, name='cls_prob_reshape',
             shape=(config.TEST.BATCH_IMAGES, -1, num_classes))
     bbox_pred = mx.sym.Reshape(bbox_pred, name='bbox_pred_reshape',
             shape=(config.TEST.BATCH_IMAGES, -1, 4 * num_classes))
 
+    head_prob = mx.sym.reshape(head_prob, name='head_prob_reshape',
+            shape=(config.TEST.BATCH_IMAGES, -1, num_grid))
+    head_pred = mx.sym.Reshape(head_bbox_pred, name='head_pred_reshape',
+            shape=(config.TEST.BATCH_IMAGES, -1, 4))
+
+    for i in range(4):
+        joint_probs[i] = mx.sym.reshape(joint_probs[i], name='joint_prob{}_reshape'.format(i),
+                shape=(config.TEST.BATCH_IMAGES, -1, num_grid))
+        joint_preds[i] = mx.sym.reshape(joint_preds[i], name='joint_pred{}_reshape'.format(i),
+                shape=(config.TEST.BATCH_IMAGES, -1, 2))
+
     # group output
-    group = mx.sym.Group([rois, cls_prob, bbox_pred])
-    return group
+    group = [rois, cls_prob, bbox_pred, head_prob, head_pred]
+    group += joint_probs
+    group += joint_preds
+    return mx.sym.Group(group)
