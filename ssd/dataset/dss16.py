@@ -23,7 +23,7 @@ class DSS(Imdb):
     is_train : boolean
         if true, will load annotations
     """
-    IDX_VER = '170811_1'
+    IDX_VER = '170913_1'
 
     def __init__(self, image_set, year, devkit_path,
             shuffle=False, is_train=False, pad_label=True, names='dss.names'):
@@ -45,8 +45,8 @@ class DSS(Imdb):
         if cached is None:  # no cached data, load from DB (and save)
             fn_cache = os.path.join(self.cache_path, self.name + '_' + self.IDX_VER + '.pkl')
             self.image_set_index = self._load_image_set_index(shuffle)
-            self.num_images = len(self.image_set_index)
             self.labels, self.max_objects = self._load_image_labels()
+            self.num_images = len(self.image_set_index)
             # if self.is_train:
             #     self.labels, self.max_objects = self._load_image_labels()
             self._save_to_cache()
@@ -132,7 +132,7 @@ class DSS(Imdb):
         image_set_index_file = os.path.join(self.data_path, 'ImageSets', self.image_set + '.txt')
         assert os.path.exists(image_set_index_file), 'Path does not exist: {}'.format(image_set_index_file)
         with open(image_set_index_file) as f:
-            image_set_index = [x.strip() for x in f.readlines()]
+            image_set_index = [x.strip().split()[0] for x in f.readlines()]
         if shuffle:
             np.random.shuffle(image_set_index)
         return image_set_index
@@ -199,8 +199,13 @@ class DSS(Imdb):
         max_objects = 0
 
         # load ground-truth from xml annotations
-        for idx in self.image_set_index:
-            label_file = self._label_path_from_index(idx)
+        valid_idx = []
+        for i, idx in enumerate(self.image_set_index):
+            try:
+                label_file = self._label_path_from_index(idx)
+            except:
+                continue
+            valid_idx.append(i)
             tree = ET.parse(label_file)
             root = tree.getroot()
             size = root.find('size')
@@ -209,10 +214,13 @@ class DSS(Imdb):
             label = []
 
             for obj in root.iter('object'):
-                difficult = int(obj.find('difficult').text)
+                try:
+                    difficult = int(obj.find('difficult').text)
+                except:
+                    difficult = 0
                 # if not self.config['use_difficult'] and difficult == 1:
                 #     continue
-                cls_name = obj.find('name').text
+                cls_name = obj.find('name').text.lower()
                 if cls_name not in self.classes:
                     continue
                 cls_id = self.classes.index(cls_name)
@@ -226,6 +234,7 @@ class DSS(Imdb):
                 max_objects = len(label)
             temp.append(np.array(label))
 
+        self.image_set_index = [self.image_set_index[i] for i in valid_idx]
         assert max_objects > 0, "No objects found for any of the images"
         return temp, max_objects
 
