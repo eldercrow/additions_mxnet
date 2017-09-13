@@ -48,7 +48,7 @@ def subpixel_upsample(data, ch, c, r, name=None):
 def conv_bn(data, prefix_name, num_filter,
             kernel=(3,3), pad=(0,0), stride=(1,1), no_bias=True,
             use_crelu=False,
-            use_global_stats=False, fix_gamma=False)
+            use_global_stats=False, fix_gamma=False):
     #
     assert prefix_name != ''
     conv_name = prefix_name + 'conv'

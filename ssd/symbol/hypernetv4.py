@@ -36,6 +36,13 @@ def prepare_groups(group_i, use_global_stats):
             upsample_feature(groups[2][0], name='up21/', scale=2,
                 num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
 
+    for i, g in enumerate(groups[2:-1], 3):
+        pad = (1, 1) if i < 5 else (0, 0)
+        d = relu_conv_bn(g[0], 'dn{}/'.format(i),
+                num_filter=32, kernel=(3, 3), pad=pad, stride=(2, 2),
+                use_global_stats=use_global_stats)
+        groups[i].append(d)
+
     return groups
 
 
