@@ -16,7 +16,7 @@ config.NUM_CLASSES = 2 #len(CLASSES)
 config.TEST.HAS_RPN = True
 
 config.IMAGE_STRIDE = 32
-config.SCALES = [(640, 1440)]
+config.SCALES = [(608, 1440)]
 config.ANCHOR_SCALES = (3, 6, 9, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)

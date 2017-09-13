@@ -17,12 +17,12 @@ if __name__ == '__main__':
     data.set_data_aug_level(parser, 3)
     parser.set_defaults(
         # network
-        network          = 'spotnet_face_clone',
+        network          = 'hypernetv3',
         num_layers       = 50,
         # data
         num_classes      = 1000,
         num_examples     = 1281167,
-        image_shape      = '3,224,224',
+        image_shape      = '3,192,192',
         min_random_scale = 1, # if input image has min size k, suggest to use
                               # 256.0/x, e.g. 0.533 for 480
         # train
@@ -30,6 +30,7 @@ if __name__ == '__main__':
         lr_step_epochs   = '30,60',
     )
     args = parser.parse_args()
+    args.use_global_stats = False
 
     # load network
     from importlib import import_module

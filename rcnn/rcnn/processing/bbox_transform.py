@@ -16,7 +16,7 @@
 # under the License.
 
 import numpy as np
-from cython.bbox import bbox_overlaps_cython
+from ..cython.bbox import bbox_overlaps_cython
 
 
 def bbox_overlaps(boxes, query_boxes):

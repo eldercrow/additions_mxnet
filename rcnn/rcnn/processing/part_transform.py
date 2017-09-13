@@ -1,5 +1,5 @@
 import numpy as np
-from bbox_transform import bbox_transform
+from bbox_transform import bbox_transform, bbox_pred
 
 
 def transform_head(rois, head_bbs, grid_hw):
@@ -9,16 +9,17 @@ def transform_head(rois, head_bbs, grid_hw):
     n_bbs = len(head_bbs)
 
     # normalize head_bbs
-    head_bbs[:, 0::2] -= rois[:, 0:1]
-    head_bbs[:, 0::2] /= rois[:, 2:3] - rois[:, 0:1]
-    head_bbs[:, 1::2] -= rois[:, 1:2]
-    head_bbs[:, 1::2] /= rois[:, 3:4] - rois[:, 1:2]
+    n_head_bbs = head_bbs.copy()
+    n_head_bbs[:, 0::2] -= rois[:, 0:1]
+    n_head_bbs[:, 0::2] /= rois[:, 2:3] - rois[:, 0:1]
+    n_head_bbs[:, 1::2] -= rois[:, 1:2]
+    n_head_bbs[:, 1::2] /= rois[:, 3:4] - rois[:, 1:2]
 
     # grid info
     ctr_grid, rect_grid = _get_grid_info(grid_hw)
 
     # bbox center
-    ctr_bbs = (head_bbs[:, 2:] + head_bbs[:, 0:2]) / 2.0
+    ctr_bbs = (n_head_bbs[:, 2:] + n_head_bbs[:, 0:2]) / 2.0
 
     # compute grid idx
     dx = ctr_bbs[:, 0:1] - np.tile(np.transpose(ctr_grid[:, 0:1]), (n_bbs, 1))
@@ -27,11 +28,37 @@ def transform_head(rois, head_bbs, grid_hw):
     gid = np.argmin(dc, axis=1)
 
     # compute transform target
-    gt_bbs = rect_grid[gid, :]
-    head_target = bbox_transform(head_bbs, gt_bbs)
+    ex_bbs = rect_grid[gid, :]
+    ex_bbs[:, 0::2] *= (rois[:, 2:3] - rois[:, 0:1])
+    ex_bbs[:, 0::2] += rois[:, 0:1]
+    ex_bbs[:, 1::2] *= (rois[:, 3:4] - rois[:, 1:2])
+    ex_bbs[:, 1::2] += rois[:, 1:2]
+    head_target = bbox_transform(ex_bbs, head_bbs)
     head_weight = np.ones_like(head_target)
 
-    return np.reshape(gid, (-1, 1)), head_target, head_weight
+    return gid, head_target, head_weight
+
+
+def pred_head(rois, head_deltas, head_gids, grid_hw):
+    '''
+    Transform head deltas to head bbs.
+    '''
+    n_bbs = len(head_deltas)
+
+    # grid info
+    _, rect_grid = _get_grid_info(grid_hw)
+
+    rects = np.zeros((n_bbs, 4), dtype=rect_grid.dtype)
+    for i, gid in enumerate(head_gids):
+        rects[i, :] = rect_grid[gid]
+    rects[:, 0::2] *= (rois[:, 2:3] - rois[:, 0:1])
+    rects[:, 0::2] += rois[:, 0:1]
+    rects[:, 1::2] *= (rois[:, 3:4] - rois[:, 1:2])
+    rects[:, 1::2] += rois[:, 1:2]
+    # rects[:, 2:] -= 1
+
+    head_boxes = bbox_pred(rects, head_deltas)
+    return head_boxes
 
 
 def transform_joint(rois, joints, grid_hw):
@@ -42,22 +69,47 @@ def transform_joint(rois, joints, grid_hw):
 
     # normalize joints
     joints[:, 0] -= rois[:, 0]
+    joints[:, 0] /= rois[:, 2] - rois[:, 0]
     joints[:, 1] -= rois[:, 1]
+    joints[:, 1] /= rois[:, 3] - rois[:, 1]
 
     # grid info
     ctr_grid, _ = _get_grid_info(grid_hw)
 
     # compute grid idx
-    dx = joints[:, 0:1] - np.tile(np.transpose(ctr_grid[:, 0:1]), (n_bbs, 1))
-    dy = joints[:, 1:2] - np.tile(np.transpose(ctr_grid[:, 1:2]), (n_bbs, 1))
+    dx = joints[:, 0:1] - np.tile(np.transpose(ctr_grid[:, 0:1]), (n_joint, 1))
+    dy = joints[:, 1:2] - np.tile(np.transpose(ctr_grid[:, 1:2]), (n_joint, 1))
     dc = dx*dx + dy*dy
     gid = np.argmin(dc, axis=1)
+    dx = np.reshape(dx[range(n_joint), gid], (-1, 1))
+    dy = np.reshape(dy[range(n_joint), gid], (-1, 1))
 
     # compute transform target
-    joint_target = np.hstack((dx * gw, dy * gh))
+    joint_target = np.hstack((dx, dy))
     joint_weight = np.tile(joints[:, 2:3], (1, 2))
 
     return np.reshape(gid, (-1, 1)), joint_target, joint_weight
+
+
+def pred_joint(rois, joint_deltas, joint_gids, grid_hw):
+    '''
+    Transform joint deltas to joint positions.
+    '''
+    n_joint = len(joint_deltas)
+
+    # grid info
+    ctr_grid, _ = _get_grid_info(grid_hw)
+
+    ptrs = np.zeros((n_joint, 2), dtype=ctr_grid.dtype)
+    for i, gid in enumerate(joint_gids):
+        ptrs[i, :] = ctr_grid[gid]
+    joints = ptrs + joint_deltas
+    joints[:, 0] *= (rois[:, 2] - rois[:, 0])
+    joints[:, 0] += rois[:, 0]
+    joints[:, 1] *= (rois[:, 3] - rois[:, 1])
+    joints[:, 1] += rois[:, 1]
+
+    return joints
 
 
 def _get_grid_info(grid_hw):
