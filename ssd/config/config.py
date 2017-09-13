@@ -62,7 +62,7 @@ cfg.train.focal_loss_alpha = 1.0/3.0
 cfg.train.focal_loss_gamma = 2.0
 cfg.train.smoothl1_weight = 1.0 if cfg.train.use_focal_loss else 1.0
 cfg.train.use_smooth_ce = True
-cfg.train.smooth_ce_th = 0.001
+cfg.train.smooth_ce_th = 0.0001
 
 cfg.train = config_as_dict(cfg.train)  # convert to normal dict
 

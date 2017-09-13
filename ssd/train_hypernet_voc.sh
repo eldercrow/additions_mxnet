@@ -3,13 +3,13 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network hypernetv3 \
+    --network hypernetv6 \
     --label-width 350 \
     --batch-size 32 \
-    --data-shape 384 \
+    --data-shape 768 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv2_384 \
+    --pretrained none \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
