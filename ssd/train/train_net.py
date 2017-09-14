@@ -320,6 +320,8 @@ def train_net(net, train_path, num_classes, batch_size,
                 patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
         plateau_metric = MultiBoxMetric(fn_stat='/home/hyunjoon/github/additions_mxnet/ssd/stat.txt')
 
+    mod.init_optimizer(optimizer=optimizer_name, optimizer_params=optimizer_params)
+
     eval_metric = MultiBoxMetric()
     # run fit net, every n epochs we run evaluation network to get mAP
     if voc07_metric:

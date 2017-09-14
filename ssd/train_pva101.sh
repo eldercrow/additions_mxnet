@@ -12,7 +12,7 @@ python train.py \
     --epoch 0 \
     --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 3,3,4,4,5,5,5 \
+    --lr-steps 2,3,3,4,4,5,5,5 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \

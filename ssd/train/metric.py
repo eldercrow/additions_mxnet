@@ -6,7 +6,7 @@ import cv2
 
 class MultiBoxMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, fn_stat=None, eps=1e-8):
+    def __init__(self, fn_stat=None, eps=1e-09):
         # managed internally, for debug only
         self.fn_stat = fn_stat
         self.aphw_grid = np.zeros((100, 100), dtype=np.int64)
@@ -59,8 +59,9 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         """
         # get generated multi label from network
         cls_prob = mx.nd.pick(preds[0], preds[2], axis=1, keepdims=True).asnumpy()
+        cls_prob = np.maximum(cls_prob, self.eps)
         cls_label = preds[2].asnumpy()
-        loss = -np.log(np.maximum(cls_prob, self.eps))
+        loss = -np.log(cls_prob)
         if self.use_focal_loss:
             gamma = float(cfg.train['focal_loss_gamma'])
             alpha = float(cfg.train['focal_loss_alpha'])

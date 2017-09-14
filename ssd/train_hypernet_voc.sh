@@ -3,7 +3,7 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network hypernetv6 \
+    --network hypernetv4 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 768 \
@@ -13,7 +13,7 @@ python train.py \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 3,3,4,4,5,5,6 \
+    --lr-steps 2,3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \
