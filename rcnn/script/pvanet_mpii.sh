@@ -18,10 +18,10 @@ python train_end2end.py \
   --frequent 50 \
   --lr 1e-03 \
   --lr_step 30,60,90 \
-  --resume \
-  --begin_epoch 28 \
+  --pretrained ./model/pva101_mpii \
+  --pretrained_epoch 120 \
   --end_epoch 120
   # --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100 \
   # --pretrained_epoch 0 \
-  # --end_epoch 120 
+  # --end_epoch 120
 # python test.py --network resnet --gpu 1
