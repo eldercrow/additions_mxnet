@@ -7,13 +7,13 @@ python train.py \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
-    --optimizer-name nadam \
+    --optimizer-name sgd \
     --freeze '' \
-    --pretrained none \
+    --pretrained ./model/ssd_hypernetv4_384 \
     --epoch 1000 \
-    --lr 1e-03 \
+    --lr 1e-02 \
     --use-plateau 1 \
-    --lr-steps 2,3,3,4,4,5,5,6 \
+    --lr-steps 3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \

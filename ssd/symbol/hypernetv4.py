@@ -28,13 +28,13 @@ def prepare_groups(group_i, use_global_stats):
 
     groups[0].append( \
             upsample_feature(groups[1][0], name='up10/', scale=2,
-                num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
+                num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
     groups[0].append( \
             upsample_feature(groups[2][0], name='up20/', scale=4,
-                num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
+                num_filter_proj=64, num_filter_upsample=32, use_global_stats=use_global_stats))
     groups[1].append( \
             upsample_feature(groups[2][0], name='up21/', scale=2,
-                num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
+                num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
 
     for i, g in enumerate(groups[2:-1], 3):
         pad = (1, 1) if i < 5 else (0, 0)
