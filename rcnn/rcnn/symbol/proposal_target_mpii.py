@@ -84,7 +84,7 @@ class ProposalTargetOperator(mx.operator.CustomOp):
         # self.assign(in_grad[1], req[1], 0)
 
 
-@mx.operator.register('proposal_target')
+@mx.operator.register('proposal_target_mpii')
 class ProposalTargetProp(mx.operator.CustomOpProp):
     def __init__(self, num_classes, num_grids, batch_images, batch_rois, fg_fraction='0.25'):
         super(ProposalTargetProp, self).__init__(need_top_grad=False)

@@ -11,15 +11,15 @@ export PYTHONUNBUFFERED=1
 
 python train_end2end.py \
   --network pvanet_mpii \
-  --gpu 1 \
+  --gpu 6 \
   --prefix model/pva100_mpii \
   --dataset mpii \
   --image_set trainval \
   --frequent 50 \
   --lr 1e-03 \
   --lr_step 30,60,90 \
-  --pretrained ./model/pva101_mpii \
-  --pretrained_epoch 120 \
+  --pretrained /home/hyunjoon/github/additions_mxnet/rcnn/model/pva100_mpii \
+  --pretrained_epoch 0 \
   --end_epoch 120
   # --pretrained /home/hyunjoon/github/model_mxnet/pva100/pva100 \
   # --pretrained_epoch 0 \

@@ -115,7 +115,7 @@ def add_bbox_regression_targets(roidb):
     return means.ravel(), stds.ravel()
 
 
-def expand_bbox_regression_targets(bbox_targets_data, num_classes):
+def expand_bbox_regression_targets(bbox_targets_data, num_classes, bbox_dim=4):
     """
     expand from 5 to 4 * num_classes; only the right class has non-zero bbox regression targets
     :param bbox_targets_data: [k * 5]
@@ -124,14 +124,13 @@ def expand_bbox_regression_targets(bbox_targets_data, num_classes):
     bbox_weights ! only foreground boxes have bbox regression computation!
     """
     classes = bbox_targets_data[:, 0]
-    bbox_targets = np.zeros((classes.size, 4 * num_classes), dtype=np.float32)
+    bbox_targets = np.zeros((classes.size, bbox_dim * num_classes), dtype=np.float32)
     bbox_weights = np.zeros(bbox_targets.shape, dtype=np.float32)
     indexes = np.where(classes > 0)[0]
     for index in indexes:
         cls = classes[index]
-        start = int(4 * cls)
-        end = start + 4
+        start = int(bbox_dim * cls)
+        end = start + bbox_dim
         bbox_targets[index, start:end] = bbox_targets_data[index, 1:]
-        bbox_weights[index, start:end] = config.TRAIN.BBOX_WEIGHTS
+        bbox_weights[index, start:end] = config.TRAIN.BBOX_WEIGHTS[:bbox_dim]
     return bbox_targets, bbox_weights
-

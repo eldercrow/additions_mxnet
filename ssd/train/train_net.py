@@ -133,7 +133,7 @@ def train_net(net, train_path, num_classes, batch_size,
               freeze_layer_pattern='',
               num_example=10000, label_pad_width=350,
               nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
-              use_difficult=False, class_names=None,
+              use_difficult=False, class_names=None, ignore_names=None,
               optimizer_name='sgd',
               voc07_metric=False, nms_topk=400, force_suppress=False,
               train_list="", val_path="", val_list="", iter_monitor=0,
@@ -235,8 +235,9 @@ def train_net(net, train_path, num_classes, batch_size,
 
     # load symbol
     net_str = net
-    net = get_symbol_train(net, data_shape[1], num_classes=num_classes,
-        nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
+    net = get_symbol_train(net, data_shape[1], \
+            num_classes=num_classes, ignore_names=ignore_names, \
+            nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
 
     # define layers with fixed weight/bias
     if freeze_layer_pattern.strip():
