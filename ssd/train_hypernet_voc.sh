@@ -3,15 +3,15 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network hypernetv4 \
+    --network hypernetv6 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
-    --optimizer-name sgd \
+    --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv4_384 \
+    --pretrained ./model/ssd_hypernetv6_384 \
     --epoch 1000 \
-    --lr 1e-02 \
+    --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \

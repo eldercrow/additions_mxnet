@@ -7,17 +7,19 @@ python train.py \
     --label-width 560 \
     --batch-size 32 \
     --data-shape 384 \
-    --optimizer-name nadam \
+    --optimizer-name sgd \
     --freeze '' \
     --pretrained ./model/ssd_hypernetv3_voc_384 \
     --epoch 0 \
-    --lr 1e-03 \
+    --lr 1e-02 \
     --use-plateau 1 \
     --lr-steps 3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
-    --frequent 50 \
+    --frequent 100 \
     --gpus 0,1
+    # --resume 26 \
+
 # python train_imdb.py \
 #     --network hypernetv5 \
 #     --dataset pascal_voc \
