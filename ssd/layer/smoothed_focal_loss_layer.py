@@ -13,7 +13,7 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         self.th_prob = th_prob
         self.normalize = normalize
 
-        self.eps = 1e-09
+        self.eps = 1e-08
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''

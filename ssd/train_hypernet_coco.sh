@@ -9,7 +9,8 @@ python train.py \
     --data-shape 384 \
     --optimizer-name sgd \
     --freeze '' \
-    --resume 23 \
+    --pretrained ./model/ssd_hypernetv3_voc_384 \
+    --epoch 0 \
     --lr 1e-02 \
     --use-plateau 1 \
     --lr-steps 3,3,4,4,5,5,6 \
@@ -17,8 +18,7 @@ python train.py \
     --end-epoch 300 \
     --frequent 100 \
     --gpus 0,1
-    # --pretrained ./model/ssd_hypernetv3_voc_384 \
-    # --epoch 0 \
+    # --resume 26 \
 
 # python train_imdb.py \
 #     --network hypernetv5 \
