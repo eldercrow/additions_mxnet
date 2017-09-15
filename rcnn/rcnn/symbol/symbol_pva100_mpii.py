@@ -297,13 +297,13 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
     head_score = mx.sym.FullyConnected(fc7_relu, name='head_score', num_hidden=num_grid)
     head_prob = mx.sym.SoftmaxOutput(head_score, label=head_gid, name='head_prob', normalization='batch',
             use_ignore=True, ignore_label=-1)
-    head_bbox_pred = mx.sym.FullyConnected(fc7_relu, name='head_pred', num_hidden=4)
+    head_bbox_pred = mx.sym.FullyConnected(fc7_relu, name='head_pred', num_hidden=num_grid*4)
     head_bbox_loss_ = head_weight * \
             mx.sym.smooth_l1(head_bbox_pred - head_target, name='bbox_loss_', scalar=1.0)
     head_bbox_loss = mx.sym.MakeLoss(head_bbox_loss_, name='head_bbox_loss', grad_scale=0.2 / config.TRAIN.BATCH_ROIS)
 
     # joint classification
-    joint_score = mx.sym.FullyConnected(fc7_relu, name='joint_score', num_hidden=num_grid * 4)
+    joint_score = mx.sym.FullyConnected(fc7_relu, name='joint_score', num_hidden=num_grid*4)
     joint_probs = []
     joint_gids = []
     for i in range(4):
@@ -316,13 +316,13 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
         joint_probs.append(mx.sym.SoftmaxOutput( \
                 scorei, labeli, name='joint_prob{}'.format(i), normalization='batch',
                 use_ignore=True, ignore_label=-1))
-    joint_pred = mx.sym.FullyConnected(fc7_relu, name='joint_pred', num_hidden=2*4)
+    joint_pred = mx.sym.FullyConnected(fc7_relu, name='joint_pred', num_hidden=num_grid*2*4)
     joint_loss_ = joint_weight * \
             mx.sym.smooth_l1(joint_pred - joint_target, name='joint_loss_', scalar=1.0)
     joint_losses = []
     for i in range(4):
-        sidx = i * 2
-        eidx = (i+1) * 2
+        sidx = num_grid * i * 2
+        eidx = num_grid * (i+1) * 2
         lossi = mx.sym.slice_axis(joint_loss_, axis=1, begin=sidx, end=eidx)
         joint_losses.append(mx.sym.MakeLoss( \
                 lossi, name='joint_loss{}'.format(i), grad_scale=0.2 / config.TRAIN.BATCH_ROIS))
@@ -337,7 +337,7 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
     head_prob = mx.sym.Reshape(head_prob, name='head_prob_reshape',
             shape=(config.TRAIN.BATCH_IMAGES, -1, num_grid))
     head_bbox_loss = mx.sym.Reshape(head_bbox_loss, name='head_bbox_loss_reshape',
-            shape=(config.TRAIN.BATCH_IMAGES, -1, 4))
+            shape=(config.TRAIN.BATCH_IMAGES, -1, num_grid*4))
     for i in range(4):
         joint_gids[i] = mx.sym.reshape(joint_gids[i], name='joint_gid{}_reshape'.format(i),
                 shape=(config.TRAIN.BATCH_IMAGES, -1))
@@ -345,7 +345,7 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
         joint_probs[i] = mx.sym.reshape(joint_probs[i], name='joint_prob{}_reshape'.format(i),
                 shape=(config.TRAIN.BATCH_IMAGES, -1, num_grid))
         joint_losses[i] = mx.sym.reshape(joint_losses[i], name='joint_loss{}_reshape'.format(i),
-                shape=(config.TRAIN.BATCH_IMAGES, -1, 2))
+                shape=(config.TRAIN.BATCH_IMAGES, -1, num_grid*2))
 
     loss_group = [rpn_cls_prob, rpn_bbox_loss, cls_prob, bbox_loss, mx.sym.BlockGrad(label)]
     loss_group += [head_prob, head_bbox_loss, mx.sym.BlockGrad(head_gid)]
@@ -428,11 +428,11 @@ def get_pvanet_mpii_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_
     num_grid = config.PART_GRID_HW[0] * config.PART_GRID_HW[1] # including bg
     head_score = mx.sym.FullyConnected(fc7_relu, name='head_score', num_hidden=num_grid)
     head_prob = mx.sym.SoftmaxActivation(head_score, name='head_prob')
-    head_bbox_pred = mx.sym.FullyConnected(fc7_relu, name='head_pred', num_hidden=4)
+    head_bbox_pred = mx.sym.FullyConnected(fc7_relu, name='head_pred', num_hidden=num_grid*4)
 
     # joint classification
     joint_score = mx.sym.FullyConnected(fc7_relu, name='joint_score', num_hidden=num_grid*4)
-    joint_pred = mx.sym.FullyConnected(fc7_relu, name='joint_pred', num_hidden=2*4)
+    joint_pred = mx.sym.FullyConnected(fc7_relu, name='joint_pred', num_hidden=num_grid*2*4)
     joint_probs = []
     joint_preds = []
     for i in range(4):
@@ -440,7 +440,7 @@ def get_pvanet_mpii_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_
         eidx = (i+1) * num_grid
         scorei = mx.sym.slice_axis(joint_score, axis=1, begin=sidx, end=eidx)
         joint_probs.append(mx.sym.SoftmaxActivation(scorei, name='joint_prob{}'.format(i)))
-        joint_preds.append(mx.sym.slice_axis(joint_pred, axis=1, begin=(i*2), end=(i+1)*2))
+        joint_preds.append(mx.sym.slice_axis(joint_pred, axis=1, begin=sidx*2, end=eidx*2))
 
     # reshape output
     cls_prob = mx.sym.Reshape(cls_prob, name='cls_prob_reshape',
@@ -451,13 +451,13 @@ def get_pvanet_mpii_test(num_classes=config.NUM_CLASSES, num_anchors=config.NUM_
     head_prob = mx.sym.reshape(head_prob, name='head_prob_reshape',
             shape=(config.TEST.BATCH_IMAGES, -1, num_grid))
     head_pred = mx.sym.Reshape(head_bbox_pred, name='head_pred_reshape',
-            shape=(config.TEST.BATCH_IMAGES, -1, 4))
+            shape=(config.TEST.BATCH_IMAGES, -1, 4 * num_grid))
 
     for i in range(4):
         joint_probs[i] = mx.sym.reshape(joint_probs[i], name='joint_prob{}_reshape'.format(i),
                 shape=(config.TEST.BATCH_IMAGES, -1, num_grid))
         joint_preds[i] = mx.sym.reshape(joint_preds[i], name='joint_pred{}_reshape'.format(i),
-                shape=(config.TEST.BATCH_IMAGES, -1, 2))
+                shape=(config.TEST.BATCH_IMAGES, -1, 2 * num_grid))
 
     # group output
     group = [rois, cls_prob, bbox_pred, head_prob, head_pred]

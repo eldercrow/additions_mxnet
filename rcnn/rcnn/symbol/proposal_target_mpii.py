@@ -86,9 +86,10 @@ class ProposalTargetOperator(mx.operator.CustomOp):
 
 @mx.operator.register('proposal_target')
 class ProposalTargetProp(mx.operator.CustomOpProp):
-    def __init__(self, num_classes, batch_images, batch_rois, fg_fraction='0.25'):
+    def __init__(self, num_classes, num_grids, batch_images, batch_rois, fg_fraction='0.25'):
         super(ProposalTargetProp, self).__init__(need_top_grad=False)
         self._num_classes = int(num_classes)
+        self._num_grids = int(num_grids)
         self._batch_images = int(batch_images)
         self._batch_rois = int(batch_rois)
         self._fg_fraction = float(fg_fraction)
@@ -110,12 +111,12 @@ class ProposalTargetProp(mx.operator.CustomOpProp):
         bbox_weight_shape = (self._batch_rois, self._num_classes * 4)
 
         head_gid_shape = (self._batch_rois, )
-        head_target_shape = (self._batch_rois, 4)
-        head_weight_shape = (self._batch_rois, 4)
+        head_target_shape = (self._batch_rois, self._num_grids * 4)
+        head_weight_shape = (self._batch_rois, self._num_grids * 4)
 
         joint_gid_shape = (self._batch_rois, 4)
-        joint_target_shape = (self._batch_rois, 8)
-        joint_weight_shape = (self._batch_rois, 8)
+        joint_target_shape = (self._batch_rois, self._num_grids * 8)
+        joint_weight_shape = (self._batch_rois, self._num_grids * 8)
 
         out_shape = [[] for _ in range(10)]
         out_shape[0] = output_rois_shape

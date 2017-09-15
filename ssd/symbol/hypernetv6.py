@@ -11,7 +11,7 @@ def prepare_groups(group_i, use_global_stats):
 
     # prepare groups
     n_group = len(nf_1x1)
-    groups = []
+    groups = [[] for _ in nf_1x1]
     for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
         kernel = (2, 2) if i < 5 else (3, 3)
         group_i = pool(group_i, kernel=kernel)
@@ -24,7 +24,7 @@ def prepare_groups(group_i, use_global_stats):
                     use_global_stats=use_global_stats)
 
         group_i = proj_add(g0, group_i, 'g{}/res/'.format(i), sum(nf3)+nf1, use_global_stats)
-        groups.append([group_i])
+        groups[i].append(group_i)
 
     groups[0].append( \
             upsample_feature(groups[1][0], name='up10/', scale=2,
@@ -35,6 +35,13 @@ def prepare_groups(group_i, use_global_stats):
     groups[1].append( \
             upsample_feature(groups[2][0], name='up21/', scale=2,
                 num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
+
+    for i, g in enumerate(groups[2:-1], 3):
+        pad = (1, 1) if i < 5 else (0, 0)
+        d = relu_conv_bn(g[0], 'dn{}/'.format(i),
+                num_filter=32, kernel=(3, 3), pad=pad, stride=(2, 2),
+                use_global_stats=use_global_stats)
+        groups[i].append(d)
 
     return groups
 
@@ -72,7 +79,7 @@ def get_symbol(num_classes=1000, **kwargs):
 
     nf_group = [384, 512, 512, 384, 384, 256]
     for i, (g, nf) in enumerate(zip(groups, nf_group)):
-        g = mx.sym.concat(*g) if len(g) > 1 else g[0]
+        g = mx.sym.concat(*g, name='gc/{}/'.format(i)) if len(g) > 1 else g[0]
         g = relu_conv_bn(g, 'gc1x1/{}/'.format(i),
                 num_filter=nf/2, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
@@ -97,7 +104,7 @@ def get_symbol(num_classes=1000, **kwargs):
 
     pooled = []
     for i, h in enumerate(hyper_groups):
-        hc = mx.sym.concat(h[0], h[1])
+        hc = mx.sym.concat(h[0], h[1], name='hyperconcat{}'.format(i))
         p = mx.sym.Pooling(hc, kernel=(2, 2), global_pool=True, pool_type='max')
         pooled.append(p)
 

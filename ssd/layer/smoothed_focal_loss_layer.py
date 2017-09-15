@@ -26,9 +26,8 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         Reweight loss according to focal loss.
         '''
         p = mx.nd.pick(in_data[1], in_data[2], axis=1, keepdims=True)
-        p = mx.nd.maximum(p, self.eps)
 
-        ce = -mx.nd.log(p)
+        ce = -mx.nd.log(mx.nd.maximum(p, self.eps))
         sce = -p / self.th_prob - np.log(self.th_prob) + 1
 
         mask = p > self.th_prob

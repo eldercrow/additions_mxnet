@@ -12,15 +12,18 @@ class MultiBoxTarget(mx.operator.CustomOp):
     Python implementation of MultiBoxTarget layer.
     """
     def __init__(self, th_iou, th_iou_neg, th_nms_neg, th_small, square_bb,
-            reg_sample_ratio, hard_neg_ratio, variances):
+            reg_sample_ratio, hard_neg_ratio, variances, ignore_labels):
         #
         super(MultiBoxTarget, self).__init__()
         self.th_iou = th_iou
         self.th_iou_neg = th_iou_neg
         self.th_nms_neg = th_nms_neg
+        self.th_small = th_small
+        self.square_bb = square_bb
         self.reg_sample_ratio = reg_sample_ratio
         self.hard_neg_ratio = hard_neg_ratio
         self.variances = variances
+        self.ignore_labels = ignore_labels
 
         # precompute nms candidates
         self.anchors = None
@@ -29,8 +32,6 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.area_anchors_t = None
 
         self.th_anc_overlap = 0.6
-        self.th_small = th_small
-        self.square_bb = square_bb
 
     def forward(self, is_train, req, in_data, out_data, aux):
         """
@@ -60,7 +61,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         else:
             assert self.anchors.shape == in_data[0].shape[1:]
 
-        # output numpy arrays
+        # numpy arrays for outputs of the layer
         target_reg = np.zeros((n_batch, n_anchors, 4), dtype=np.float32)
         mask_reg = np.zeros_like(target_reg)
         target_cls = np.full((n_batch, 1, n_anchors), -1, dtype=np.float32)
@@ -77,6 +78,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
         for i in range(n_batch):
             target_cls[i][0] = self._forward_batch_neg( \
                     probs_bg_cls[i], max_iou_pos[i], target_cls[i][0])
+
+        if self.ignore_labels:
+            for i in range(n_batch):
+                target_cls[i][0], mask_reg[i] = self._forward_batch_ignore( \
+                        labels_all[i], target_cls[i][0], mask_reg[i])
 
         target_reg = np.reshape(target_reg, (n_batch, -1))
         mask_reg = np.reshape(mask_reg, (n_batch, -1))
@@ -152,7 +158,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
             if len(pidx) > 50:
                 pidx = pidx[:50]
-            match_info[i, :len(pidx)] = pidx 
+            match_info[i, :len(pidx)] = pidx
 
         return target_cls, target_reg, mask_reg, max_iou, match_info
 
@@ -203,6 +209,19 @@ class MultiBoxTarget(mx.operator.CustomOp):
                 break
 
         return target_cls
+
+    def _forward_batch_ignore(self, labels, target_cls, mask_reg):
+        #
+        for l in labels:
+            if not l[0] in self.ignore_labels:
+                continue
+            # compute overlaps between anchors and the label
+            overlaps = _compute_overlap(self.anchors_t, self.area_anchors_t, l[1:])
+            iidx = np.where(overlaps > self.th_anc_overlap)[0]
+            target_cls[iidx] = -1
+            mask_reg[iidx, :] = 0
+        return target_cls, mask_reg
+
 
 def _get_valid_labels(labels):
     #
@@ -301,7 +320,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
             th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0,
             th_small=0.04, square_bb=False,
             reg_sample_ratio=1.0, hard_neg_ratio=3.0,
-            variances=(0.1, 0.1, 0.2, 0.2)):
+            variances=(0.1, 0.1, 0.2, 0.2), ignore_labels=''):
         #
         super(MultiBoxTargetProp, self).__init__(need_top_grad=False)
         self.th_iou = float(th_iou)
@@ -314,6 +333,12 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.reshape(np.array(variances), (1, -1))
+        try:
+            self.ignore_labels = make_tuple(ignore_labels)
+            if isinstance(self.ignore_labels, int):
+                self.ignore_labels = [self.ignore_labels,]
+        except:
+            self.ignore_labels = []
 
     def list_arguments(self):
         return ['anchors', 'label', 'probs_cls']
@@ -337,4 +362,4 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
                 self.th_iou, self.th_iou_neg, self.th_nms_neg,
                 self.th_small, self.square_bb,
                 self.reg_sample_ratio, self.hard_neg_ratio,
-                self.variances)
+                self.variances, self.ignore_labels)

@@ -190,6 +190,7 @@ def sample_rois(rois, fg_rois_per_image, rois_per_image, num_classes, gt_boxes,
     if config.HAS_PART and gt_head_boxes is not None:
         gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint = \
                 _sample_part_info(rois, fg_indexes, gt_head_boxes, gt_joints, gt_assignment)
+
         return (rois, labels, bbox_targets, bbox_weights, \
                 gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint)
     else:
@@ -206,6 +207,7 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints, gt_assignment):
     '''
     n_roi = rois.shape[0]
     n_fg = len(fg_indexes)
+    n_grid = config.PART_GRID_HW[0] * config.PART_GRID_HW[1]
 
     gids_head = np.full((n_roi,), -1, dtype=np.float32)
     targets_head = np.zeros((n_roi, 4), dtype=np.float32)
@@ -220,8 +222,10 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints, gt_assignment):
     head_bbs = head_bbs[gt_inds]
     joints = joints[gt_inds]
 
-    gids_head[:n_fg], targets_head[:n_fg], weights_head[:n_fg] = \
-            transform_head(rois[:, 1:], head_bbs, config.PART_GRID_HW)
+    gids_head_fg, targets_head_fg, _ = transform_head(rois[:, 1:], head_bbs, config.PART_GRID_HW)
+    gids_head[:n_fg] = gids_head_fg
+    head_target_data = np.hstack((gids_head_fg[:, np.newaxis], targets_head_fg))
+    targets_head[:n_fg], weights_head[:n_fg] = expand_bbox_regression_targets(head_target_data, n_grid)
     # gids_head[:n_fg] += 1
 
     part_gids = {}
@@ -229,8 +233,11 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints, gt_assignment):
     part_weights = {}
     joint_names = ('lshoulder', 'rshoulder', 'lhip', 'rhip')
     for i, j in enumerate(joint_names):
-        part_gids[j], part_targets[j], part_weights[j] = \
+        part_gids_fg, part_targets_fg, _ = \
                 transform_joint(rois[:, 1:], joints[:, (i*3):(i+1)*3], config.PART_GRID_HW)
+        part_gids[j] = part_gids_fg
+        part_target_data = np.hstack((part_gids_fg[:, np.newaxis], part_targets_fg))
+        part_targets[j], part_weights[j] = expand_bbox_regression_targets(part_target_data, n_grid)
 
     gids_joint[:n_fg] = np.hstack([part_gids[j] for j in joint_names])
     # gids_joint[:n_fg] += 1
