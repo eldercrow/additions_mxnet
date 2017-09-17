@@ -39,7 +39,7 @@ def prepare_groups(group_i, use_global_stats):
     for i, g in enumerate(groups[2:-1], 3):
         pad = (1, 1) if i < 5 else (0, 0)
         d = relu_conv_bn(g[0], 'dn{}/'.format(i),
-                num_filter=32, kernel=(3, 3), pad=pad, stride=(2, 2),
+                num_filter=64, kernel=(3, 3), pad=pad, stride=(2, 2),
                 use_global_stats=use_global_stats)
         groups[i].append(d)
 
@@ -68,7 +68,7 @@ def get_symbol(num_classes=1000, **kwargs):
     bn2 = mx.sym.concat(bn2_1, bn2_2)
 
     bn3_1 = relu_conv_bn(bn2, '3_1/',
-            num_filter=64, kernel=(3, 3), pad=(1, 1),
+            num_filter=128, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn3_2 = relu_conv_bn(bn2, '3_2/',
             num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
@@ -89,7 +89,7 @@ def get_symbol(num_classes=1000, **kwargs):
         groups[i] = g
 
     hyper_groups = []
-    nf_hyper = [192, 256, 256, 192, 192, 128]
+    nf_hyper = [192, 256, 256, 192, 192, 192]
 
     for i, g in enumerate(groups):
         p1 = relu_conv_bn(g, 'hyperc1{}/'.format(i),
@@ -103,12 +103,23 @@ def get_symbol(num_classes=1000, **kwargs):
         hyper_groups.append((h1, h2))
 
     pooled = []
+    ps = 8
     for i, h in enumerate(hyper_groups):
-        hc = mx.sym.concat(h[0], h[1], name='hyperconcat{}'.format(i))
-        p = mx.sym.Pooling(hc, kernel=(2, 2), global_pool=True, pool_type='max')
+        hc = mx.sym.concat(h[0], h[1])
+        if ps > 1:
+            p = mx.sym.Pooling(hc, kernel=(ps, ps), stride=(ps, ps), pool_type='max')
+        else:
+            p = hc
+        ps /= 2
         pooled.append(p)
 
     pooled_all = mx.sym.flatten(mx.sym.concat(*pooled), name='flatten')
-    fc1 = mx.sym.FullyConnected(pooled_all, num_hidden=4096, name='fc1')
-    softmax = mx.sym.SoftmaxOutput(data=fc1, label=label, name='softmax')
+    fc1 = mx.sym.FullyConnected(pooled_all, num_hidden=4096, name='fc1', no_bias=True)
+    bn_fc1 = mx.sym.BatchNorm(fc1, use_global_stats=use_global_stats, fix_gamma=False)
+    relu_fc1 = mx.sym.Activation(bn_fc1, act_type='relu')
+    fc2 = mx.sym.FullyConnected(relu_fc1, num_hidden=num_classes, name='fc2')
+    cls_prob = mx.sym.softmax(fc2, name='cls_prob')
+    softmax = mx.sym.Custom(fc2, cls_prob, label, op_type='smoothed_softmax_loss', name='softmax',
+            th_prob=1e-05, normalization='null')
+    # softmax = mx.sym.SoftmaxOutput(data=fc2, label=label, name='softmax')
     return softmax
