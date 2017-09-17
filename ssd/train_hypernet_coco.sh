@@ -3,15 +3,15 @@ python train.py \
     --val-path ./data/coco/val.rec \
     --num-class 80 \
     --class-names ./dataset/names/mscoco.names \
-    --network hypernetv3 \
+    --network hypernetv4 \
     --label-width 560 \
     --batch-size 32 \
     --data-shape 384 \
-    --optimizer-name sgd \
+    --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv3_voc_384 \
+    --pretrained none \
     --epoch 0 \
-    --lr 1e-02 \
+    --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \

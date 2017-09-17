@@ -109,6 +109,12 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch,
             assert k in aux_params, k + ' not initialized'
             assert aux_params[k].shape == aux_shape_dict[k], \
                 'shape inconsistent for ' + k + ' inferred ' + str(aux_shape_dict[k]) + ' provided ' + str(aux_params[k].shape)
+    else:
+        for k in sym.list_arguments():
+            if k in arg_params:
+                if arg_params[k].shape != arg_shape_dict[k]:
+                    arg_params.pop(k)
+                    logger.info('Removed parameter {}'.format(k))
 
     # create solver
     fixed_param_prefix = config.FIXED_PARAMS

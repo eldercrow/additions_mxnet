@@ -1,0 +1,21 @@
+python train.py \
+    --train-path ./data/DSS/train.rec \
+    --val-path ./data/DSS/val.rec \
+    --num-class 80 \
+    --class-names ./dataset/names/dss.names \
+    --label-width 560 \
+    --network pva101v2 \
+    --batch-size 32 \
+    --data-shape 384 \
+    --optimizer-name nadam \
+    --freeze '' \
+    --pretrained ~/github/model_mxnet/pva100/pva100 \
+    --epoch 0 \
+    --lr 1e-03 \
+    --use-plateau 1 \
+    --lr-steps 3,3,4,4,5,5,5 \
+    --lr-factor 0.316227766 \
+    --end-epoch 300 \
+    --frequent 100 \
+    --gpus 6,7
+    # --resume 9 \

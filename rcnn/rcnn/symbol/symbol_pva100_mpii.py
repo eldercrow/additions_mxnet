@@ -187,6 +187,8 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
     no_bias = False
     use_global_stats = True
 
+    num_grid = config.PART_GRID_HW[0] * config.PART_GRID_HW[1] # including bg
+
     data = mx.sym.Variable(name='data')
     im_info = mx.sym.Variable(name='im_info')
     gt_boxes = mx.sym.Variable(name='gt_boxes')
@@ -252,8 +254,9 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
     gt_joints_reshape = mx.sym.Reshape(data=gt_joints, shape=(-1, 12), name='gt_joints_reshape')
     group = mx.sym.Custom(rois=rois, gt_boxes=gt_boxes_reshape,
                           gt_head_boxes=gt_head_boxes_reshape, gt_joints=gt_joints_reshape,
-                          op_type='proposal_target',
-                          num_classes=num_classes, batch_images=config.TRAIN.BATCH_IMAGES,
+                          op_type='proposal_target_mpii',
+                          num_classes=num_classes, num_grids=num_grid,
+                          batch_images=config.TRAIN.BATCH_IMAGES,
                           batch_rois=config.TRAIN.BATCH_ROIS, fg_fraction=config.TRAIN.FG_FRACTION)
     rois = group[0]
     label = group[1]
@@ -293,7 +296,6 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
     bbox_loss = mx.sym.MakeLoss(bbox_loss_, name='bbox_loss', grad_scale=1.0 / config.TRAIN.BATCH_ROIS)
 
     # head classification
-    num_grid = config.PART_GRID_HW[0] * config.PART_GRID_HW[1] # including bg
     head_score = mx.sym.FullyConnected(fc7_relu, name='head_score', num_hidden=num_grid)
     head_prob = mx.sym.SoftmaxOutput(head_score, label=head_gid, name='head_prob', normalization='batch',
             use_ignore=True, ignore_label=-1)

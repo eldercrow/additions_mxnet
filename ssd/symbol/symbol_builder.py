@@ -82,6 +82,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     data_shape = (0, 0) if not 'data_shape' in kwargs else kwargs['data_shape']
     if isinstance(data_shape, int):
         data_shape = (data_shape, data_shape)
+    ignore_labels=[] if not 'ignore_labels' in kwargs else kwargs['ignore_labels']
 
     body = import_module(network).get_symbol(num_classes, **kwargs)
     layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
@@ -105,6 +106,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             *[anchor_boxes, label, cls_preds], overlap_threshold=.5, \
             ignore_label=-1, negative_mining_ratio=neg_ratio, minimum_negative_samples=0, \
             negative_mining_thresh=.5, variances=(0.1, 0.1, 0.2, 0.2),
+            ignore_labels=ignore_labels,
             name="multibox_target")
     loc_target = tmp[0]
     loc_target_mask = tmp[1]

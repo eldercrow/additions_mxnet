@@ -59,9 +59,9 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         """
         # get generated multi label from network
         cls_prob = mx.nd.pick(preds[0], preds[2], axis=1, keepdims=True).asnumpy()
-        cls_prob = np.maximum(cls_prob, self.eps)
+        # cls_prob = np.maximum(cls_prob, self.eps)
         cls_label = preds[2].asnumpy()
-        loss = -np.log(cls_prob)
+        loss = -np.log(np.maximum(cls_prob, self.eps))
         if self.use_focal_loss:
             gamma = float(cfg.train['focal_loss_gamma'])
             alpha = float(cfg.train['focal_loss_alpha'])

@@ -210,11 +210,11 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints, gt_assignment):
     n_grid = config.PART_GRID_HW[0] * config.PART_GRID_HW[1]
 
     gids_head = np.full((n_roi,), -1, dtype=np.float32)
-    targets_head = np.zeros((n_roi, 4), dtype=np.float32)
+    targets_head = np.zeros((n_roi, 4*n_grid), dtype=np.float32)
     weights_head = np.zeros_like(targets_head)
 
     gids_joint = np.full((n_roi, 4), -1, dtype=np.float32)
-    targets_joint = np.zeros((n_roi, 8), dtype=np.float32)
+    targets_joint = np.zeros((n_roi, 8*n_grid), dtype=np.float32)
     weights_joint = np.zeros_like(targets_joint)
 
     gt_inds = gt_assignment[fg_indexes]
@@ -236,8 +236,9 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints, gt_assignment):
         part_gids_fg, part_targets_fg, _ = \
                 transform_joint(rois[:, 1:], joints[:, (i*3):(i+1)*3], config.PART_GRID_HW)
         part_gids[j] = part_gids_fg
-        part_target_data = np.hstack((part_gids_fg[:, np.newaxis], part_targets_fg))
-        part_targets[j], part_weights[j] = expand_bbox_regression_targets(part_target_data, n_grid)
+        part_target_data = np.hstack((part_gids_fg, part_targets_fg))
+        part_targets[j], part_weights[j] = \
+                expand_bbox_regression_targets(part_target_data, n_grid, bbox_dim=2)
 
     gids_joint[:n_fg] = np.hstack([part_gids[j] for j in joint_names])
     # gids_joint[:n_fg] += 1
@@ -247,8 +248,9 @@ def _sample_part_info(rois, fg_indexes, head_bbs, joints, gt_assignment):
     if config.TRAIN.BBOX_NORMALIZATION_PRECOMPUTED:
         bbox_means = np.reshape(np.array(config.TRAIN.BBOX_MEANS), (-1, 4))
         bbox_stds = np.reshape(np.array(config.TRAIN.BBOX_STDS), (-1, 4))
-        targets_head[:n_fg] = (targets_head[:n_fg] - bbox_means) / bbox_stds
-        targets_joint[:n_fg] = (targets_joint[:n_fg] - np.tile(bbox_means[:, :2], (1, 4))) / \
-                np.tile(bbox_stds[:, :2], (1, 4))
+        targets_head[:n_fg] = (targets_head[:n_fg] - np.tile(bbox_means, (1, n_grid))) / \
+                               np.tile(bbox_stds, (1, n_grid))
+        targets_joint[:n_fg] = (targets_joint[:n_fg] - np.tile(bbox_means[:, :2], (1, n_grid*4))) / \
+                np.tile(bbox_stds[:, :2], (1, n_grid*4))
 
     return gids_head, targets_head, weights_head, gids_joint, targets_joint, weights_joint
