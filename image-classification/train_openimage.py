@@ -17,10 +17,10 @@ if __name__ == '__main__':
     data.set_data_aug_level(parser, 3)
     parser.set_defaults(
         # network
-        network          = 'hypernet',
+        network          = 'hypernetv6',
         # num_layers       = 50,
         # data
-        num_classes      = 1208,
+        num_classes      = 1209,
         num_examples     = 2680155,
         image_shape      = '3,224,224',
         min_random_scale = 1, # if input image has min size k, suggest to use
@@ -30,6 +30,7 @@ if __name__ == '__main__':
         lr_step_epochs   = '40,80',
     )
     args = parser.parse_args()
+    args.use_global_stats = False
 
     # load network
     from importlib import import_module
