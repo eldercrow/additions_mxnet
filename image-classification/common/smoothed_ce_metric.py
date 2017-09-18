@@ -37,7 +37,7 @@ class SmoothedCrossEntropy(mx.metric.EvalMetric):
     >>> print ce.get()
     ('cross-entropy', 0.57159948348999023)
     """
-    def __init__(self, th_prob=1e-06, eps=1e-12, name='smoothed-cross-entropy',
+    def __init__(self, th_prob=1e-05, eps=1e-12, name='smoothed-cross-entropy',
                  output_names=None, label_names=None):
         super(SmoothedCrossEntropy, self).__init__(
             name, th_prob=th_prob, eps=eps,

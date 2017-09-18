@@ -5,6 +5,7 @@ import os
 import sys
 from detect.detector import Detector
 from symbol.symbol_factory import get_symbol
+from tools.estimate_mac import estimate_mac
 
 def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx, num_class,
                  nms_thresh=0.5, force_nms=True, nms_topk=400):
@@ -35,6 +36,8 @@ def get_detector(net, prefix, epoch, data_shape, mean_pixels, ctx, num_class,
     if net is not None:
         net = get_symbol(net, data_shape, num_classes=num_class, nms_thresh=nms_thresh,
             force_nms=force_nms, nms_topk=nms_topk)
+
+    _, _ = estimate_mac(net, data_shape=(1, 3, data_shape, data_shape))
     detector = Detector(net, prefix, epoch, data_shape, mean_pixels, ctx=ctx)
     return detector
 

@@ -5,12 +5,6 @@ import json
 
 from ast import literal_eval as make_tuple
 
-import sys, os
-sys.path.append(os.path.abspath('../layer'))
-from multibox_prior_layer import *
-from multibox_target_layer import *
-from multibox_detection_layer import *
-from smoothed_focal_loss_layer import *
 
 def parse_args():
     #
@@ -24,12 +18,20 @@ def parse_args():
     return args
 
 
-def estimate_mac(prefix, epoch, data_shape, label_shape):
+def estimate_mac(net, data_shape, label_shape=None):
     '''
     '''
-    net, _, _ = mx.model.load_checkpoint(prefix, epoch)
+    # net, _, _ = mx.model.load_checkpoint(prefix, epoch)
     layers = net.get_internals()
-    arg_shapes, out_shapes, aux_shapes = layers.infer_shape_partial(data=data_shape, label=label_shape)
+    has_label = False
+    for l in layers:
+        if 'label' in l.name:
+            has_label = True
+            break
+    if has_label:
+        arg_shapes, out_shapes, aux_shapes = layers.infer_shape_partial(data=data_shape, label=label_shape)
+    else:
+        arg_shapes, out_shapes, aux_shapes = layers.infer_shape_partial(data=data_shape)
 
     json_net = json.loads(net.tojson())
     name_op_dict = {}
@@ -70,9 +72,12 @@ def estimate_mac(prefix, epoch, data_shape, label_shape):
     total_mac = 0
     for _, v in layer_info.items():
         total_mac += v[1]
+    print 'Total MAC = {:,}'.format(total_mac)
 
-    import ipdb
-    ipdb.set_trace()
+    total_gmac = total_mac / float(2**30)
+    print 'Total GMAC = {:,}'.format(total_gmac)
+
+    return total_mac, total_gmac
 
 
 def _estimate_conv(layer, out_shapes, arg_shapes):
@@ -142,6 +147,13 @@ def _estimate_fc(layer, out_shapes, arg_shapes):
 
 if __name__ == '__main__':
     #
+    import sys, os
+    sys.path.append(os.path.abspath('../layer'))
+    from multibox_prior_layer import *
+    from multibox_target_layer import *
+    from multibox_detection_layer import *
+    from smoothed_focal_loss_layer import *
+
     args = parse_args()
     if not args.prefix:
         args.prefix = '/home/hyunjoon/github/additions_mxnet/ssd/model/ssd_hypernetv6_384'
@@ -156,5 +168,6 @@ if __name__ == '__main__':
     else:
         args.label_shape = make_tuple(args.label_shape)
 
-    estimate_mac(args.prefix, args.epoch, args.data_shape, args.label_shape)
+    net, _, _ = mx.model.load_checkpoint(args.prefix, args.epoch)
+    estimate_mac(net, args.data_shape, args.label_shape)
 
