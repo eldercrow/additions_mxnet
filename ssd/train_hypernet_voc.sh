@@ -9,8 +9,7 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_hypernetv6_384 \
-    --epoch 1000 \
+    --resume 6 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,3,4,4,5,5,6 \
@@ -18,6 +17,8 @@ python train.py \
     --end-epoch 300 \
     --frequent 50 \
     --gpus 0,1
+    # --pretrained none \
+    # --epoch 1000 \
 # python train_imdb.py \
 #     --network hypernetv5 \
 #     --dataset pascal_voc \

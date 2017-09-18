@@ -14,6 +14,7 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         self.normalize = normalize
 
         self.eps = 1e-08
+        self.inited = False
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''
@@ -28,13 +29,20 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         p = mx.nd.pick(in_data[1], in_data[2], axis=1, keepdims=True)
         # p = mx.nd.maximum(p, self.eps)
 
-        ce = -mx.nd.log(mx.nd.maximum(p, self.eps))
-        sce = -p / self.th_prob - np.log(self.th_prob) + 1
+        # th_prob = self.th_prob
+        # if not self.inited:
+        #     self.inited = True
+        #     import ipdb
+        #     ipdb.set_trace()
+        th_prob = in_data[3].asscalar()
 
-        mask = p > self.th_prob
+        ce = -mx.nd.log(mx.nd.maximum(p, self.eps))
+        sce = -p / th_prob - np.log(th_prob) + 1
+
+        mask = p > th_prob
         sce = mask * ce + (1 - mask) * sce # smoothed cross entropy
 
-        thp = mx.nd.maximum(p, self.th_prob)
+        thp = mx.nd.maximum(p, th_prob)
         u = 1 - p if self.gamma == 2.0 else mx.nd.power(1 - p, self.gamma - 1.0)
         v = p * self.gamma * sce + (p / thp) * (1 - p)
         a = (in_data[2] > 0) * self.alpha + (in_data[2] == 0) * (1 - self.alpha)
@@ -48,12 +56,20 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         g = (in_data[1] - alpha) * gf
         g *= (in_data[2] >= 0)
 
+        g_th = mx.nd.minimum(p, th_prob) / th_prob / th_prob - 1.0 / th_prob
+        g_th *= mx.nd.power(1 - p, self.gamma)
+        g_th = mx.nd.sum(g_th) + in_data[2].size * th_prob * 2.0
+
         if self.normalize:
             g /= mx.nd.sum(in_data[2] > 0).asscalar()
+            g_th /= mx.nd.sum(in_data[2] > 0).asscalar() #in_data[2].size
+        if mx.nd.uniform(0, 1, (1,)).asscalar() < 0.01:
+            print th_prob
 
         self.assign(in_grad[0], req[0], g)
         self.assign(in_grad[1], req[1], 0)
         self.assign(in_grad[2], req[2], 0)
+        self.assign(in_grad[3], req[3], g_th)
 
 
 @mx.operator.register("smoothed_focal_loss")
@@ -69,14 +85,21 @@ class SmoothedFocalLossProp(mx.operator.CustomOpProp):
         self.normalize = bool(literal_eval(str(normalize)))
 
     def list_arguments(self):
-        return ['cls_pred', 'cls_prob', 'cls_target']
+        return ['cls_pred', 'cls_prob', 'cls_target', 'th_prob']
 
     def list_outputs(self):
         return ['cls_prob']
 
     def infer_shape(self, in_shape):
+        # in_shape[3] = (1,)
         out_shape = [in_shape[0], ]
-        return in_shape, out_shape, []
+        return in_shape, out_shape
+
+    # def infer_type(self, in_type):
+    #     dtype = in_type[0]
+    #     import ipdb
+    #     ipdb.set_trace()
+    #     return [dtype, dtype, dtype, dtype], [dtype], []
 
     def create_operator(self, ctx, shapes, dtypes):
         return SmoothedFocalLoss(self.alpha, self.gamma, self.th_prob, self.normalize)

@@ -170,4 +170,5 @@ if __name__ == '__main__':
 
     net, _, _ = mx.model.load_checkpoint(args.prefix, args.epoch)
     estimate_mac(net, args.data_shape, args.label_shape)
+    mx.viz.print_summary(net, {'data': (1, 3, 384, 384), 'label': (1, 50, 6)})
 

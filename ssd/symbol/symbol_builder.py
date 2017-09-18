@@ -122,13 +122,18 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
                     gamma=gamma, alpha=alpha, normalize=True)
         else:
             th_prob = cfg.train['smooth_ce_th']
-            cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='smoothed_focal_loss', name='cls_loss',
+            var_th_prob = mx.sym.var(name='th_prob_sce', shape=(1,), dtype=np.float32, \
+                    init=mx.init.Constant(np.log(th_prob)))
+            var_th_prob = mx.sym.exp(var_th_prob)
+            cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, var_th_prob,
+                    op_type='smoothed_focal_loss', name='cls_loss',
                     gamma=gamma, alpha=alpha, th_prob=th_prob, normalize=True)
         # cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     elif use_smooth_ce:
         th_prob = cfg.train['smooth_ce_th']
         cls_prob = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
-        cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='smoothed_softmax_loss', name='cls_loss',
+        cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target,
+                op_type='smoothed_softmax_loss', name='cls_loss',
                 th_prob=th_prob, normalization='valid')
     else:
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
@@ -148,8 +153,10 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     det = mx.symbol.MakeLoss(data=det, grad_scale=0, name="det_out")
 
     # group output
-    out = mx.symbol.Group([cls_loss, loc_loss, cls_label, loc_label, det, match_info])
-    return out
+    out = [cls_loss, loc_loss, cls_label, loc_label, det, match_info]
+    if use_focal_loss and use_smooth_ce:
+        out.append(mx.sym.BlockGrad(var_th_prob))
+    return mx.sym.Group(out)
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
                strides, pads, normalizations=-1, steps=[], upscales=1, min_filter=128,

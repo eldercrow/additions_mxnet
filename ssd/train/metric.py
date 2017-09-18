@@ -66,10 +66,11 @@ class MultiBoxMetric(mx.metric.EvalMetric):
             gamma = float(cfg.train['focal_loss_gamma'])
             alpha = float(cfg.train['focal_loss_alpha'])
             if self.use_smooth_ce:
-                th_prob = float(cfg.train['smooth_ce_th'])
+                th_prob = preds[6].asnumpy()[0] #float(cfg.train['smooth_ce_th'])
                 loss1 = -cls_prob / th_prob - np.log(th_prob) + 1
                 idx = cls_prob < th_prob
                 loss[idx] = loss1[idx]
+                loss += th_prob*th_prob
             loss *= np.power(1 - cls_prob, gamma)
             loss[cls_label > 0] *= alpha
             loss[cls_label ==0] *= 1 - alpha
