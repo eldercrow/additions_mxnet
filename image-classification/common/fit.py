@@ -174,7 +174,7 @@ def fit(args, network, data_loader, **kwargs):
         optimizer_params['multi_precision'] = True
 
     # #7847
-    model.init_optimizer(optimizer=args.optimizer, optimizer_params=optimizer_params, force_init=True)
+    # model.init_optimizer(optimizer=args.optimizer, optimizer_params=optimizer_params, force_init=True)
 
     monitor = mx.mon.Monitor(args.monitor, pattern=".*") if args.monitor > 0 else None
 
