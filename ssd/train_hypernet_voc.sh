@@ -3,13 +3,14 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network hypernetv6 \
+    --network hypernetv2 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --resume 6 \
+    --pretrained none \
+    --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,3,4,4,5,5,6 \
@@ -17,8 +18,6 @@ python train.py \
     --end-epoch 300 \
     --frequent 50 \
     --gpus 0,1
-    # --pretrained none \
-    # --epoch 1000 \
 # python train_imdb.py \
 #     --network hypernetv5 \
 #     --dataset pascal_voc \

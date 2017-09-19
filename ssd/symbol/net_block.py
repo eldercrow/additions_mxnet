@@ -1,14 +1,14 @@
 import mxnet as mx
 
 
-def convolution(data, name, num_filter, kernel, pad, stride=(1,1), no_bias=False, lr_mult=1.0):
+def convolution(data, name, num_filter, kernel, pad, stride=(1,1), dilate=(1,1), no_bias=False, lr_mult=1.0):
     ''' convolution with lr_mult and wd_mult '''
     w = mx.sym.var(name+'_weight', lr_mult=lr_mult, wd_mult=lr_mult)
     b = None
     if no_bias == False:
         b = mx.sym.var(name+'_bias', lr_mult=lr_mult*2.0, wd_mult=0.0)
     conv = mx.sym.Convolution(data, weight=w, bias=b, name=name, num_filter=num_filter,
-            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
+            kernel=kernel, pad=pad, stride=stride, dilate=dilate, no_bias=no_bias)
     return conv
 
 
@@ -66,7 +66,7 @@ def conv_bn(data, prefix_name, num_filter,
 
 
 def relu_conv_bn(data, prefix_name, num_filter,
-                 kernel=(3,3), pad=(0,0), stride=(1,1), no_bias=True,
+                 kernel=(3,3), pad=(0,0), stride=(1,1), dilate=(1,1), no_bias=True,
                  use_crelu=False,
                  use_global_stats=False, fix_gamma=False,
                  get_syms=False):
@@ -79,7 +79,7 @@ def relu_conv_bn(data, prefix_name, num_filter,
     syms['relu'] = relu_
 
     conv_ = convolution(relu_, conv_name, num_filter,
-            kernel=kernel, pad=pad, stride=stride, no_bias=no_bias)
+            kernel=kernel, pad=pad, stride=stride, dilate=dilate, no_bias=no_bias)
     syms['conv'] = conv_
 
     if use_crelu:

@@ -2,16 +2,17 @@ import mxnet as mx
 from symbol.net_block import *
 
 
-def prepare_groups(group_i, use_global_stats):
+def prepare_groups(data, use_global_stats):
     ''' prepare basic groups '''
     # 48 24 12 6 3 1
-    nf_3x3 = [(96, 48), (128, 64), (160, 80), (128, 64), (96,), ()]
-    nf_1x1 = [48, 64, 80, 64, 96, 192]
+    nf_3x3 = [(128, 64), (160, 80), (192, 96), (128, 64), (96,), ()]
+    nf_1x1 = [64, 80, 96, 64, 96, 192]
     n_unit = [2, 3, 3, 1, 1, 1]
 
     # prepare groups
     n_group = len(nf_1x1)
     groups = []
+    group_i = data
     for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
         kernel = (2, 2) if i < 5 else (3, 3)
         group_i = pool(group_i, kernel=kernel)
@@ -24,19 +25,40 @@ def prepare_groups(group_i, use_global_stats):
                     use_global_stats=use_global_stats)
 
         group_i = proj_add(g0, group_i, 'g{}/res/'.format(i), sum(nf3)+nf1, use_global_stats)
-        groups.append([group_i])
+        groups.append(group_i)
 
-    groups[0].append( \
-            upsample_feature(groups[1][0], name='up10/', scale=2,
-                num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
-    groups[0].append( \
-            upsample_feature(groups[2][0], name='up20/', scale=4,
-                num_filter_proj=64, num_filter_upsample=32, use_global_stats=use_global_stats))
-    groups[1].append( \
-            upsample_feature(groups[2][0], name='up21/', scale=2,
-                num_filter_proj=64, num_filter_upsample=0, use_global_stats=use_global_stats))
+    # context feature
+    ctx, ctx2 = prepare_context(groups[0], use_global_stats)
+    groups[0] = mx.sym.concat(groups[0], ctx)
+    groups[1] = mx.sym.concat(groups[1], ctx2)
 
     return groups
+
+
+def prepare_context(data, use_global_stats):
+    ''' prepare context info '''
+    nf_3x3 = (32, 64, 128)
+    nf_1x1 = (32, 32, 64)
+    dilate = (1, 2, 4)
+    n_unit = (1, 2, 2)
+
+    ctx = data
+    for i, (nf3, nf1, dil) in enumerate(zip(nf_3x3, nf_1x1, dilate)):
+        for j in range(n_unit[i]):
+            ctx = relu_conv_bn(ctx, 'ctx1x1{}/u{}/'.format(i, j),
+                    num_filter=nf1, kernel=(1, 1), pad=(0, 0),
+                    use_global_stats=use_global_stats)
+            ctx = relu_conv_bn(ctx, 'ctx3x3{}/u{}/'.format(i, j),
+                    num_filter=nf3, kernel=(3, 3), pad=(dil, dil), dilate=(dil, dil),
+                    use_global_stats=use_global_stats)
+
+    ctx2 = relu_conv_bn(ctx, 'ctx2/1x1/',
+            num_filter=64, kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+    ctx2 = relu_conv_bn(ctx, 'ctx2/3x3/',
+            num_filter=64, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
+            use_global_stats=use_global_stats)
+    return (ctx, ctx2)
 
 
 def get_symbol(num_classes=1000, **kwargs):
@@ -52,21 +74,25 @@ def get_symbol(num_classes=1000, **kwargs):
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
 
-    bn2 = relu_conv_bn(bn1, '2_1/',
-            num_filter=48, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+    bn2_1 = relu_conv_bn(bn1, '2_1/',
+            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
+    bn2_2 = relu_conv_bn(bn1, '2_2/',
+            num_filter=32, kernel=(3, 3), pad=(1, 1),
+            use_global_stats=use_global_stats)
+    bn2 = mx.sym.concat(bn2_1, bn2_2)
     pool2 = pool(bn2)
 
     bn3 = conv_group(pool2, '3/',
-            num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=False,
+            num_filter_3x3=(96, 48), num_filter_1x1=48, do_proj=False,
             use_global_stats=use_global_stats)
-    bn3 = proj_add(pool2, bn3, '3/res/', 128, use_global_stats)
+    bn3 = proj_add(pool2, bn3, '3/res/', 192, use_global_stats)
 
     groups = prepare_groups(bn3, use_global_stats)
 
     nf_group = [384, 512, 512, 384, 384, 256]
     for i, (g, nf) in enumerate(zip(groups, nf_group)):
-        g = mx.sym.concat(*g) if len(g) > 1 else g[0]
+        # g = mx.sym.concat(*g) if len(g) > 1 else g[0]
         g = relu_conv_bn(g, 'gc1x1/{}/'.format(i),
                 num_filter=nf/2, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)

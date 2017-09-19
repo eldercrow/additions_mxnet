@@ -62,7 +62,7 @@ def get_symbol(num_classes=1000, **kwargs):
 
     nf_group = [192, 192, 192, 192, 144, 144]
     for i, (g, nf) in enumerate(zip(groups, nf_group)):
-        g = mx.sym.concat(*g, name='gc{}/'.format(i)) if len(g) > 1 else g[0]
+        # g = mx.sym.concat(*g, name='gc{}/'.format(i)) if len(g) > 1 else g[0]
         g = relu_conv_bn(g, 'gc1x1{}/'.format(i),
                 num_filter=nf/2, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
