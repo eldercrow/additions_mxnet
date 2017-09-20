@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
     args = parse_args()
     if not args.prefix:
-        args.prefix = '/home/hyunjoon/github/additions_mxnet/ssd/model/ssd_hyperface_384'
+        args.prefix = '/home/hyunjoon/github/additions_mxnet/ssd/model/ssd_pva101v4_384'
     if not args.epoch:
         args.epoch = 1000
     if not args.data_shape:
@@ -170,5 +170,5 @@ if __name__ == '__main__':
 
     net, _, _ = mx.model.load_checkpoint(args.prefix, args.epoch)
     estimate_mac(net, args.data_shape, args.label_shape)
-    mx.viz.print_summary(net, {'data': (1, 3, 384, 384), 'label': (1, 50, 6)})
+    # mx.viz.print_summary(net, {'data': (1, 3, 384, 384), 'label': (1, 50, 6)})
 
