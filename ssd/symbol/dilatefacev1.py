@@ -8,11 +8,11 @@ def prepare_groups(group_i, use_global_stats):
     nf_dil = 16
     dilates = [1, 1, 2, 2, 4, 4, 8, 8]
     groups = []
-    for i, (nf, dil) in enumerate(zip(nf_dil, dilates)):
+    for i, dil in enumerate(dilates):
         dilate = (dil, dil)
         pad = dilate
         group_i = relu_conv_bn(group_i, 'gd{}/'.format(i),
-                num_filter=nf, kernel=(3, 3), pad=pad, dilate=dilate,
+                num_filter=nf_dil, kernel=(3, 3), pad=pad, dilate=dilate,
                 use_global_stats=use_global_stats)
         groups.append(group_i)
 
@@ -74,8 +74,9 @@ def get_symbol(num_classes=1000, **kwargs):
             num_filter=16, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn2 = mx.sym.concat(bn2_1, bn2_2)
+    pool2 = pool(bn2)
 
-    groups = prepare_groups(bn2, use_global_stats)
+    groups = prepare_groups(pool2, use_global_stats)
 
     # nf_group = [192, 192, 192, 192, 144, 144]
     # for i, (g, nf) in enumerate(zip(groups, nf_group)):

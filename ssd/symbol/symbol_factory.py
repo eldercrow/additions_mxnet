@@ -226,7 +226,7 @@ def get_config(network, data_shape, **kwargs):
         python_anchor = True
         del sz_list, sz0, sz_ratio
         return locals()
-    elif network in ('fasterface', 'hyperface', 'hyperfacev2', 'hyperfacev3'):
+    elif network in ('fasterface', 'hyperface', 'hyperfacev2', 'hyperfacev3', 'dilatefacev1'):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
