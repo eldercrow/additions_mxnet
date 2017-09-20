@@ -5,40 +5,42 @@ from symbol.net_block import *
 def prepare_groups(group_i, use_global_stats):
     ''' prepare basic groups '''
     # 96 48 24 12 6 3
-    nf_3x3 = [(32, 16), (48, 24), (64, 32), (80, 40), (48, 24), (48, 24), (48,)]
-    nf_1x1 = [16, 24, 32, 40, 24, 24, 48]
-    n_unit = [2, 2, 2, 2, 2, 1, 1]
+    nf_3x3 = [(32, 16), (48, 24), (64, 32), (64, 32), (48, 24), (48,)]
+    nf_1x1 = [16, 24, 32, 32, 24, 48]
+    n_unit = [2, 2, 3, 3, 1, 1]
 
     # prepare groups
     n_group = len(nf_1x1)
     groups = []
     for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
         group_i = pool(group_i)
+        g0 = group_i
         for j in range(n_unit[i]):
-            if j == 0:
-                g0 = relu_conv_bn(group_i, 'gp{}/'.format(i), num_filter=sum(nf3)+nf1,
-                        kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
-            else:
-                g0 = group_i
             prefix_name = 'g{}/u{}/'.format(i, j)
             group_i = conv_group(group_i, prefix_name,
-                    num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=True,
+                    num_filter_3x3=nf3, num_filter_1x1=nf1,
                     use_global_stats=use_global_stats)
-            group_i = g0 + group_i
+        group_i = proj_add(g0, group_i, 'g{}/res/'.format(i), sum(nf3)+nf1, use_global_stats)
         groups.append([group_i])
 
     # upsample for g0
     ss = 2
     for i, g in enumerate(groups[1:4], 1):
+        nf_proj = 32 * ss * ss / 4
+        nf_up = 32 / ss * 2
+        if i == 4:
+            nf_proj, nf_up = nf_proj / 2, nf_up / 2
         u = upsample_feature(g[0], name='up{}0/'.format(i), scale=ss,
-                num_filter_proj=32, num_filter_upsample=32, use_global_stats=use_global_stats)
+                num_filter_proj=nf_proj, num_filter_upsample=nf_up, use_global_stats=use_global_stats)
         groups[0].append(u)
         ss *= 2
     # upsample for g1
     ss = 2
     for i, g in enumerate(groups[2:4], 1):
+        nf_proj = 32 * ss * ss / 4
+        nf_up = 32 / ss * 2
         u = upsample_feature(g[0], name='up{}1/'.format(i), scale=ss,
-                num_filter_proj=32, num_filter_upsample=32, use_global_stats=use_global_stats)
+                num_filter_proj=nf_proj, num_filter_upsample=nf_up, use_global_stats=use_global_stats)
         groups[1].append(u)
         ss *= 2
 
@@ -54,18 +56,17 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=12, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1)
 
-    bn2 = relu_conv_bn(pool1, '2/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
-            use_global_stats=use_global_stats)
+    bn2 = relu_conv_bn(pool1, '2/', num_filter=24,
+            kernel=(3, 3), pad=(1, 1), use_global_stats=use_global_stats)
 
     groups = prepare_groups(bn2, use_global_stats)
 
-    nf_group = [256, 256, 256, 256, 192, 192, 192]
+    nf_group = [192, 192, 192, 192, 144, 144]
     for i, (g, nf) in enumerate(zip(groups, nf_group)):
         g = mx.sym.concat(*g, name='gc{}/'.format(i)) if len(g) > 1 else g[0]
         g = relu_conv_bn(g, 'gc1x1{}/'.format(i),
@@ -77,7 +78,7 @@ def get_symbol(num_classes=1000, **kwargs):
         groups[i] = g
 
     hyper_groups = []
-    nf_hyper = [128, 128, 128, 128, 96, 96, 96]
+    nf_hyper = [96, 96, 96, 96, 72, 72]
 
     for i, (g, nf) in enumerate(zip(groups, nf_hyper)):
         p1 = relu_conv_bn(g, 'hyperc1{}/'.format(i),

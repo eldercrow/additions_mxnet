@@ -226,7 +226,7 @@ def get_config(network, data_shape, **kwargs):
         python_anchor = True
         del sz_list, sz0, sz_ratio
         return locals()
-    elif network in ('fasterface', 'hyperface', 'hyperfacev2'):
+    elif network in ('fasterface', 'hyperface', 'hyperfacev2', 'hyperfacev3'):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
@@ -253,31 +253,31 @@ def get_config(network, data_shape, **kwargs):
         # mimic_fc = 1
         del sz_list, sz0, sz_ratio, rr
         return locals()
-    elif network in ('hyperfacev3',):
-        # network = 'facenet'
-        sz_list = []
-        sz0 = 12.0
-        sz_ratio = np.power(2.0, 0.333333)
-        for _ in range(7):
-            sz_list.append(sz0)
-            sz0 *= 2
-        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(len(sz_list))]
-        num_filters = [-1] * len(from_layers)
-        strides = [-1] * len(from_layers)
-        pads = [-1] * len(from_layers)
-        ratios = [[1.0,]] * len(from_layers)
-        sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
-        # sizes[0] = [12.0, 12.0 * sz_ratio]
-        sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
-        normalizations = -1
-        upscales = 1
-        steps = [2**(2+i) for i in range(len(sz_list))]
-        th_small = 8.0
-        python_anchor = True
-        square_bb = True
-        # mimic_fc = 1
-        del sz_list, sz0, sz_ratio
-        return locals()
+    # elif network in ('hyperfacev3',):
+    #     # network = 'facenet'
+    #     sz_list = []
+    #     sz0 = 12.0
+    #     sz_ratio = np.power(2.0, 0.333333)
+    #     for _ in range(7):
+    #         sz_list.append(sz0)
+    #         sz0 *= 2
+    #     from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(len(sz_list))]
+    #     num_filters = [-1] * len(from_layers)
+    #     strides = [-1] * len(from_layers)
+    #     pads = [-1] * len(from_layers)
+    #     ratios = [[1.0,]] * len(from_layers)
+    #     sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
+    #     # sizes[0] = [12.0, 12.0 * sz_ratio]
+    #     sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
+    #     normalizations = -1
+    #     upscales = 1
+    #     steps = [2**(2+i) for i in range(len(sz_list))]
+    #     th_small = 8.0
+    #     python_anchor = True
+    #     square_bb = True
+    #     # mimic_fc = 1
+    #     del sz_list, sz0, sz_ratio
+    #     return locals()
     else:
         msg = 'No configuration found for %s with data_shape %d' % (network, data_shape)
         raise NotImplementedError(msg)

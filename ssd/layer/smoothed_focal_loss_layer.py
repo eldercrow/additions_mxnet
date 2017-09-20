@@ -1,5 +1,6 @@
 import mxnet as mx
 import numpy as np
+import logging
 from ast import literal_eval
 
 
@@ -58,13 +59,13 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
 
         g_th = mx.nd.minimum(p, th_prob) / th_prob / th_prob - 1.0 / th_prob
         g_th *= mx.nd.power(1 - p, self.gamma)
-        g_th = mx.nd.sum(g_th) + in_data[2].size * th_prob * 2.0
+        g_th = mx.nd.sum(g_th) + in_data[2].size * th_prob #* n_class * n_class
 
         if self.normalize:
             g /= mx.nd.sum(in_data[2] > 0).asscalar()
             g_th /= mx.nd.sum(in_data[2] > 0).asscalar() #in_data[2].size
-        if mx.nd.uniform(0, 1, (1,)).asscalar() < 0.01:
-            print th_prob
+        if mx.nd.uniform(0, 1, (1,)).asscalar() < 0.001:
+            logging.getLogger().info('Current th_prob for smoothed CE = {}'.format(th_prob))
 
         self.assign(in_grad[0], req[0], g)
         self.assign(in_grad[1], req[1], 0)

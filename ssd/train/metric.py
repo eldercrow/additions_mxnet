@@ -70,7 +70,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
                 loss1 = -cls_prob / th_prob - np.log(th_prob) + 1
                 idx = cls_prob < th_prob
                 loss[idx] = loss1[idx]
-                loss += th_prob*th_prob
+                loss += 0.5 * th_prob * th_prob #* preds[0].shape[1] * preds[0].shape[1]
             loss *= np.power(1 - cls_prob, gamma)
             loss[cls_label > 0] *= alpha
             loss[cls_label ==0] *= 1 - alpha
@@ -80,6 +80,14 @@ class MultiBoxMetric(mx.metric.EvalMetric):
             idx = cls_prob < th_prob
             loss[idx] = loss1[idx]
         loss *= (cls_label >= 0)
+
+        '''
+        pidx = np.where(cls_label > 0)[0]
+        nidx = np.where(cls_label == 0)[0]
+        sidx = np.argsort(sort[nidx])[::-1]
+        n_hard = np.maximum(1, len(pidx) * 3)
+        sidx = sidx[:n_hard]
+        '''
 
         self.sum_metric[0] += loss.sum()
         self.num_inst[0] += np.sum(cls_label > 0) if self.use_focal_loss else np.sum(cls_label >= 0)
