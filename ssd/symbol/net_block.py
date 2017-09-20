@@ -137,9 +137,9 @@ def conv_group(data,
     return concat_
 
 
-def conv_dilate_group(data, prefix_name,
-               num_filter_3x3, num_filter_1x1=0, use_crelu=False,
-               do_proj=False, use_global_stats=False):
+def conv_dilate_group(data, prefix_name, 
+        num_filter_3x3, num_filter_1x1=0,
+        do_proj=False, use_global_stats=False):
     '''
     '''
     cgroup = []
@@ -157,7 +157,7 @@ def conv_dilate_group(data, prefix_name,
         pad = dilate
         bn_ = relu_conv_bn(
             bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
-            num_filter=nf3, kernel=(3,3), pad=pad, dilate=dilate, use_crelu=use_crelu,
+            num_filter=nf3, kernel=(3,3), pad=pad, dilate=dilate,
             use_global_stats=use_global_stats)
         cgroup.append(bn_)
 

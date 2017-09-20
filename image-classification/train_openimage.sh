@@ -7,7 +7,7 @@ python train_openimage.py \
     --image-shape '3,192,192' \
     --optimizer nadam \
     --gpus 0,1 \
-    --lr 2e-03 \
+    --lr 1e-03 \
     --disp 200 \
+    --load-epoch 49 \
     --model-prefix ./model/hypernetv6_openimage
-    # --load-epoch 1 \

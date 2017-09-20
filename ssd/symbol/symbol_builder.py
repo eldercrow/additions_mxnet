@@ -121,13 +121,14 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='reweight_loss', name='cls_loss',
                     gamma=gamma, alpha=alpha, normalize=True)
         else:
-            th_prob = cfg.train['smooth_ce_th']
+            th_prob = cfg.train['smooth_ce_th'] / float(num_classes)
+            w_reg = cfg.train['smooth_ce_lambda'] * float(num_classes)
             var_th_prob = mx.sym.var(name='th_prob_sce', shape=(1,), dtype=np.float32, \
                     init=mx.init.Constant(np.log(th_prob)))
             var_th_prob = mx.sym.exp(var_th_prob)
             cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, var_th_prob,
                     op_type='smoothed_focal_loss', name='cls_loss',
-                    gamma=gamma, alpha=alpha, th_prob=th_prob, normalize=True)
+                    gamma=gamma, alpha=alpha, th_prob=th_prob, w_reg=w_reg, normalize=True)
         # cls_loss = mx.sym.MakeLoss(cls_loss, grad_scale=1.0, name='cls_loss')
     elif use_smooth_ce:
         th_prob = cfg.train['smooth_ce_th']
@@ -157,6 +158,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     if use_focal_loss and use_smooth_ce:
         out.append(mx.sym.BlockGrad(var_th_prob))
     return mx.sym.Group(out)
+
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
                strides, pads, normalizations=-1, steps=[], upscales=1, min_filter=128,
