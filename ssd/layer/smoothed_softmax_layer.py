@@ -6,9 +6,10 @@ import numpy as np
 class SmoothedSoftmaxLoss(mx.operator.CustomOp):
     '''
     '''
-    def __init__(self, th_prob, normalization):
+    def __init__(self, th_prob, w_reg, normalization):
         super(SmoothedSoftmaxLoss, self).__init__()
         self.th_prob = th_prob
+        self.w_reg = w_reg
         self.normalization = normalization
 
     def forward(self, is_train, req, in_data, out_data, aux):
@@ -53,10 +54,11 @@ class SmoothedSoftmaxLoss(mx.operator.CustomOp):
 class SmoothedSoftmaxLossProp(mx.operator.CustomOpProp):
     '''
     '''
-    def __init__(self, th_prob=0.1, normalization='valid'):
+    def __init__(self, th_prob=0.1, w_reg=1.0, normalization='valid'):
         #
         super(SmoothedSoftmaxLossProp, self).__init__(need_top_grad=False)
         self.th_prob = float(th_prob)
+        self.w_reg = float(w_reg)
         self.normalization = normalization
 
     def list_arguments(self):
@@ -71,4 +73,4 @@ class SmoothedSoftmaxLossProp(mx.operator.CustomOpProp):
         return in_shape, out_shape, []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return SmoothedSoftmaxLoss(self.th_prob, self.normalization)
+        return SmoothedSoftmaxLoss(self.th_prob, self.w_reg, self.normalization)

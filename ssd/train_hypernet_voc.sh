@@ -9,9 +9,9 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained none \
+    --pretrained ./model/ssd_hypernetv2_384 \
     --epoch 1000 \
-    --lr 1e-03 \
+    --lr 1e-04 \
     --use-plateau 1 \
     --lr-steps 3,3,4,4,5,5,6 \
     --lr-factor 0.316227766 \

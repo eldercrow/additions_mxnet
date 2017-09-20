@@ -55,7 +55,7 @@ def prepare_context(data, use_global_stats):
     ctx2 = relu_conv_bn(ctx, 'ctx2/1x1/',
             num_filter=64, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-    ctx2 = relu_conv_bn(ctx, 'ctx2/3x3/',
+    ctx2 = relu_conv_bn(ctx2, 'ctx2/3x3/',
             num_filter=64, kernel=(3, 3), pad=(1, 1), stride=(2, 2),
             use_global_stats=use_global_stats)
     return (ctx, ctx2)

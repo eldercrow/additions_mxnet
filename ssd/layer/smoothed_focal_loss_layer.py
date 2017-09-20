@@ -1,16 +1,18 @@
 import mxnet as mx
 import numpy as np
+import logging
 from ast import literal_eval
 
 
 class SmoothedFocalLoss(mx.operator.CustomOp):
     '''
     '''
-    def __init__(self, alpha, gamma, th_prob, normalize):
+    def __init__(self, alpha, gamma, th_prob, w_reg, normalize):
         super(SmoothedFocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.th_prob = th_prob
+        self.w_reg = w_reg
         self.normalize = normalize
 
         self.eps = 1e-08
@@ -58,13 +60,13 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
 
         g_th = mx.nd.minimum(p, th_prob) / th_prob / th_prob - 1.0 / th_prob
         g_th *= mx.nd.power(1 - p, self.gamma)
-        g_th = mx.nd.sum(g_th) + in_data[2].size * th_prob * 2.0
+        g_th = mx.nd.sum(g_th) + in_data[2].size * th_prob * 2.0 * self.w_reg
 
         if self.normalize:
             g /= mx.nd.sum(in_data[2] > 0).asscalar()
             g_th /= mx.nd.sum(in_data[2] > 0).asscalar() #in_data[2].size
-        if mx.nd.uniform(0, 1, (1,)).asscalar() < 0.01:
-            print th_prob
+        if mx.nd.uniform(0, 1, (1,)).asscalar() < 0.001:
+            logging.getLogger().info('Current th_prob for smoothed CE: {}'.format(th_prob))
 
         self.assign(in_grad[0], req[0], g)
         self.assign(in_grad[1], req[1], 0)
@@ -76,12 +78,13 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
 class SmoothedFocalLossProp(mx.operator.CustomOpProp):
     '''
     '''
-    def __init__(self, alpha=0.25, gamma=2.0, th_prob=0.1, normalize=False):
+    def __init__(self, alpha=0.25, gamma=2.0, th_prob=0.1, w_reg=1.0, normalize=False):
         #
         super(SmoothedFocalLossProp, self).__init__(need_top_grad=False)
         self.alpha = float(alpha)
         self.gamma = float(gamma)
         self.th_prob = float(th_prob)
+        self.w_reg = float(w_reg)
         self.normalize = bool(literal_eval(str(normalize)))
 
     def list_arguments(self):
@@ -102,4 +105,4 @@ class SmoothedFocalLossProp(mx.operator.CustomOpProp):
     #     return [dtype, dtype, dtype, dtype], [dtype], []
 
     def create_operator(self, ctx, shapes, dtypes):
-        return SmoothedFocalLoss(self.alpha, self.gamma, self.th_prob, self.normalize)
+        return SmoothedFocalLoss(self.alpha, self.gamma, self.th_prob, self.w_reg, self.normalize)
