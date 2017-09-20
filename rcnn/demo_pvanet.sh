@@ -1,7 +1,7 @@
 #!/bin/bash
 python demo_pvanet_mpii.py \
     --prefix ./model/pva100_mpii \
-    --epoch 120 \
+    --epoch 41 \
     --gpu 0 \
     --image /home/hyunjoon/faster-rcnn/data/demo/077486027.jpg \
     --vis
