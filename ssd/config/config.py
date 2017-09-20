@@ -53,7 +53,7 @@ cfg.train.inter_method = 10  # random interpolation
 cfg.train.rand_mirror_prob = 0.5
 cfg.train.shuffle = True
 cfg.train.seed = 0
-cfg.train.preprocess_threads = 48
+cfg.train.preprocess_threads = 8
 
 ### [eldercrow] my additions
 # cfg.train.mimic_fc = 2

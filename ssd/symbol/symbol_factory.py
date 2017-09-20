@@ -162,7 +162,7 @@ def get_config(network, data_shape, **kwargs):
         mimic_fc = 2
         python_anchor = True
         return locals()
-    elif network in ('pva101v2', 'pva101v3'):
+    elif network in ('pva101v2', 'pva101v3', 'pva101v4'):
         # network = 'pva101'
         assert data_shape == 384
         from_layers = [('hyper{}_0/relu'.format(i), 'hyper{}_1/relu'.format(i)) for i in range(6)]
