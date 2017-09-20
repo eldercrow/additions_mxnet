@@ -121,8 +121,8 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
             cls_loss = mx.sym.Custom(cls_preds, cls_prob, cls_target, op_type='reweight_loss', name='cls_loss',
                     gamma=gamma, alpha=alpha, normalize=True)
         else:
-            th_prob = cfg.train['smooth_ce_th']
-            w_reg = cfg.train['smooth_ce_lambda']
+            th_prob = cfg.train['smooth_ce_th'] / float(num_classes)
+            w_reg = cfg.train['smooth_ce_lambda'] * float(num_classes)
             var_th_prob = mx.sym.var(name='th_prob_sce', shape=(1,), dtype=np.float32, \
                     init=mx.init.Constant(np.log(th_prob)))
             var_th_prob = mx.sym.exp(var_th_prob)

@@ -71,7 +71,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
                 loss1 = -cls_prob / th_prob - np.log(th_prob) + 1
                 idx = cls_prob < th_prob
                 loss[idx] = loss1[idx]
-                loss += th_prob * th_prob * w_reg
+                loss += th_prob * th_prob * w_reg * preds[0].shape[1]
             loss *= np.power(1 - cls_prob, gamma)
             loss[cls_label > 0] *= alpha
             loss[cls_label ==0] *= 1 - alpha

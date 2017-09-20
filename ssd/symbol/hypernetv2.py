@@ -20,7 +20,7 @@ def prepare_groups(data, use_global_stats):
 
         for j in range(n_unit[i]):
             prefix_name = 'g{}/u{}/'.format(i, j)
-            group_i = conv_group(group_i, prefix_name,
+            group_i = conv_dilate_group(group_i, prefix_name,
                     num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=False,
                     use_global_stats=use_global_stats)
 
