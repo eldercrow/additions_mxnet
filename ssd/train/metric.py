@@ -6,7 +6,7 @@ import cv2
 
 class MultiBoxMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, fn_stat=None, eps=1e-08):
+    def __init__(self, fn_stat=None, eps=np.finfo(np.float32).eps):
         # managed internally, for debug only
         self.fn_stat = fn_stat
         self.aphw_grid = np.zeros((100, 100), dtype=np.int64)

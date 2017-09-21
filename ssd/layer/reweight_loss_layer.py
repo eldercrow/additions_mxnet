@@ -12,7 +12,7 @@ class ReweightLoss(mx.operator.CustomOp):
         self.gamma = gamma
         self.normalize = normalize
 
-        self.eps = 1e-14
+        self.eps = np.finfo(np.float32).eps
 
     def forward(self, is_train, req, in_data, out_data, aux):
         '''

@@ -153,6 +153,7 @@ if __name__ == '__main__':
     from multibox_target_layer import *
     from multibox_detection_layer import *
     from smoothed_focal_loss_layer import *
+    from reweight_loss_layer import *
 
     args = parse_args()
     if not args.prefix:
