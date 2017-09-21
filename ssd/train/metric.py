@@ -6,7 +6,7 @@ import cv2
 
 class MultiBoxMetric(mx.metric.EvalMetric):
     """Calculate metrics for Multibox training """
-    def __init__(self, fn_stat=None, eps=1e-08):
+    def __init__(self, fn_stat=None, eps=np.finfo(np.float32).eps):
         # managed internally, for debug only
         self.fn_stat = fn_stat
         self.aphw_grid = np.zeros((100, 100), dtype=np.int64)
@@ -81,6 +81,14 @@ class MultiBoxMetric(mx.metric.EvalMetric):
             idx = cls_prob < th_prob
             loss[idx] = loss1[idx]
         loss *= (cls_label >= 0)
+
+        '''
+        pidx = np.where(cls_label > 0)[0]
+        nidx = np.where(cls_label == 0)[0]
+        sidx = np.argsort(sort[nidx])[::-1]
+        n_hard = np.maximum(1, len(pidx) * 3)
+        sidx = sidx[:n_hard]
+        '''
 
         self.sum_metric[0] += loss.sum()
         self.num_inst[0] += np.sum(cls_label > 0) if self.use_focal_loss else np.sum(cls_label >= 0)

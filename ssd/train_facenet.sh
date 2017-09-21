@@ -2,7 +2,7 @@ python train_imdb.py \
     --dataset wider \
     --image-set train \
     --devkit-path ./data/wider \
-    --network hyperfacev2 \
+    --network dilatefacev1 \
     --prefix ./model/ssd \
     --batch-size 32 \
     --data-shape 384 \
@@ -14,7 +14,7 @@ python train_imdb.py \
     --optimizer-name nadam \
     --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 3,3,4,4,5,5,6 \
+    --lr-steps 3,3,3,3,4,4,4 \
     --lr-factor 0.316227766 \
     --frequent 50 \
     --gpus 0,1

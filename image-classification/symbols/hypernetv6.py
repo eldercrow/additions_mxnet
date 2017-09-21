@@ -121,6 +121,6 @@ def get_symbol(num_classes=1000, **kwargs):
     fc2 = mx.sym.FullyConnected(relu_fc1, num_hidden=num_classes, name='fc2')
     cls_prob = mx.sym.softmax(fc2, name='cls_prob')
     softmax = mx.sym.Custom(fc2, cls_prob, label, op_type='smoothed_softmax_loss', name='softmax',
-            th_prob=1e-05, normalization='null')
+            th_prob=1e-06, normalization='null')
     # softmax = mx.sym.SoftmaxOutput(data=fc2, label=label, name='softmax')
     return softmax

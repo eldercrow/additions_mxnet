@@ -3,7 +3,7 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network pva101v2 \
+    --network pva101v4 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
@@ -12,7 +12,7 @@ python train.py \
     --epoch 0 \
     --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 2,3,3,4,4,5,5,5 \
+    --lr-steps 2,2,3,3,4,4,5,5 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \

@@ -3,17 +3,17 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network hypernetv2 \
+    --network dilatenetv3 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained none \
-    --epoch 1000 \
+    --pretrained ./model/ssd_dilatenetv3_384 \
+    --epoch 5 \
     --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 2,2,3,3,4,4,5,5 \
+    --lr-steps 3,3,3,3,4,4,5,5 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \

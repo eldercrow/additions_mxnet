@@ -17,7 +17,7 @@ class FaceTestIter(mx.io.DataIter):
         [R, G, B], mean pixel values
     """
     def __init__(self, imdb, has_label=False, fix_hw=False,
-            min_hw=(1920, 1920), mean_pixels=[128, 128, 128], img_stride=128):
+            min_hw=(384, 384), mean_pixels=[128, 128, 128], img_stride=128):
         super(FaceTestIter, self).__init__()
 
         self._imdb = imdb

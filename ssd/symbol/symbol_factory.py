@@ -99,7 +99,7 @@ def get_config(network, data_shape, **kwargs):
         mimic_fc = 2
         python_anchor = True
         return locals()
-    elif network in ('hypernetv5', 'hypernetv3', 'hypernetv2', 'hypernetv4', 'hypernetv6'):
+    elif network in ('hypernetv2', 'hypernetv4', 'dilatenetv1', 'dilatenetv2', 'dilatenetv3'):
         from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
@@ -116,7 +116,7 @@ def get_config(network, data_shape, **kwargs):
         normalizations = -1
         steps = []
         th_small = 16.0 / data_shape
-        mimic_fc = 2 if network == 'hypernetv5' else 1
+        mimic_fc = 0 if network == 'dilatenetv2' else 1
         dense_vh = True
         python_anchor = True
         return locals()
@@ -162,7 +162,7 @@ def get_config(network, data_shape, **kwargs):
         mimic_fc = 2
         python_anchor = True
         return locals()
-    elif network in ('pva101v2', 'pva101v3'):
+    elif network in ('pva101v2', 'pva101v3', 'pva101v4'):
         # network = 'pva101'
         assert data_shape == 384
         from_layers = [('hyper{}_0/relu'.format(i), 'hyper{}_1/relu'.format(i)) for i in range(6)]
@@ -226,7 +226,7 @@ def get_config(network, data_shape, **kwargs):
         python_anchor = True
         del sz_list, sz0, sz_ratio
         return locals()
-    elif network in ('fasterface', 'hyperface', 'hyperfacev2'):
+    elif network in ('fasterface', 'hyperface', 'hyperfacev2', 'hyperfacev3', 'dilatefacev2', 'dilatefacev1'):
         # network = 'facenet'
         sz_list = []
         sz0 = 12.0
@@ -253,31 +253,31 @@ def get_config(network, data_shape, **kwargs):
         # mimic_fc = 1
         del sz_list, sz0, sz_ratio, rr
         return locals()
-    elif network in ('hyperfacev3',):
-        # network = 'facenet'
-        sz_list = []
-        sz0 = 12.0
-        sz_ratio = np.power(2.0, 0.333333)
-        for _ in range(7):
-            sz_list.append(sz0)
-            sz0 *= 2
-        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(len(sz_list))]
-        num_filters = [-1] * len(from_layers)
-        strides = [-1] * len(from_layers)
-        pads = [-1] * len(from_layers)
-        ratios = [[1.0,]] * len(from_layers)
-        sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
-        # sizes[0] = [12.0, 12.0 * sz_ratio]
-        sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
-        normalizations = -1
-        upscales = 1
-        steps = [2**(2+i) for i in range(len(sz_list))]
-        th_small = 8.0
-        python_anchor = True
-        square_bb = True
-        # mimic_fc = 1
-        del sz_list, sz0, sz_ratio
-        return locals()
+    # elif network in ('hyperfacev3',):
+    #     # network = 'facenet'
+    #     sz_list = []
+    #     sz0 = 12.0
+    #     sz_ratio = np.power(2.0, 0.333333)
+    #     for _ in range(7):
+    #         sz_list.append(sz0)
+    #         sz0 *= 2
+    #     from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(len(sz_list))]
+    #     num_filters = [-1] * len(from_layers)
+    #     strides = [-1] * len(from_layers)
+    #     pads = [-1] * len(from_layers)
+    #     ratios = [[1.0,]] * len(from_layers)
+    #     sizes = [[ss / sz_ratio, ss, ss * sz_ratio] for ss in sz_list]
+    #     # sizes[0] = [12.0, 12.0 * sz_ratio]
+    #     sizes[-1] = [sz_list[-1] / sz_ratio, sz_list[-1]]
+    #     normalizations = -1
+    #     upscales = 1
+    #     steps = [2**(2+i) for i in range(len(sz_list))]
+    #     th_small = 8.0
+    #     python_anchor = True
+    #     square_bb = True
+    #     # mimic_fc = 1
+    #     del sz_list, sz0, sz_ratio
+    #     return locals()
     else:
         msg = 'No configuration found for %s with data_shape %d' % (network, data_shape)
         raise NotImplementedError(msg)

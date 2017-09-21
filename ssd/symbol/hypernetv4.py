@@ -5,9 +5,9 @@ from symbol.net_block import *
 def prepare_groups(group_i, use_global_stats):
     ''' prepare basic groups '''
     # 48 24 12 6 3 1
-    nf_3x3 = [(96, 48), (128, 64), (192, 96), (128, 64), (96,), ()]
-    nf_1x1 = [48, 64, 96, 64, 96, 192]
-    n_unit = [3, 4, 3, 2, 1, 1]
+    nf_3x3 = [(128, 64), (160, 80), (192, 96), (128, 64), (96,), ()]
+    nf_1x1 = [64, 80, 96, 64, 96, 192]
+    n_unit = [2, 3, 2, 1, 1, 1]
 
     # prepare groups
     n_group = len(nf_1x1)
@@ -55,27 +55,27 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+        num_filter=24, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = pool(bn1)
 
     bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=36, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
     bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1),
+            num_filter=24, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn2 = mx.sym.concat(bn2_1, bn2_2)
     pool2 = pool(bn2)
 
     bn3_1 = conv_group(pool2, '3_1/',
-            num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=False,
+            num_filter_3x3=(96, 48), num_filter_1x1=48, do_proj=False,
             use_global_stats=use_global_stats)
     bn3_2 = conv_group(bn3_1, '3_2/',
-            num_filter_3x3=(64, 32), num_filter_1x1=32, do_proj=False,
+            num_filter_3x3=(96, 48), num_filter_1x1=48, do_proj=False,
             use_global_stats=use_global_stats)
-    bn3 = proj_add(pool2, bn3_2, '3/', 128, use_global_stats=use_global_stats)
+    bn3 = proj_add(pool2, bn3_2, '3/', 192, use_global_stats=use_global_stats)
 
     groups = prepare_groups(bn3, use_global_stats)
 
