@@ -83,7 +83,7 @@ def get_symbol(num_classes=1000, **kwargs):
     pool1 = pool(bn1)
 
     bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
     bn2_2 = relu_conv_bn(pool1, '2_2/',
             num_filter=16, kernel=(3, 3), pad=(1, 1),

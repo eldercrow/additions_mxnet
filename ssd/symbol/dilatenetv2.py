@@ -5,8 +5,8 @@ from symbol.net_block import *
 def prepare_groups(group_i, use_global_stats):
     ''' prepare basic groups '''
     # 96 48 24 12 6 3
-    dilates = [1, 1, 2, 2, 4, 4, 8, 8]
-    nf_dil = [64 for _ in dilates] #[128, 128, 64, 64, 64, 64]
+    dilates = [1, 1, 2, 2, 4, 4]
+    nf_dil = [128, 128, 64, 64, 64, 64]
     groups = []
     for i, (nf, dil) in enumerate(zip(nf_dil, dilates)):
         dilate = (dil, dil)
@@ -29,9 +29,9 @@ def prepare_groups(group_i, use_global_stats):
     # 48, 96, 192
     groups = [g]
     for i in range(1, 5):
-        if i == 4:
+        if i == 3:
             g = relu_conv_bn(g, 'g{}/'.format(i),
-                    num_filter=nf_all, kernel=(3, 3), pad=(2, 2), dilate=(2, 2),
+                    num_filter=nf_all, kernel=(3, 3), pad=(4, 4), dilate=(4, 4),
                     use_global_stats=use_global_stats)
 
         g = relu_conv_bn(g, 'g{}/1x1/'.format(i),
