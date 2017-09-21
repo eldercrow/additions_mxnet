@@ -2,7 +2,7 @@ python train_imdb.py \
     --dataset wider \
     --image-set train \
     --devkit-path ./data/wider \
-    --network dilatefacev1 \
+    --network dilatefacev2 \
     --prefix ./model/ssd \
     --batch-size 32 \
     --data-shape 384 \
