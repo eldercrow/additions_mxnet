@@ -15,7 +15,7 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         self.w_reg = w_reg
         self.normalize = normalize
 
-        self.eps = 1e-08
+        self.eps = np.finfo(np.float32).eps
         self.inited = False
 
     def forward(self, is_train, req, in_data, out_data, aux):
