@@ -156,7 +156,7 @@ if __name__ == '__main__':
 
     args = parse_args()
     if not args.prefix:
-        args.prefix = '/home/hyunjoon/github/additions_mxnet/ssd/model/ssd_hypernetv6_384'
+        args.prefix = '/home/hyunjoon/github/additions_mxnet/ssd/model/ssd_hypernetv2_384'
     if not args.epoch:
         args.epoch = 1000
     if not args.data_shape:

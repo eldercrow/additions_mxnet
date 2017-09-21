@@ -137,7 +137,7 @@ def conv_group(data,
     return concat_
 
 
-def conv_dilate_group(data, prefix_name, 
+def conv_dilate_group(data, prefix_name,
         num_filter_3x3, num_filter_1x1=0,
         do_proj=False, use_global_stats=False):
     '''
