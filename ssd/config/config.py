@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from utils import DotDict, namedtuple_with_defaults, zip_namedtuple, config_as_dict
 
 RandCropper = namedtuple_with_defaults('RandCropper',
@@ -52,8 +53,8 @@ cfg.train.color_jitter = ColorJitter(random_hue_prob=0.5, random_saturation_prob
 cfg.train.inter_method = 10  # random interpolation
 cfg.train.rand_mirror_prob = 0.5
 cfg.train.shuffle = True
-cfg.train.seed = 0
-cfg.train.preprocess_threads = 8
+# cfg.train.seed = 0
+cfg.train.preprocess_threads = 32
 
 ### [eldercrow] my additions
 # cfg.train.mimic_fc = 2

@@ -9,7 +9,7 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_dilatenetv3_384 \
+    --pretrained none \
     --epoch 5 \
     --lr 1e-03 \
     --use-plateau 1 \
