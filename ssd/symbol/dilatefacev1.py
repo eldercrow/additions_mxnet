@@ -5,7 +5,7 @@ from symbol.net_block import *
 def prepare_groups(group_i, use_global_stats):
     ''' prepare basic groups '''
     # 96 48 24 12 6 3
-    nf_dil = [24] * 8
+    nf_dil = [16] * 8
     # nf_dil = [16, 16, 16, 16, 16, 16, 16, 16]
     dilates = [1, 1, 2, 2, 4, 4, 8, 8]
     groups = []
@@ -104,7 +104,7 @@ def get_symbol(num_classes=1000, **kwargs):
     #     groups[i] = g
 
     hyper_groups = []
-    nf_hyper = [96] * 6
+    nf_hyper = [64] * 6
     # nf_hyper = [64] * 6
 
     for i, (g, nf) in enumerate(zip(groups, nf_hyper)):
