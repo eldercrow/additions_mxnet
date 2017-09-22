@@ -3,7 +3,7 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network dilatenetv3 \
+    --network dilatenetv2 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
