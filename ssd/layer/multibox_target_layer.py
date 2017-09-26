@@ -138,14 +138,14 @@ class MultiBoxTarget(mx.operator.CustomOp):
             if len(pidx) == 0:
                 # at least one positive sample
                 pidx = [np.argmax(iou)]
-            ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
-            ridx = np.setdiff1d(ridx, pidx)
 
             target_cls[pidx] = gt_cls
             rt, rm = _compute_loc_target(label[1:], self.anchors[pidx, :], self.variances)
             target_reg[pidx, :] = rt
             mask_reg[pidx, :] = rm
 
+            # ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
+            # ridx = np.setdiff1d(ridx, pidx)
             # ridx = ridx[max_cids[ridx] == gt_cls]
             # ridx = ridx[target_cls[ridx] == -1]
             # n_reg_sample = len(pidx) * self.reg_sample_ratio

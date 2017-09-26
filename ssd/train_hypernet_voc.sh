@@ -3,21 +3,21 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network dilatenetv3 \
+    --network dilatenetv4 \
     --label-width 350 \
-    --batch-size 32 \
+    --batch-size 2 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ~/github/model_mxnet/dilatenet/dilatenetv3_openimage \
-    --epoch 0 \
+    --pretrained ~/github/model_mxnet/dilatenet/dilatenetv4_openimage \
+    --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,3,3,3,4,4,5,5 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \
-    --gpus 0,1
+    --gpus 0
 # python train_imdb.py \
 #     --network hypernetv5 \
 #     --dataset pascal_voc \

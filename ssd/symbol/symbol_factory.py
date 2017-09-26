@@ -99,7 +99,7 @@ def get_config(network, data_shape, **kwargs):
         mimic_fc = 2
         python_anchor = True
         return locals()
-    elif network in ('hypernetv2', 'hypernetv4', 'dilatenetv1', 'dilatenetv2', 'dilatenetv3'):
+    elif network in ('hypernetv2', 'hypernetv4', 'dilatenetv1', 'dilatenetv2', 'dilatenetv3', 'dilatenetv4'):
         from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
