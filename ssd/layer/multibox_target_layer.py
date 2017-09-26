@@ -127,7 +127,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
-            gt_sz = np.minimum(label[3]-label[1], label[4]-label[2])
+            gt_sz = np.maximum(label[3]-label[1], label[4]-label[2])
             if gt_sz < self.th_small and np.max(iou) < self.th_iou_neg:
                 continue
             # skip oob boxes
@@ -146,15 +146,15 @@ class MultiBoxTarget(mx.operator.CustomOp):
             target_reg[pidx, :] = rt
             mask_reg[pidx, :] = rm
 
-            ridx = ridx[max_cids[ridx] == gt_cls]
+            # ridx = ridx[max_cids[ridx] == gt_cls]
             # ridx = ridx[target_cls[ridx] == -1]
             # n_reg_sample = len(pidx) * self.reg_sample_ratio
             # if len(ridx) > n_reg_sample:
             #     ridx = np.random.choice(ridx, n_reg_sample, replace=False)
             # target_cls[ridx] = -1
-            rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
-            target_reg[ridx, :] = rt
-            mask_reg[ridx, :] = rm
+            # rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
+            # target_reg[ridx, :] = rt
+            # mask_reg[ridx, :] = rm
 
             if len(pidx) > 50:
                 pidx = pidx[:50]
@@ -317,7 +317,7 @@ def _fit_box_ratio(bb, ratio):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self,
-            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0,
+            th_iou=0.5, th_iou_neg=0.4, th_nms_neg=1.0,
             th_small=0.04, square_bb=False,
             reg_sample_ratio=1.0, hard_neg_ratio=3.0,
             variances=(0.1, 0.1, 0.2, 0.2), ignore_labels=''):

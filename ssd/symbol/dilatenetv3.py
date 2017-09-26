@@ -39,7 +39,7 @@ def prepare_groups(group_i, use_global_stats):
         if i == 3:
             # following the original ssd
             g = relu_conv_bn(g, 'g{}/'.format(i),
-                    num_filter=nf_all, kernel=(3, 3), pad=(4, 4), dilate=(4, 4),
+                    num_filter=nf_all, kernel=(3, 3), pad=(2, 2), dilate=(2, 2),
                     use_global_stats=use_global_stats)
 
         gp = pool(g)

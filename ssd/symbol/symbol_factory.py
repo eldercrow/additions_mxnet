@@ -115,7 +115,7 @@ def get_config(network, data_shape, **kwargs):
         sizes[-1] = [sizes[-1][0],]
         normalizations = -1
         steps = []
-        th_small = 16.0 / data_shape
+        th_small = 8.0 / data_shape
         mimic_fc = 0 if network in ('dilatenetv2',) else 1
         dense_vh = True
         python_anchor = True
