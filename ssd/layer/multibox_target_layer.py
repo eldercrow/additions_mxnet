@@ -116,10 +116,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         for i, label in enumerate(labels):
             gt_cls = int(label[0]) + 1
-            if self.square_bb:
-                lsq = _fit_box_ratio(label[1:], 1.0)
-            else:
-                lsq = label[1:]
+            # if self.square_bb:
+            #     lsq = _fit_box_ratio(label[1:], 1.0)
+            # else:
+            #     lsq = label[1:]
+            lsq = _autofit_ratio(label[1:])
             iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)
 
             # skip already occupied ones
@@ -127,7 +128,8 @@ class MultiBoxTarget(mx.operator.CustomOp):
             max_iou = np.maximum(iou, max_iou)
             if label[0] == -1:
                 continue
-            gt_sz = np.minimum(label[3]-label[1], label[4]-label[2])
+            gt_sz = np.maximum(label[3]-label[1], label[4]-label[2])
+            # gt_sz = np.minimum(label[3]-label[1], label[4]-label[2])
             if gt_sz < self.th_small and np.max(iou) < self.th_iou_neg:
                 continue
             # skip oob boxes
@@ -146,15 +148,16 @@ class MultiBoxTarget(mx.operator.CustomOp):
             target_reg[pidx, :] = rt
             mask_reg[pidx, :] = rm
 
-            ridx = ridx[max_cids[ridx] == gt_cls]
+            # ridx = ridx[max_cids[ridx] == gt_cls]
             # ridx = ridx[target_cls[ridx] == -1]
             # n_reg_sample = len(pidx) * self.reg_sample_ratio
             # if len(ridx) > n_reg_sample:
             #     ridx = np.random.choice(ridx, n_reg_sample, replace=False)
             # target_cls[ridx] = -1
-            rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
-            target_reg[ridx, :] = rt
-            mask_reg[ridx, :] = rm
+            #
+            # rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
+            # target_reg[ridx, :] = rt
+            # mask_reg[ridx, :] = rm
 
             if len(pidx) > 50:
                 pidx = pidx[:50]
@@ -267,6 +270,11 @@ def _compute_loc_target(gt_bb, bb, variances):
     loc_target = np.zeros_like(bb)
     aw = (bb[:, 2] - bb[:, 0])
     ah = (bb[:, 3] - bb[:, 1])
+    #
+    # a = np.maximum(aw, ah)
+    # loc_target = (gt_bb - bb) / np.hstack((aw, ah, aw, ah))
+    # return loc_target, np.ones_like(loc_target)
+    #
     loc_target[:, 0] = ((gt_bb[2] + gt_bb[0]) - (bb[:, 2] + bb[:, 0])) * 0.5 / aw
     loc_target[:, 1] = ((gt_bb[3] + gt_bb[1]) - (bb[:, 3] + bb[:, 1])) * 0.5 / ah
     loc_target[:, 2] = np.log((gt_bb[2] - gt_bb[0]) / aw)
@@ -301,6 +309,27 @@ def _fit_box_ratio(bb, ratio):
         res = res.ravel()
     return res
 
+def _autofit_ratio(bb):
+    #
+    w_bb = bb[2] - bb[0]
+    h_bb = bb[3] - bb[1]
+    cx = (bb[0] + bb[2]) / 2.0
+    cy = (bb[1] + bb[3]) / 2.0
+
+    r = w_bb / h_bb
+    if r > 2.0: # too wide
+        h_bb = w_bb * 0.5
+    elif r < 0.5: # too slim
+        w_bb = h_bb * 0.5
+
+    res = bb.copy()
+    res[0] = cx - w_bb * 0.5
+    res[1] = cy - h_bb * 0.5
+    res[2] = cx + w_bb * 0.5
+    res[3] = cy + h_bb * 0.5
+    return res
+
+
 # def _expand_target(loc_target, cid, n_cls):
 #     n_target = loc_target.shape[0]
 #     loc_target_e = np.zeros((n_target, 4 * n_cls), dtype=np.float32)
@@ -317,7 +346,7 @@ def _fit_box_ratio(bb, ratio):
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self,
-            th_iou=0.5, th_iou_neg=0.35, th_nms_neg=1.0,
+            th_iou=0.5, th_iou_neg=0.4, th_nms_neg=1.0,
             th_small=0.04, square_bb=False,
             reg_sample_ratio=1.0, hard_neg_ratio=3.0,
             variances=(0.1, 0.1, 0.2, 0.2), ignore_labels=''):

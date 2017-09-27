@@ -65,6 +65,26 @@ def conv_bn(data, prefix_name, num_filter,
     return bn_
 
 
+def conv_bn_relu(data, prefix_name, num_filter,
+                 kernel=(3,3), pad=(0,0), stride=(1,1), dilate=(1,1), no_bias=True,
+                 use_crelu=False,
+                 use_global_stats=False, fix_gamma=False):
+    #
+    assert prefix_name != ''
+    conv_name = prefix_name + 'conv'
+    bn_name = prefix_name + 'bn'
+
+    conv_ = convolution(data, conv_name, num_filter,
+            kernel=kernel, pad=pad, stride=stride, dilate=dilate, no_bias=no_bias)
+
+    if use_crelu:
+        conv_ = mx.sym.concat(conv_, -conv_)
+
+    bn_ = batchnorm(conv_, bn_name, use_global_stats, fix_gamma)
+    relu_ = mx.sym.Activation(bn_, act_type='relu')
+    return relu_
+
+
 def relu_conv_bn(data, prefix_name, num_filter,
                  kernel=(3,3), pad=(0,0), stride=(1,1), dilate=(1,1), no_bias=True,
                  use_crelu=False,
@@ -179,6 +199,16 @@ def proj_add(lhs, rhs, name, num_filter, use_global_stats):
             num_filter=num_filter, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
     return lhs + rhs
+
+
+def proj_add_relu(lhs, rhs, name, num_filter, use_global_stats):
+    lhs = convolution(lhs, name+'lhs/conv', num_filter,
+            kernel=(1, 1), pad=(0, 0), no_bias=False)
+    rhs = convolution(rhs, name+'rhs/conv', num_filter,
+            kernel=(1, 1), pad=(0, 0), no_bias=False)
+    bn = batchnorm(lhs + rhs, name+'bn', use_global_stats=use_global_stats)
+    relu = mx.sym.Activation(bn, act_type='relu')
+    return relu
 
 
 def multiple_conv(data,

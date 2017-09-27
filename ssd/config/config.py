@@ -62,7 +62,7 @@ cfg.train.use_focal_loss = True # focal loss
 cfg.train.focal_loss_alpha = 1.0/4.0
 cfg.train.focal_loss_gamma = 2.0
 cfg.train.smoothl1_weight = 1.0 if cfg.train.use_focal_loss else 1.0
-cfg.train.use_smooth_ce = True
+cfg.train.use_smooth_ce = False
 cfg.train.smooth_ce_th = 1e-03
 cfg.train.smooth_ce_lambda = 1.0
 
@@ -79,7 +79,7 @@ cfg.valid.seed = 0
 cfg.valid.preprocess_threads = 32
 
 ### [eldercrow] my additions
-cfg.valid.th_pos = 0.25
-cfg.valid.th_nms = 0.35
+cfg.valid.th_pos = 0.15
+cfg.valid.th_nms = 0.45
 
 cfg.valid = config_as_dict(cfg.valid)  # convert to normal dict

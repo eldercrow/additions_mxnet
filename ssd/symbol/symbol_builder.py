@@ -140,6 +140,9 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='valid', name="cls_loss")
+    # loc_preds = mx.sym.Activation(loc_preds, act_type='tanh')
+    # loc_loss_ = mx.sym.square(name='loc_loss_', \
+    #         data=loc_target_mask * (loc_preds - loc_target)) * 10.0
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=cfg.train['smoothl1_weight'], \
