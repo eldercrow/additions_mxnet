@@ -16,7 +16,7 @@ config.NUM_CLASSES = 2 #len(CLASSES)
 config.TEST.HAS_RPN = True
 
 config.IMAGE_STRIDE = 32
-config.SCALES = [(608, 1440)]
+config.SCALES = [(640, 1440)]
 config.ANCHOR_SCALES = (3, 6, 9, 16, 32)
 config.ANCHOR_RATIOS = (0.5, 0.667, 1, 1.5, 2)
 config.NUM_ANCHORS = len(config.ANCHOR_SCALES) * len(config.ANCHOR_RATIOS)
@@ -133,7 +133,7 @@ def parse_args():
     parser.add_argument('--image', help='custom image', type=str)
     parser.add_argument('--prefix', help='saved model prefix', type=str)
     parser.add_argument('--epoch', help='epoch of pretrained model', type=int)
-    parser.add_argument('--gpu', help='GPU device to use', default=0, type=int)
+    parser.add_argument('--gpu', help='GPU device to use', default=4, type=int)
     parser.add_argument('--cpu', action='store_true')
     parser.add_argument('--vis', help='display result', action='store_true')
     args = parser.parse_args()

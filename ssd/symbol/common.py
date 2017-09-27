@@ -331,8 +331,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         num_loc_pred = num_anchors * 4
         bias = mx.symbol.Variable(name="{}_loc_pred_conv_bias".format(from_name[1]),
             init=mx.init.Constant(0.0), attr={'__lr_mult__': '2.0'})
-        loc_pred_conv = mx.symbol.Convolution(data=from_layer[1], bias=bias, kernel=(3,3), \
-            stride=(1,1), pad=(1,1), num_filter=num_loc_pred * upscale * upscale, \
+        loc_pred_conv = mx.symbol.Convolution(data=from_layer[1], bias=bias, kernel=(1,1), \
+            stride=(1,1), pad=(0,0), num_filter=num_loc_pred * upscale * upscale, \
             name="{}_loc_pred_conv".format(from_name[1]))
         if upscale > 1:
             loc_pred_conv = subpixel_upsample(loc_pred_conv, num_loc_pred, upscale, upscale,
@@ -347,8 +347,8 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         num_cls_pred = num_anchors * num_classes
         bias = mx.symbol.Variable(name="{}_cls_pred_conv_bias".format(from_name[0]),
             init=FocalBiasInit(num_classes, 0.01), attr={'__lr_mult__': '2.0'})
-        cls_pred_conv = mx.symbol.Convolution(data=from_layer[0], bias=bias, kernel=(3,3), \
-            stride=(1,1), pad=(1,1), num_filter=num_cls_pred * upscale * upscale, \
+        cls_pred_conv = mx.symbol.Convolution(data=from_layer[0], bias=bias, kernel=(1,1), \
+            stride=(1,1), pad=(0,0), num_filter=num_cls_pred * upscale * upscale, \
             name="{}_cls_pred_conv".format(from_name[0]))
         if upscale > 1:
             cls_pred_conv = subpixel_upsample(cls_pred_conv, num_cls_pred, upscale, upscale,
