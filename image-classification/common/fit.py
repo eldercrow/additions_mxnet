@@ -10,8 +10,8 @@ from common.smoothed_ce_metric import SmoothedCrossEntropy
 def _get_lr_scheduler(args, kv):
     if args.use_plateau:
         plateau_lr = PlateauScheduler(patient_epochs=args.lr_step_epochs, factor=args.lr_factor)
-        plateau_metric = mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06))
-        # plateau_metric = mx.metric.CrossEntropy()
+        # plateau_metric = mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06))
+        plateau_metric = mx.metric.CrossEntropy()
         return (plateau_lr, plateau_metric)
 
     if 'lr_factor' not in args or args.lr_factor >= 1:
@@ -187,8 +187,8 @@ def fit(args, network, data_loader, **kwargs):
 
     # evaluation metrices
     eval_metrics = ['accuracy']
-    eval_metrics.append(mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06)))
-    # eval_metrics.append(mx.metric.CrossEntropy())
+    # eval_metrics.append(mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06)))
+    eval_metrics.append(mx.metric.CrossEntropy())
     if args.top_k > 0:
         eval_metrics.append(mx.metric.create('top_k_accuracy', top_k=args.top_k))
 

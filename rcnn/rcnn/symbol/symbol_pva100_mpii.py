@@ -278,17 +278,18 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
 
     fc6 = mx.sym.FullyConnected(flat5, name='fc6', num_hidden=4096)
     fc6_bn = mx.sym.BatchNorm(fc6, name='fc6/bn', use_global_stats=True, fix_gamma=False)
-    fc6_dropout = mx.sym.Dropout(fc6_bn, name='fc6/dropout', p=0.25)
-    fc6_relu = mx.sym.Activation(fc6_dropout, name='fc6/relu', act_type='relu')
+    # fc6_dropout = mx.sym.Dropout(fc6_bn, name='fc6/dropout', p=0.25)
+    fc6_relu = mx.sym.Activation(fc6_bn, name='fc6/relu', act_type='relu')
 
     fc7 = mx.sym.FullyConnected(fc6_relu, name='fc7', num_hidden=4096)
     fc7_bn = mx.sym.BatchNorm(fc7, name='fc7/bn', use_global_stats=True, fix_gamma=False)
-    fc7_dropout = mx.sym.Dropout(fc7_bn, name='fc7/dropout', p=0.25)
-    fc7_relu = mx.sym.Activation(fc7_dropout, name='fc7/relu', act_type='relu')
+    # fc7_dropout = mx.sym.Dropout(fc7_bn, name='fc7/dropout', p=0.25)
+    fc7_relu = mx.sym.Activation(fc7_bn, name='fc7/relu', act_type='relu')
 
     # classification
     cls_score = mx.sym.FullyConnected(fc7_relu, name='cls_score', num_hidden=num_classes)
-    cls_prob = mx.sym.SoftmaxOutput(data=cls_score, label=label, name='cls_prob', normalization='batch')
+    cls_prob = mx.sym.SoftmaxOutput(data=cls_score, label=label, name='cls_prob',
+            use_ignore=True, ignore_label=-1, normalization='batch')
     # bounding box regression
     bbox_pred = mx.sym.FullyConnected(fc7_relu, name='bbox_pred', num_hidden=num_classes*4)
     bbox_loss_ = bbox_weight * \
@@ -302,7 +303,7 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
     head_bbox_pred = mx.sym.FullyConnected(fc7_relu, name='head_pred', num_hidden=num_grid*4)
     head_bbox_loss_ = head_weight * \
             mx.sym.smooth_l1(head_bbox_pred - head_target, name='bbox_loss_', scalar=1.0)
-    head_bbox_loss = mx.sym.MakeLoss(head_bbox_loss_, name='head_bbox_loss', grad_scale=0.2 / config.TRAIN.BATCH_ROIS)
+    head_bbox_loss = mx.sym.MakeLoss(head_bbox_loss_, name='head_bbox_loss', grad_scale=0.1 / config.TRAIN.BATCH_ROIS)
 
     # joint classification
     joint_score = mx.sym.FullyConnected(fc7_relu, name='joint_score', num_hidden=num_grid*4)
@@ -327,7 +328,7 @@ def get_pvanet_mpii_train(num_classes=config.NUM_CLASSES, num_anchors=config.NUM
         eidx = num_grid * (i+1) * 2
         lossi = mx.sym.slice_axis(joint_loss_, axis=1, begin=sidx, end=eidx)
         joint_losses.append(mx.sym.MakeLoss( \
-                lossi, name='joint_loss{}'.format(i), grad_scale=0.2 / config.TRAIN.BATCH_ROIS))
+                lossi, name='joint_loss{}'.format(i), grad_scale=0.1 / config.TRAIN.BATCH_ROIS))
 
     # reshape output
     label = mx.sym.Reshape(label, name='label_reshape', shape=(config.TRAIN.BATCH_IMAGES, -1))

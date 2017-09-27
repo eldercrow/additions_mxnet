@@ -17,8 +17,8 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         super(MultiBoxMetric, self).__init__('MultiBox')
         self.use_focal_loss = cfg.train['use_focal_loss']
         self.use_smooth_ce = cfg.train['use_smooth_ce']
-        self.num = 2
-        self.name = ['CrossEntropy', 'SmoothL1']
+        self.num = 3
+        self.name = ['CrossEntropy', 'SmoothL1', 'ObjectRecall']
 
         self.reset()
 
@@ -71,7 +71,7 @@ class MultiBoxMetric(mx.metric.EvalMetric):
                 loss1 = -cls_prob / th_prob - np.log(th_prob) + 1
                 idx = cls_prob < th_prob
                 loss[idx] = loss1[idx]
-                loss += th_prob * th_prob * w_reg * preds[0].shape[1]
+                loss += th_prob * th_prob * w_reg #* preds[0].shape[1]
             loss *= np.power(1 - cls_prob, gamma)
             loss[cls_label > 0] *= alpha
             loss[cls_label ==0] *= 1 - alpha
@@ -98,6 +98,14 @@ class MultiBoxMetric(mx.metric.EvalMetric):
         loc_label = preds[3].asnumpy()
         self.sum_metric[1] += np.sum(loc_loss)
         self.num_inst[1] += np.sum(loc_label)
+
+        # object recall (class independent)
+        gt_pidx = np.where(cls_label.ravel() > 0)[0]
+        pred_label = mx.nd.argmax(preds[0], axis=1).asnumpy()
+        pidx = np.where(pred_label.ravel() > 0)[0]
+        ridx = np.intersect1d(gt_pidx, pidx)
+        self.sum_metric[2] += len(ridx)
+        self.num_inst[2] += len(gt_pidx)
 
         match_info = preds[5].asnumpy()
 

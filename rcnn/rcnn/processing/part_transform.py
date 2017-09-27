@@ -49,15 +49,17 @@ def pred_head(rois, head_deltas, head_gids, grid_hw):
     _, rect_grid = _get_grid_info(grid_hw)
 
     rects = np.zeros((n_bbs, 4), dtype=rect_grid.dtype)
+    deltas = np.zeros_like(rects)
     for i, gid in enumerate(head_gids):
         rects[i, :] = rect_grid[gid]
+        deltas[i, :] = head_deltas[i, gid*4:(gid+1)*4]
     rects[:, 0::2] *= (rois[:, 2:3] - rois[:, 0:1])
     rects[:, 0::2] += rois[:, 0:1]
     rects[:, 1::2] *= (rois[:, 3:4] - rois[:, 1:2])
     rects[:, 1::2] += rois[:, 1:2]
     # rects[:, 2:] -= 1
 
-    head_boxes = bbox_pred(rects, head_deltas)
+    head_boxes = bbox_pred(rects, deltas)
     return head_boxes
 
 
@@ -101,9 +103,11 @@ def pred_joint(rois, joint_deltas, joint_gids, grid_hw):
     ctr_grid, _ = _get_grid_info(grid_hw)
 
     ptrs = np.zeros((n_joint, 2), dtype=ctr_grid.dtype)
+    deltas = np.zeros_like(ptrs)
     for i, gid in enumerate(joint_gids):
         ptrs[i, :] = ctr_grid[gid]
-    joints = ptrs + joint_deltas
+        deltas[i, :] = joint_deltas[i, gid*2:(gid+1)*2]
+    joints = ptrs + deltas
     joints[:, 0] *= (rois[:, 2] - rois[:, 0])
     joints[:, 0] += rois[:, 0]
     joints[:, 1] *= (rois[:, 3] - rois[:, 1])

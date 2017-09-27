@@ -15,6 +15,7 @@ python train.py \
     --use-plateau 1 \
     --lr-steps 3,3,3,3,4,4 \
     --lr-factor 0.316227766 \
+    --wd 0.0002 \
     --end-epoch 300 \
     --frequent 50 \
     --gpus 0,1

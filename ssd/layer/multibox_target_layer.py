@@ -11,7 +11,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
     """
     Python implementation of MultiBoxTarget layer.
     """
-    def __init__(self, th_iou, th_iou_neg, th_nms_neg, th_small, square_bb,
+    def __init__(self, th_iou, th_iou_neg, th_nms_neg, th_small, square_bb, per_cls_reg,
             reg_sample_ratio, hard_neg_ratio, variances, ignore_labels):
         #
         super(MultiBoxTarget, self).__init__()
@@ -20,6 +20,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.th_nms_neg = th_nms_neg
         self.th_small = th_small
         self.square_bb = square_bb
+        self.per_cls_reg = per_cls_reg
         self.reg_sample_ratio = reg_sample_ratio
         self.hard_neg_ratio = hard_neg_ratio
         self.variances = variances
@@ -58,6 +59,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
             # self.nidx_pos = [[]] * n_anchors
             overlaps = _compute_overlap(self.anchors_t, self.area_anchors_t, (0, 0, 1, 1))
             # self.oob_mask = (overlaps <= self.th_anc_overlap)
+            self.n_class = nch
         else:
             assert self.anchors.shape == in_data[0].shape[1:]
 
@@ -116,11 +118,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
 
         for i, label in enumerate(labels):
             gt_cls = int(label[0]) + 1
-            # if self.square_bb:
-            #     lsq = _fit_box_ratio(label[1:], 1.0)
-            # else:
-            #     lsq = label[1:]
-            lsq = _autofit_ratio(label[1:])
+            if self.square_bb:
+                lsq = _fit_box_ratio(label[1:], 1.0)
+            else:
+                # lsq = label[1:]
+                lsq = _autofit_ratio(label[1:])
             iou = _compute_iou(lsq, self.anchors_t, self.area_anchors_t)
 
             # skip already occupied ones
@@ -129,7 +131,6 @@ class MultiBoxTarget(mx.operator.CustomOp):
             if label[0] == -1:
                 continue
             gt_sz = np.maximum(label[3]-label[1], label[4]-label[2])
-            # gt_sz = np.minimum(label[3]-label[1], label[4]-label[2])
             if gt_sz < self.th_small and np.max(iou) < self.th_iou_neg:
                 continue
             # skip oob boxes
@@ -140,21 +141,22 @@ class MultiBoxTarget(mx.operator.CustomOp):
             if len(pidx) == 0:
                 # at least one positive sample
                 pidx = [np.argmax(iou)]
-            ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
-            ridx = np.setdiff1d(ridx, pidx)
 
             target_cls[pidx] = gt_cls
             rt, rm = _compute_loc_target(label[1:], self.anchors[pidx, :], self.variances)
+            if self.per_cls_reg:
+                rt, rm = _expand_target(rt, gt_cls, self.n_class)
             target_reg[pidx, :] = rt
             mask_reg[pidx, :] = rm
 
+            # ridx = np.where(np.logical_and(iou_mask, iou > self.th_iou_neg))[0]
+            # ridx = np.setdiff1d(ridx, pidx)
             # ridx = ridx[max_cids[ridx] == gt_cls]
             # ridx = ridx[target_cls[ridx] == -1]
             # n_reg_sample = len(pidx) * self.reg_sample_ratio
             # if len(ridx) > n_reg_sample:
             #     ridx = np.random.choice(ridx, n_reg_sample, replace=False)
             # target_cls[ridx] = -1
-            #
             # rt, rm = _compute_loc_target(label[1:], self.anchors[ridx, :], self.variances)
             # target_reg[ridx, :] = rt
             # mask_reg[ridx, :] = rm
@@ -309,45 +311,46 @@ def _fit_box_ratio(bb, ratio):
         res = res.ravel()
     return res
 
+
 def _autofit_ratio(bb):
     #
-    w_bb = bb[2] - bb[0]
-    h_bb = bb[3] - bb[1]
+    ww = bb[2] - bb[0]
+    hh = bb[3] - bb[1]
     cx = (bb[0] + bb[2]) / 2.0
     cy = (bb[1] + bb[3]) / 2.0
 
-    r = w_bb / h_bb
-    if r > 2.0: # too wide
-        h_bb = w_bb * 0.5
-    elif r < 0.5: # too slim
-        w_bb = h_bb * 0.5
+    ratio = ww / hh
+    if ratio > 2.0:
+        hh = ww * 0.5
+    elif ratio < 0.5:
+        ww = hh * 0.5
 
     res = bb.copy()
-    res[0] = cx - w_bb * 0.5
-    res[1] = cy - h_bb * 0.5
-    res[2] = cx + w_bb * 0.5
-    res[3] = cy + h_bb * 0.5
+    res[0] = cx - ww * 0.5
+    res[1] = cy - hh * 0.5
+    res[2] = cx + ww * 0.5
+    res[3] = cy + hh * 0.5
     return res
 
 
-# def _expand_target(loc_target, cid, n_cls):
-#     n_target = loc_target.shape[0]
-#     loc_target_e = np.zeros((n_target, 4 * n_cls), dtype=np.float32)
-#     loc_mask_e = np.zeros_like(loc_target_e)
-#     sidx = cid * 4
-#     loc_target_e[:, sidx:sidx+4] = loc_target
-#     loc_mask_e[:, sidx:sidx+4] = 1
-#     # for i in range(n_target):
-#     #     loc_target_e[i, sidx:sidx+4] = loc_target
-#     #     loc_mask_e[i, sidx:sidx+4] = 1
-#     return loc_target_e, loc_mask_e
+def _expand_target(loc_target, cid, n_cls):
+    n_target = loc_target.shape[0]
+    loc_target_e = np.zeros((n_target, 4 * n_cls), dtype=np.float32)
+    loc_mask_e = np.zeros_like(loc_target_e)
+    sidx = cid * 4
+    loc_target_e[:, sidx:sidx+4] = loc_target
+    loc_mask_e[:, sidx:sidx+4] = 1
+    # for i in range(n_target):
+    #     loc_target_e[i, sidx:sidx+4] = loc_target
+    #     loc_mask_e[i, sidx:sidx+4] = 1
+    return loc_target_e, loc_mask_e
 
 
 @mx.operator.register("multibox_target")
 class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def __init__(self,
             th_iou=0.5, th_iou_neg=0.4, th_nms_neg=1.0,
-            th_small=0.04, square_bb=False,
+            th_small=0.04, square_bb=False, per_cls_reg=False,
             reg_sample_ratio=1.0, hard_neg_ratio=3.0,
             variances=(0.1, 0.1, 0.2, 0.2), ignore_labels=''):
         #
@@ -358,6 +361,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         self.th_small = float(th_small)
         self.reg_sample_ratio = int(reg_sample_ratio)
         self.hard_neg_ratio = float(hard_neg_ratio)
+        self.per_cls_reg = bool(make_tuple(str(per_cls_reg)))
         self.square_bb = bool(make_tuple(str(square_bb)))
         if isinstance(variances, str):
             variances = make_tuple(variances)
@@ -379,6 +383,8 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         n_batch, n_class, n_sample = in_shape[2]
 
         target_reg_shape = (n_batch, n_sample*4)
+        if self.per_cls_reg:
+            target_reg_shape[1] *= n_class
         mask_reg_shape = target_reg_shape
         target_cls_shape = (n_batch, 1, n_sample)
         match_info_shape = (n_batch, in_shape[1][1], 50)
@@ -389,6 +395,6 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
     def create_operator(self, ctx, shapes, dtypes):
         return MultiBoxTarget( \
                 self.th_iou, self.th_iou_neg, self.th_nms_neg,
-                self.th_small, self.square_bb,
+                self.th_small, self.square_bb, self.per_cls_reg,
                 self.reg_sample_ratio, self.hard_neg_ratio,
                 self.variances, self.ignore_labels)
