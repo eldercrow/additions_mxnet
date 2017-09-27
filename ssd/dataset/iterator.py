@@ -158,7 +158,10 @@ class DetIter(mx.io.DataIter):
         self._rand_mirror = rand_mirror
         self._shuffle = shuffle
         if rand_seed:
+            import ipdb
+            ipdb.set_trace()
             np.random.seed(rand_seed) # fix random seed
+        np.random.seed()
         self._max_crop_trial = max_crop_trial
 
         self._current = 0

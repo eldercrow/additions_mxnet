@@ -18,8 +18,8 @@ def import_module(module_name):
 
 def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pads,
                      sizes, ratios, normalizations=-1, steps=[],
-                     min_filter=128, square_bb=False,
-                     nms_thresh=0.5, upscales=1, force_suppress=False, nms_topk=400, **kwargs):
+                     min_filter=128, square_bb=False, per_cls_reg=False,
+                     nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
     """Build network symbol for training SSD
 
     Parameters
@@ -91,7 +91,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
         num_channels=num_filters, clip=False, interm_layer=0, steps=steps, dense_vh=dense_vh, \
-        data_shape=data_shape, upscales=upscales, mimic_fc=mimic_fc, python_anchor=python_anchor)
+        data_shape=data_shape, per_cls_reg=per_cls_reg, mimic_fc=mimic_fc, python_anchor=python_anchor)
 
     if use_python_layer:
         neg_ratio = -1 if use_focal_loss else 3
@@ -99,8 +99,9 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         cls_probs = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
         tmp = mx.sym.Custom(*[anchor_boxes, label, cls_probs], name='multibox_target',
                 op_type='multibox_target',
-                hard_neg_ratio=neg_ratio, th_small=th_small, square_bb=square_bb)
+                per_cls_reg=per_cls_reg, hard_neg_ratio=neg_ratio, th_small=th_small, square_bb=square_bb)
     else:
+        assert not per_cls_reg
         neg_ratio = -1 if use_focal_loss else 3
         tmp = mx.contrib.symbol.MultiBoxTarget(
             *[anchor_boxes, label, cls_preds], overlap_threshold=.5, \
@@ -122,7 +123,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
                     gamma=gamma, alpha=alpha, normalize=True)
         else:
             th_prob = cfg.train['smooth_ce_th'] # / float(num_classes)
-            w_reg = cfg.train['smooth_ce_lambda'] * float(num_classes)
+            w_reg = cfg.train['smooth_ce_lambda'] # * float(num_classes)
             var_th_prob = mx.sym.var(name='th_prob_sce', shape=(1,), dtype=np.float32, \
                     init=mx.init.Constant(np.log(th_prob)))
             var_th_prob = mx.sym.exp(var_th_prob)
@@ -148,9 +149,15 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     # monitoring training status
     cls_label = mx.sym.BlockGrad(cls_target, name="cls_label")
     loc_label = mx.sym.BlockGrad(loc_target_mask, name='loc_label')
+    #
+    # cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
+    # det = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
+    #         th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'])
+    #
     det = mx.contrib.symbol.MultiBoxDetection(*[cls_loss, loc_preds, anchor_boxes], \
         name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,
         variances=(0.1, 0.1, 0.2, 0.2), nms_topk=nms_topk)
+    #
     det = mx.symbol.MakeLoss(data=det, grad_scale=0, name="det_out")
 
     # group output
@@ -161,7 +168,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
-               strides, pads, normalizations=-1, steps=[], upscales=1, min_filter=128,
+               strides, pads, normalizations=-1, steps=[], min_filter=128,
                nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
     """Build network for testing SSD
 
@@ -227,7 +234,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
         num_channels=num_filters, clip=False, interm_layer=0, steps=steps, dense_vh=dense_vh, \
-        data_shape=data_shape, upscales=upscales, mimic_fc=mimic_fc, python_anchor=python_anchor)
+        data_shape=data_shape, mimic_fc=mimic_fc, python_anchor=python_anchor)
     # body = import_module(network).get_symbol(num_classes, **kwargs)
     # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
     #     min_filter=min_filter)

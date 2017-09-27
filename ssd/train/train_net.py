@@ -7,7 +7,7 @@ import importlib
 import re
 from dataset.iterator import DetRecordIter
 from train.metric import MultiBoxMetric
-from evaluate.eval_metric import MApMetric, VOC07MApMetric
+from evaluate.eval_metric import MApMetric, VOC07MApMetric, RecallMetric
 from plateau_lr import PlateauScheduler
 from plateau_module import PlateauModule
 from config.config import cfg
@@ -316,7 +316,7 @@ def train_net(net, train_path, num_classes, batch_size,
                 lr_refactor_ratio, num_example, batch_size, begin_epoch)
     else:
         w_l1 = cfg.train['smoothl1_weight']
-        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': w_l1}
+        eval_weights = {'CrossEntropy': 1.0, 'SmoothL1': w_l1, 'ObjectRecall': 0.0}
         plateau_lr = PlateauScheduler( \
                 patient_epochs=lr_refactor_step, factor=float(lr_refactor_ratio), eval_weights=eval_weights)
         plateau_metric = MultiBoxMetric(fn_stat='/home/hyunjoon/github/additions_mxnet/ssd/stat.txt')
@@ -326,7 +326,9 @@ def train_net(net, train_path, num_classes, batch_size,
     eval_metric = MultiBoxMetric()
     # run fit net, every n epochs we run evaluation network to get mAP
     if voc07_metric:
-        valid_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
+        map_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
+        recall_metric = RecallMetric(ovp_thresh, use_difficult, pred_idx=4)
+        valid_metric = mx.metric.create([map_metric, recall_metric]) 
     else:
         valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
 

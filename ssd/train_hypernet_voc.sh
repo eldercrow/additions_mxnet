@@ -9,12 +9,13 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ~/github/model_mxnet/dilatenet/dilatenetv4_openimage \
+    --pretrained ~/github/additions_mxnet/image-classification/model/dilatenetv4_openimage \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,3,3,3,4,4,5,5 \
     --lr-factor 0.316227766 \
+    --wd 0.0002 \
     --end-epoch 300 \
     --frequent 50 \
     --gpus 0,1
