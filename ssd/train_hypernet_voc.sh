@@ -13,7 +13,7 @@ python train.py \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
-    --lr-steps 3,3,3,3,4,4,5,5 \
+    --lr-steps 3,3,3,3,4,4 \
     --lr-factor 0.316227766 \
     --wd 0.0002 \
     --end-epoch 300 \

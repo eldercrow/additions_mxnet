@@ -135,6 +135,8 @@ def im_detect(predictor, data_batch, data_names, scale):
     # save output
     scores = output['cls_prob_reshape_output'].asnumpy()[0]
     bbox_deltas = output['bbox_pred_reshape_output'].asnumpy()[0]
+    import ipdb
+    ipdb.set_trace()
 
     # post processing
     pred_boxes = bbox_pred(rois, bbox_deltas)
@@ -149,7 +151,7 @@ def im_detect(predictor, data_batch, data_names, scale):
         head_deltas = output['head_pred_reshape_output'].asnumpy()[0]
         # means = config.TRAIN.BBOX_MEANS
         stds = np.reshape(np.array(config.TRAIN.BBOX_STDS), (-1, 4))
-        head_deltas *= stds
+        head_deltas *= np.tile(stds, (1, head_scores.shape[1]))
 
         head_boxes = pred_head(rois, head_deltas, head_gids, config.PART_GRID_HW)
         head_boxes /= scale
@@ -157,7 +159,7 @@ def im_detect(predictor, data_batch, data_names, scale):
         joints_scores = [output['joint_prob{}_reshape_output'.format(i)].asnumpy()[0] for i in range(4)]
         joints_gids = [np.argmax(j, axis=1) for j in joints_scores]
         joints_deltas = [output['joint_pred{}_reshape_output'.format(i)].asnumpy()[0] for i in range(4)]
-        joints_deltas = [j * stds[:, :2] for j in joints_deltas]
+        joints_deltas = [j * np.tile(stds[:, :2], (1, head_scores.shape[1])) for j in joints_deltas]
 
         joints = [pred_joint(rois, jd, jid, config.PART_GRID_HW) \
                 for (jd, jid) in zip(joints_deltas, joints_gids)]
