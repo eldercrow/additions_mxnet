@@ -153,11 +153,25 @@ def get_symbol(num_classes=1000, **kwargs):
         p1 = relu_conv_bn(g, 'hyperc1/1x1/{}/'.format(i),
                 num_filter=nf, kernel=(3, 3), pad=(1, 1),
                 use_global_stats=use_global_stats)
+        p1r = relu_conv_bn(p1, 'hyperc1/r1{}/'.format(i),
+                num_filter=128, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
+        p1r = conv_bn(p1r, 'hyperc1/r2{}/'.format(i),
+                num_filter=nf, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
+        p1 = p1 + p1r
         h1 = mx.sym.Activation(p1, name='hyper{}/1'.format(i), act_type='relu')
 
         p2 = relu_conv_bn(g, 'hyperc2/1x1/{}/'.format(i),
                 num_filter=nf, kernel=(3, 3), pad=(1, 1),
                 use_global_stats=use_global_stats)
+        p2r = relu_conv_bn(p2, 'hyperc2/r1{}/'.format(i),
+                num_filter=128, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
+        p2r = conv_bn(p2r, 'hyperc2/r2{}/'.format(i),
+                num_filter=nf, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
+        p2 = p2 + p2r
         h2 = mx.sym.Activation(p2, name='hyper{}/2'.format(i), act_type='relu')
         hyper_groups.append((h1, h2))
         # hyper_groups.append(h1)

@@ -5,7 +5,7 @@ python train.py \
     --class-names ./dataset/names/pascal_voc.names \
     --network dilatenetv4 \
     --label-width 350 \
-    --batch-size 2 \
+    --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
@@ -17,7 +17,7 @@ python train.py \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \
-    --gpus 4,5
+    --gpus 0,1
 # python train_imdb.py \
 #     --network hypernetv5 \
 #     --dataset pascal_voc \
