@@ -28,7 +28,8 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         '''
         Reweight loss according to focal loss.
         '''
-        p = mx.nd.pick(in_data[1], in_data[2], axis=1, keepdims=True)
+        cls_target = mx.nd.reshape(in_data[2], (0, 1, -1))
+        p = mx.nd.pick(in_data[1], cls_target, axis=1, keepdims=True)
         # p = mx.nd.maximum(p, self.eps)
 
         # th_prob = self.th_prob
@@ -45,26 +46,26 @@ class SmoothedFocalLoss(mx.operator.CustomOp):
         sce = mask * ce + (1 - mask) * sce # smoothed cross entropy
 
         thp = mx.nd.maximum(p, th_prob)
-        u = 1 - p if self.gamma == 2.0 else mx.nd.power(1 - p, self.gamma - 1.0)
-        v = p * self.gamma * sce + (p / thp) * (1 - p)
-        a = (in_data[2] > 0) * self.alpha + (in_data[2] == 0) * (1 - self.alpha)
-        gf = v * u * a
+        uu = 1 - p if self.gamma == 2.0 else mx.nd.power(1 - p, self.gamma - 1.0)
+        vv = p * self.gamma * sce + (p / thp) * (1 - p)
+        a = (cls_target > 0) * self.alpha + (cls_target == 0) * (1 - self.alpha)
+        gf = vv * uu * a
 
         n_class = in_data[1].shape[1]
-        alpha = mx.nd.one_hot(mx.nd.reshape(in_data[2], (0, -1)), n_class,
+        alpha = mx.nd.one_hot(mx.nd.reshape(cls_target, (0, -1)), n_class,
                 on_value=1, off_value=0)
         alpha = mx.nd.transpose(alpha, (0, 2, 1))
 
         g = (in_data[1] - alpha) * gf
-        g *= (in_data[2] >= 0)
+        g *= (cls_target >= 0)
 
         g_th = mx.nd.minimum(p, th_prob) / th_prob / th_prob - 1.0 / th_prob
         g_th *= mx.nd.power(1 - p, self.gamma)
-        g_th = mx.nd.sum(g_th) + in_data[2].size * th_prob * 2.0 * self.w_reg
+        g_th = mx.nd.sum(g_th) + cls_target.size * th_prob * 2.0 * self.w_reg
 
         if self.normalize:
-            g /= mx.nd.sum(in_data[2] > 0).asscalar()
-            g_th /= mx.nd.sum(in_data[2] > 0).asscalar() #in_data[2].size
+            g /= mx.nd.sum(cls_target > 0).asscalar()
+            g_th /= mx.nd.sum(cls_target > 0).asscalar() #cls_target.size
         if mx.nd.uniform(0, 1, (1,)).asscalar() < 0.001:
             logging.getLogger().info('Current th_prob for smoothed CE: {}'.format(th_prob))
 

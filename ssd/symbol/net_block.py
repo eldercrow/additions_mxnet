@@ -17,7 +17,7 @@ def batchnorm(data, name, use_global_stats, fix_gamma=False, lr_mult=1.0):
     g = mx.sym.var(name+'_gamma', lr_mult=lr_mult, wd_mult=0.0)
     b = mx.sym.var(name+'_beta', lr_mult=lr_mult, wd_mult=0.0)
     bn = mx.sym.BatchNorm(data, gamma=g, beta=b, name=name,
-            use_global_stats=use_global_stats, fix_gamma=fix_gamma)
+            use_global_stats=use_global_stats, momentum=0.9997, fix_gamma=fix_gamma)
     return bn
 
 

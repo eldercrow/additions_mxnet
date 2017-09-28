@@ -3,13 +3,13 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network dilatenetv4 \
+    --network dilatenetv3 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ~/github/additions_mxnet/image-classification/model/dilatenetv4_openimage \
+    --pretrained none \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
