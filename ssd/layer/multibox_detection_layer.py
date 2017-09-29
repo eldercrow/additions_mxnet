@@ -11,11 +11,12 @@ class MultiBoxDetection(mx.operator.CustomOp):
     python implementation of MultiBoxDetection layer.
     '''
 
-    def __init__(self, max_detection, th_pos, th_nms, variances):
+    def __init__(self, max_detection, th_pos, th_nms, per_cls_reg, variances):
         #
         super(MultiBoxDetection, self).__init__()
         self.th_pos = th_pos
         self.th_nms = th_nms
+        self.per_cls_reg = per_cls_reg
         self.variances = variances
         self.max_detection = max_detection
 
@@ -33,7 +34,7 @@ class MultiBoxDetection(mx.operator.CustomOp):
         for nn in range(n_batch):
             out_i = mx.nd.transpose(out_data[0][nn], (1, 0))
             # out_i[:] = 0
-            pcls = probs_cls[nn]  # (n_anchors, n_classes)
+            pcls = probs_cls[nn]  # (n_classes, n_anchors)
             preg = preds_reg[nn]  # (n_anchor, 4)
 
             if n_class == 1:
@@ -44,6 +45,13 @@ class MultiBoxDetection(mx.operator.CustomOp):
                 out_i[1] = mx.nd.max(pcls, axis=0)
                 iidx = out_i[1] > self.th_pos
                 out_i[0] = iidx * (mx.nd.argmax(pcls, axis=0) + 1) - 1
+                if self.per_cls_reg:
+                    import ipdb
+                    ipdb.set_trace()
+                    preg = mx.nd.reshape(preg, (n_anchor, -1, 4)) # (n_anchor, n_class, 4)
+                    cids = mx.nd.argmax(pcls, axis=0) # (n_anchor)
+                    cids = mx.nd.tile(mx.nd.reshape(cids, (n_anchor, 1, 1)), (1, 1, 4)) # (n_anchor, 1, 4)
+                    preg = mx.nd.pick(preg, cids) # (n_anchor, 4)
             iidx = mx.nd.array(np.where(iidx.asnumpy())[0])
             out_i[2:] = mx.nd.transpose(_transform_roi(preg, anchors, iidx, self.variances, 1.0))
             # out_i[2:] = _transform_roi( \
@@ -93,8 +101,8 @@ def _transform_roi(reg, anc, iidx, variances, ratio=1.0):
     aw *= ratio
     cx += reg_t[0] * aw
     cy += reg_t[1] * ah
-    w = np.exp(reg_t[2]) * aw * 0.5
-    h = np.exp(reg_t[3]) * ah * 0.5
+    w = mx.nd.exp(reg_t[2]) * aw * 0.5
+    h = mx.nd.exp(reg_t[3]) * ah * 0.5
     reg_t[0] = cx - w
     reg_t[1] = cy - h
     reg_t[2] = cx + w
@@ -134,12 +142,14 @@ class MultiBoxDetectionProp(mx.operator.CustomOpProp):
                  max_detection=1000,
                  th_pos=0.5,
                  th_nms=0.35,
+                 per_cls_reg=False,
                  variances=(0.1, 0.1, 0.2, 0.2)):
         #
         super(MultiBoxDetectionProp, self).__init__(need_top_grad=False)
         self.max_detection = int(max_detection)
         self.th_pos = float(th_pos)
         self.th_nms = float(th_nms)
+        self.per_cls_reg = bool(make_tuple(str(per_cls_reg)))
         if isinstance(variances, str):
             variances = make_tuple(variances)
         self.variances = np.array(variances)
@@ -157,4 +167,4 @@ class MultiBoxDetectionProp(mx.operator.CustomOpProp):
 
     def create_operator(self, ctx, shapes, dtypes):
         return MultiBoxDetection(self.max_detection, self.th_pos,
-                                 self.th_nms, self.variances)
+                                 self.th_nms, self.per_cls_reg, self.variances)

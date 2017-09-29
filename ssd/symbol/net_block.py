@@ -16,13 +16,13 @@ def batchnorm(data, name, use_global_stats, fix_gamma=False, lr_mult=1.0):
     ''' batch norm with lr_mult and wd_mult '''
     g = mx.sym.var(name+'_gamma', lr_mult=lr_mult, wd_mult=0.0)
     b = mx.sym.var(name+'_beta', lr_mult=lr_mult, wd_mult=0.0)
-    bn = mx.sym.BatchNorm(data, gamma=g, beta=b, name=name,
+    bn = mx.sym.BatchNorm(data, gamma=g, beta=b, name=name, momentum=0.9997,
             use_global_stats=use_global_stats, fix_gamma=fix_gamma)
     return bn
 
 
-def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
-    return mx.sym.Pooling(data, name=name, kernel=kernel, stride=stride, pool_type=pool_type)
+def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pad=(0, 0), pool_type='max'):
+    return mx.sym.Pooling(data, name=name, kernel=kernel, stride=stride, pad=pad, pool_type=pool_type)
 
 
 def subpixel_upsample(data, ch, c, r, name=None):

@@ -123,7 +123,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
                     gamma=gamma, alpha=alpha, normalize=True)
         else:
             th_prob = cfg.train['smooth_ce_th'] # / float(num_classes)
-            w_reg = cfg.train['smooth_ce_lambda'] # * float(num_classes)
+            w_reg = cfg.train['smooth_ce_lambda'] * float(num_classes)
             var_th_prob = mx.sym.var(name='th_prob_sce', shape=(1,), dtype=np.float32, \
                     init=mx.init.Constant(np.log(th_prob)))
             var_th_prob = mx.sym.exp(var_th_prob)
@@ -171,7 +171,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
-               strides, pads, normalizations=-1, steps=[], min_filter=128,
+               strides, pads, normalizations=-1, steps=[], min_filter=128, per_cls_reg=False,
                nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
     """Build network for testing SSD
 
@@ -237,7 +237,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
         num_channels=num_filters, clip=False, interm_layer=0, steps=steps, dense_vh=dense_vh, \
-        data_shape=data_shape, mimic_fc=mimic_fc, python_anchor=python_anchor)
+        data_shape=data_shape, per_cls_reg=per_cls_reg, mimic_fc=mimic_fc, python_anchor=python_anchor)
     # body = import_module(network).get_symbol(num_classes, **kwargs)
     # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
     #     min_filter=min_filter)
@@ -250,7 +250,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     ###
     cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
     out = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
-            th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'])
+            th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'], per_cls_reg=per_cls_reg)
     ###
     # out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
     #         name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,

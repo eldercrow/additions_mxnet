@@ -24,7 +24,7 @@ def prepare_groups(group_i, use_global_stats):
             num_filter=nf_all, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
 
-    for j in range(2):
+    for j in range(1):
         gp = g
         g = relu_conv_bn(g, 'g0/{}/1x1/'.format(j),
                 num_filter=nf_sqz, kernel=(1, 1), pad=(0, 0),
@@ -35,7 +35,7 @@ def prepare_groups(group_i, use_global_stats):
         g = g + gp
 
     groups = [g]
-    n_units = (3, 3, 2, 1)
+    n_units = (1, 1, 1, 1)
     for i, nu in enumerate(n_units, 1):
         if i == 3:
             # following the original ssd
@@ -147,7 +147,7 @@ def get_symbol(num_classes=1000, **kwargs):
     groups = prepare_groups(pool3, use_global_stats)
 
     hyper_groups = []
-    nf_hyper = [256 for _ in groups] #[192, 192, 192, 192, 192, 192]
+    nf_hyper = [192 for _ in groups] #[192, 192, 192, 192, 192, 192]
 
     for i, (g, nf) in enumerate(zip(groups, nf_hyper)):
         p1 = relu_conv_bn(g, 'hyperc1/1/{}/'.format(i),
