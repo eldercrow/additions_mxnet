@@ -17,7 +17,7 @@ if __name__ == '__main__':
     data.set_data_aug_level(parser, 3)
     parser.set_defaults(
         # network
-        network          = 'hypernetv6',
+        network          = 'dilatenetv4',
         num_layers       = 50,
         # data
         num_classes      = 1000,
