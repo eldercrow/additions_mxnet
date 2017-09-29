@@ -6,18 +6,21 @@ def prepare_groups(group_i, use_global_stats):
     ''' prepare basic groups '''
     # 96 48 24 12 6 3
     dilates = [1, 1, 2, 2, 4, 4]
-    nf_dil = [96, 96, 64, 64, 32, 32]
+    nf_dil = [128, 128, 80, 80, 48, 48]
     groups = []
     for i, (nf, dil) in enumerate(zip(nf_dil, dilates)):
         dilate = (dil, dil)
         pad = dilate
+        group_i = relu_conv_bn(group_i, 'gdp{}/'.format(i),
+                num_filter=nf, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
         group_i = relu_conv_bn(group_i, 'gd{}/'.format(i),
                 num_filter=nf, kernel=(3, 3), pad=pad, dilate=dilate,
                 use_global_stats=use_global_stats)
         groups.append(group_i)
 
-    nf_all = 384
-    nf_sqz = 128
+    nf_all = 512
+    nf_sqz = 256
     gall = mx.sym.concat(*groups)
     gall = relu_conv_bn(gall, 'gall/',
             num_filter=nf_all, kernel=(1, 1), pad=(0, 0),
@@ -32,7 +35,7 @@ def prepare_groups(group_i, use_global_stats):
     g = g + gall
 
     groups = [g]
-    n_unit = (2, 2, 2, 1)
+    n_unit = (1, 1, 1, 1)
     for i, nu in enumerate(n_unit, 1):
         if i == 3:
             # following the original ssd
@@ -126,16 +129,16 @@ def get_symbol(num_classes=1000, **kwargs):
     label = mx.symbol.Variable(name="label")
 
     conv1 = convolution(data, name='1/conv',
-        num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
+        num_filter=24, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = bn1 #pool(bn1)
 
     bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
     bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1),
+            num_filter=32, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn2 = mx.sym.concat(bn2_1, bn2_2)
     pool2 = pool(bn2)
@@ -144,7 +147,7 @@ def get_symbol(num_classes=1000, **kwargs):
             num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
     bn3_2 = relu_conv_bn(pool2, '3_2/',
-            num_filter=64, kernel=(3, 3), pad=(1, 1),
+            num_filter=128, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn3 = mx.sym.concat(bn3_1, bn3_2)
     pool3 = pool(bn3)
@@ -163,7 +166,7 @@ def get_symbol(num_classes=1000, **kwargs):
     #     groups[i] = g
 
     hyper_groups = []
-    nf_hyper = [192 for _ in groups] #[192, 192, 192, 192, 192, 192]
+    nf_hyper = [256 for _ in groups] #[192, 192, 192, 192, 192, 192]
 
     for i, (g, nf) in enumerate(zip(groups, nf_hyper)):
         p1 = relu_conv_bn(g, 'hyperc1/1x1/{}/'.format(i),

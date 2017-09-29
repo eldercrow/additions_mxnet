@@ -113,6 +113,9 @@ def set_mod_params(mod, args, auxs, logger):
 
     if args is not None:
         for k in args0:
+            if k == 'th_prob_sce':
+                logger.info('Skipping th_prob_sce.')
+                continue
             if k in args and args0[k].shape == args[k].shape:
                 arg_params[k] = args[k]
             else:

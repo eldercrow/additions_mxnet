@@ -3,7 +3,7 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network dilatenetv3 \
+    --network dilatenetv4 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
@@ -17,7 +17,7 @@ python train.py \
     --lr-factor 0.316227766 \
     --wd 0.0002 \
     --end-epoch 300 \
-    --frequent 50 \
+    --frequent 100 \
     --gpus 0,1
 # python train_imdb.py \
 #     --network hypernetv5 \

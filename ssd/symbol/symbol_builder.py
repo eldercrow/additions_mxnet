@@ -69,7 +69,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     mx.Symbol
 
     """
-    use_python_layer = False
+    use_python_layer = True
     use_focal_loss = cfg.train['use_focal_loss']
     use_smooth_ce = cfg.train['use_smooth_ce']
 
@@ -112,6 +112,8 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     loc_target = tmp[0]
     loc_target_mask = tmp[1]
     cls_target = tmp[2]
+    if not use_python_layer:
+        cls_target = mx.sym.reshape(cls_target, (0, 1, -1))
     # match_info = tmp[3]
 
     if use_focal_loss:
