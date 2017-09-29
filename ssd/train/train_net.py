@@ -331,7 +331,7 @@ def train_net(net, train_path, num_classes, batch_size,
     if voc07_metric:
         map_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
         recall_metric = RecallMetric(ovp_thresh, use_difficult, pred_idx=4)
-        valid_metric = mx.metric.create([map_metric, recall_metric]) 
+        valid_metric = mx.metric.create([map_metric, recall_metric])
     else:
         valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
 

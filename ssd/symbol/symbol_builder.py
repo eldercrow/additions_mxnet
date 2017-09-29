@@ -99,6 +99,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         cls_probs = mx.sym.SoftmaxActivation(cls_preds, mode='channel')
         tmp = mx.sym.Custom(*[anchor_boxes, label, cls_probs], name='multibox_target',
                 op_type='multibox_target',
+                ignore_labels=ignore_labels,
                 per_cls_reg=per_cls_reg, hard_neg_ratio=neg_ratio, th_small=th_small, square_bb=square_bb)
     else:
         assert not per_cls_reg
@@ -106,13 +107,14 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         tmp = mx.contrib.symbol.MultiBoxTarget(
             *[anchor_boxes, label, cls_preds], overlap_threshold=.5, \
             ignore_label=-1, negative_mining_ratio=neg_ratio, minimum_negative_samples=0, \
-            negative_mining_thresh=.5, variances=(0.1, 0.1, 0.2, 0.2),
-            ignore_labels=ignore_labels,
+            negative_mining_thresh=.4, variances=(0.1, 0.1, 0.2, 0.2),
             name="multibox_target")
     loc_target = tmp[0]
     loc_target_mask = tmp[1]
     cls_target = tmp[2]
-    match_info = tmp[3]
+    if not use_python_layer:
+        cls_target = mx.sym.reshape(cls_target, (0, 1, -1))
+    # match_info = tmp[3]
 
     if use_focal_loss:
         gamma = cfg.train['focal_loss_gamma']
@@ -164,7 +166,8 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     det = mx.symbol.MakeLoss(data=det, grad_scale=0, name="det_out")
 
     # group output
-    out = [cls_loss, loc_loss, cls_label, loc_label, det, match_info]
+    out = [cls_loss, loc_loss, cls_label, loc_label, det]
+    # out = [cls_loss, loc_loss, cls_label, loc_label, det, match_info]
     if use_focal_loss and use_smooth_ce:
         out.append(mx.sym.BlockGrad(var_th_prob))
     return mx.sym.Group(out)

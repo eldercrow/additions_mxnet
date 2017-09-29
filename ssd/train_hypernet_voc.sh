@@ -17,7 +17,7 @@ python train.py \
     --lr-factor 0.316227766 \
     --wd 0.0002 \
     --end-epoch 300 \
-    --frequent 50 \
+    --frequent 100 \
     --gpus 0,1
 # python train_imdb.py \
 #     --network hypernetv5 \

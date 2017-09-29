@@ -67,13 +67,15 @@ class MultiBoxTarget(mx.operator.CustomOp):
         target_reg = np.zeros((n_batch, n_anchors, 4), dtype=np.float32)
         mask_reg = np.zeros_like(target_reg)
         target_cls = np.full((n_batch, 1, n_anchors), -1, dtype=np.float32)
-        match_info = np.full((n_batch, in_data[1].shape[1], 50), -1)
+        # match_info = np.full((n_batch, in_data[1].shape[1], 50), -1)
 
         max_iou_pos = []
 
         for i in range(n_batch):
-            target_cls[i][0], target_reg[i], mask_reg[i], max_iou, match_info[i] = self._forward_batch_pos( \
+            target_cls[i][0], target_reg[i], mask_reg[i], max_iou = self._forward_batch_pos( \
                     labels_all[i], max_cids[i], target_cls[i][0], target_reg[i], mask_reg[i])
+            # target_cls[i][0], target_reg[i], mask_reg[i], max_iou, match_info[i] = self._forward_batch_pos( \
+            #         labels_all[i], max_cids[i], target_cls[i][0], target_reg[i], mask_reg[i])
             max_iou_pos.append(max_iou)
 
         # gather per batch samples
@@ -92,7 +94,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         self.assign(out_data[0], req[0], mx.nd.array(target_reg, ctx=in_data[2].context))
         self.assign(out_data[1], req[1], mx.nd.array(mask_reg, ctx=in_data[2].context))
         self.assign(out_data[2], req[2], mx.nd.array(target_cls, ctx=in_data[2].context))
-        self.assign(out_data[3], req[3], mx.nd.array(match_info, ctx=in_data[2].context))
+        # self.assign(out_data[3], req[3], mx.nd.array(match_info, ctx=in_data[2].context))
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         '''
@@ -111,7 +113,7 @@ class MultiBoxTarget(mx.operator.CustomOp):
         '''
         n_anchors = self.anchors_t.shape[1]
 
-        match_info = np.full((labels.shape[0], 50), -1)
+        # match_info = np.full((labels.shape[0], 50), -1)
 
         labels = _get_valid_labels(labels)
         max_iou = np.zeros(n_anchors, dtype=np.float32)
@@ -161,11 +163,11 @@ class MultiBoxTarget(mx.operator.CustomOp):
             # target_reg[ridx, :] = rt
             # mask_reg[ridx, :] = rm
 
-            if len(pidx) > 50:
-                pidx = pidx[:50]
-            match_info[i, :len(pidx)] = pidx
+            # if len(pidx) > 50:
+            #     pidx = pidx[:50]
+            # match_info[i, :len(pidx)] = pidx
 
-        return target_cls, target_reg, mask_reg, max_iou, match_info
+        return target_cls, target_reg, mask_reg, max_iou #, match_info
 
     def _forward_batch_neg(self, bg_probs, max_iou, target_cls):
         '''
@@ -377,7 +379,7 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
         return ['anchors', 'label', 'probs_cls']
 
     def list_outputs(self):
-        return ['target_reg', 'mask_reg', 'target_cls', 'match_info']
+        return ['target_reg', 'mask_reg', 'target_cls'] #, 'match_info']
 
     def infer_shape(self, in_shape):
         n_batch, n_class, n_sample = in_shape[2]
@@ -387,9 +389,9 @@ class MultiBoxTargetProp(mx.operator.CustomOpProp):
             target_reg_shape[1] *= n_class
         mask_reg_shape = target_reg_shape
         target_cls_shape = (n_batch, 1, n_sample)
-        match_info_shape = (n_batch, in_shape[1][1], 50)
+        # match_info_shape = (n_batch, in_shape[1][1], 50)
 
-        out_shape = [target_reg_shape, mask_reg_shape, target_cls_shape, match_info_shape]
+        out_shape = [target_reg_shape, mask_reg_shape, target_cls_shape] #, match_info_shape]
         return in_shape, out_shape, []
 
     def create_operator(self, ctx, shapes, dtypes):
