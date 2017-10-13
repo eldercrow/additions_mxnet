@@ -3,13 +3,13 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network dilatenetv3 \
+    --network dilatenetv5 \
     --label-width 350 \
     --batch-size 32 \
-    --data-shape 640 \
+    --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained none \
+    --pretrained ./model/ssd_dilatenetv5_384 \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \

@@ -56,10 +56,6 @@ cfg.train.rand_mirror_prob = 0.5
 cfg.train.shuffle = True
 np.random.seed()
 cfg.train.seed = np.random.randint(np.iinfo(np.int32).min, np.iinfo(np.int32).max)
-<<<<<<< HEAD
-=======
-# cfg.train.seed = 0
->>>>>>> 731891eca09c614926f0cde871ee67b6f5f7e902
 cfg.train.preprocess_threads = 32
 
 ### [eldercrow] my additions
@@ -68,7 +64,7 @@ cfg.train.use_focal_loss = True # focal loss
 cfg.train.focal_loss_alpha = 1.0 / 4.0
 cfg.train.focal_loss_gamma = 2.0
 cfg.train.smoothl1_weight = 1.0 if cfg.train.use_focal_loss else 1.0
-cfg.train.use_smooth_ce = True
+cfg.train.use_smooth_ce = False
 cfg.train.smooth_ce_th = 1e-03
 cfg.train.smooth_ce_lambda = 1.0
 

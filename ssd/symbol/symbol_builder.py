@@ -74,7 +74,10 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     use_smooth_ce = cfg.train['use_smooth_ce']
 
     label = mx.sym.Variable('label')
-    kwargs['use_global_stats'] = False
+    if not 'use_global_stats' in kwargs:
+        import ipdb
+        ipdb.set_trace()
+        kwargs['use_global_stats'] = 0
 
     mimic_fc = 0 if not 'mimic_fc' in kwargs else kwargs['mimic_fc']
     python_anchor = False if not 'python_anchor' in kwargs else kwargs['python_anchor']

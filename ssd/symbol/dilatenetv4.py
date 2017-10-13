@@ -7,7 +7,7 @@ def prepare_groups(data, use_global_stats):
     ''' prepare basic groups '''
     # 96 48 24 12 6 3
     dilates = [2, 3, 4, 5, 6, 7]
-    nf_dil = [64, 64, 40, 40, 24, 24]
+    nf_dil = [96, 96, 64, 64, 32, 32]
     groups = []
     group_i = data
     for i, (nf, dil) in enumerate(zip(nf_dil, dilates)):
@@ -26,7 +26,7 @@ def prepare_groups(data, use_global_stats):
             use_global_stats=use_global_stats)
     g = g + data
 
-    for j in range(1):
+    for j in range(2):
         gp = g
         g = relu_conv_bn(g, 'g0/{}/1x1/'.format(j),
                 num_filter=nf_sqz, kernel=(1, 1), pad=(0, 0),
@@ -37,7 +37,7 @@ def prepare_groups(data, use_global_stats):
         g = g + gp
 
     groups = [g]
-    n_units = (2, 2, 2, 1)
+    n_units = (2, 2, 2, 1) # 24 12 6 3
     for i, nu in enumerate(n_units, 1):
         if i == 3:
             # following the original ssd
@@ -129,32 +129,32 @@ def get_symbol(num_classes=1000, **kwargs):
     pool1 = bn1 #pool(bn1)
 
     bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
     bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1),
+            num_filter=32, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn2 = mx.sym.concat(bn2_1, bn2_2)
     pool2 = pool(bn2)
 
     bn3_1 = relu_conv_bn(pool2, '3_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
             use_global_stats=use_global_stats)
     bn3_2 = relu_conv_bn(pool2, '3_2/',
-            num_filter=80, kernel=(3, 3), pad=(1, 1),
+            num_filter=128, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn3 = mx.sym.concat(bn3_1, bn3_2)
     pool3 = pool(bn3)
 
     bn4_1 = relu_conv_bn(pool3, '4_1/',
-            num_filter=128, kernel=(3, 3), pad=(1, 1),
+            num_filter=192, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn4_2 = relu_conv_bn(bn4_1, '4_2/',
-            num_filter=128, kernel=(3, 3), pad=(1, 1),
+            num_filter=192, kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
     bn4 = mx.sym.concat(bn4_1, bn4_2)
     bn4 = relu_conv_bn(bn4, '4/',
-            num_filter=256, kernel=(1, 1), pad=(0, 0),
+            num_filter=384, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
 
     groups = prepare_groups(bn4, use_global_stats)

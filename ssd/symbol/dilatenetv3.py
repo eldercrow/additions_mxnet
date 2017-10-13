@@ -3,75 +3,67 @@ from symbol.net_block import *
 from layer.dummy_layer import *
 
 
-def prepare_groups(group_i, use_global_stats):
+def prepare_groups(data, use_global_stats):
     ''' prepare basic groups '''
     # 96 48 24 12 6 3
-    dilates = [1, 1, 2, 2, 4, 4]
-    nf_dil = [128, 128, 80, 80, 48, 48]
+    dilates = [2, 2, 3, 3, 4, 4]
+    nf_dil = [48, 48, 32, 32, 16, 16]
     groups = []
+    group_i = data
     for i, (nf, dil) in enumerate(zip(nf_dil, dilates)):
         dilate = (dil, dil)
         pad = dilate
-        group_i = relu_conv_bn(group_i, 'gdp{}/'.format(i),
-                num_filter=nf, kernel=(1, 1), pad=(0, 0),
+        group_i = relu_conv_bn(group_i, 'gd{}/0/'.format(i),
+                num_filter=nf, kernel=(3, 3), pad=(1, 1),
                 use_global_stats=use_global_stats)
-        group_i = relu_conv_bn(group_i, 'gd{}/'.format(i),
+        g = relu_conv_bn(group_i, 'gd{}/1/'.format(i),
                 num_filter=nf, kernel=(3, 3), pad=pad, dilate=dilate,
                 use_global_stats=use_global_stats)
+        group_i = g + group_i
         groups.append(group_i)
 
     nf_all = sum(nf_dil)
-    nf_sqz = nf_all / 2
+    # nf_sqz = nf_all / 2
     group_all = mx.sym.concat(*groups)
     g = relu_conv_bn(group_all, 'gall/',
             num_filter=nf_all, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
+    g = g + data
 
-    for j in range(1):
+    nf_1x1 = 48
+    nf_3x3 = (96, 48)
+    for j in range(2):
         gp = g
-        g = relu_conv_bn(g, 'g0/{}/1x1/'.format(j),
-                num_filter=nf_sqz, kernel=(1, 1), pad=(0, 0),
-                use_global_stats=use_global_stats)
-        g = relu_conv_bn(g, 'g0/{}/3x3/'.format(j),
-                num_filter=nf_all, kernel=(3, 3), pad=(1, 1),
+        g = conv_group(g, 'g0/{}/'.format(j),
+                num_filter_1x1=nf_1x1, num_filter_3x3=nf_3x3, do_proj=True,
                 use_global_stats=use_global_stats)
         g = g + gp
 
     groups = [g]
-    n_units = (1, 1, 1, 1, 1)
+    n_units = (2, 2, 2, 1) # 24 12 6 3
     for i, nu in enumerate(n_units, 1):
-        if i == 4:
+        if i == 3:
             # following the original ssd
             g = relu_conv_bn(g, 'g{}/'.format(i),
-                    num_filter=nf_all, kernel=(3, 3), pad=(3, 3), dilate=(3, 3),
+                    num_filter=nf_all, kernel=(3, 3), pad=(2, 2), dilate=(2, 2),
                     use_global_stats=use_global_stats)
 
-        if i == 5:
-            g = pool(g, kernel=(3, 3), pad=(1, 1))
-        else:
-            g = pool(g)
+        g = pool(g)
         for j in range(nu):
             gp = g
-            g = relu_conv_bn(g, 'g{}/{}/1x1/'.format(i, j),
-                    num_filter=nf_sqz, kernel=(1, 1), pad=(0, 0),
-                    use_global_stats=use_global_stats)
-            g = relu_conv_bn(g, 'g{}/3x3/{}/'.format(i, j),
-                    num_filter=nf_all, kernel=(3, 3), pad=(1, 1),
+            g = conv_group(g, 'g{}/{}/'.format(i, j),
+                    num_filter_1x1=nf_1x1, num_filter_3x3=nf_3x3, do_proj=True,
                     use_global_stats=use_global_stats)
             g = g + gp
         groups.append(g)
 
-    g = relu_conv_bn(g, 'g6/1x1/'.format(i),
-            num_filter=nf_sqz, kernel=(1, 1), pad=(0, 0),
+    g = relu_conv_bn(g, 'g5/1x1/'.format(i),
+            num_filter=nf_all, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
-    g = relu_conv_bn(g, 'g6/3x3/'.format(i),
+    g = relu_conv_bn(g, 'g5/3x3/'.format(i),
             num_filter=nf_all, kernel=(3, 3), pad=(0, 0),
             use_global_stats=use_global_stats)
-
-    # gall = pool(gall, kernel=(3, 3))
-    # gp = relu_conv_bn(gall, 'gp5/',
-    #         num_filter=nf_all, kernel=(1, 1), pad=(0, 0),
-    #         use_global_stats=use_global_stats)
+    # g = g + gp
     groups.append(g)
 
     return groups
@@ -136,31 +128,24 @@ def get_symbol(num_classes=1000, **kwargs):
     bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
     pool1 = bn1 #pool(bn1)
 
-    bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
+    bn2 = conv_group(pool1, '2/',
+            num_filter_3x3=(32, 16), use_crelu=True, do_proj=True,
             use_global_stats=use_global_stats)
-    bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-    bn2 = mx.sym.concat(bn2_1, bn2_2)
     pool2 = pool(bn2)
 
-    bn3_1 = relu_conv_bn(pool2, '3_1/',
-            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
-            use_global_stats=use_global_stats)
-    bn3_2 = relu_conv_bn(pool2, '3_2/',
-            num_filter=128, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-    bn3 = mx.sym.concat(bn3_1, bn3_2)
-    bn3 = relu_conv_bn(bn3, '3/',
-            num_filter=64, kernel=(1, 1), pad=(0, 0),
+    bn3 = conv_group(pool2, '3/',
+            num_filter_3x3=(64, 32, 32), do_proj=True,
             use_global_stats=use_global_stats)
     pool3 = pool(bn3)
 
-    groups = prepare_groups(pool3, use_global_stats)
+    bn4 = conv_group(pool3, '4/',
+            num_filter_3x3=(96, 48, 48), do_proj=True,
+            use_global_stats=use_global_stats)
+
+    groups = prepare_groups(bn4, use_global_stats)
 
     hyper_groups = []
-    nf_hyper = [256, 256, 256, 256, 192, 128, 128]
+    nf_hyper = [192 for _ in groups] #[192, 192, 192, 192, 192, 192]
 
     for i, (g, nf) in enumerate(zip(groups, nf_hyper)):
         p1 = relu_conv_bn(g, 'hyperc1/1/{}/'.format(i),
@@ -172,7 +157,6 @@ def get_symbol(num_classes=1000, **kwargs):
                 num_filter=nf, kernel=(1, 1), pad=(0, 0),
                 use_global_stats=use_global_stats)
         h2 = mx.sym.Activation(p2, name='hyper{}/2'.format(i), act_type='relu')
-
         hyper_groups.append((h1, h2))
         # hyper_groups.append(h1)
 

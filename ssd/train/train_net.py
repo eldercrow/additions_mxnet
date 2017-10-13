@@ -133,6 +133,7 @@ def train_net(net, train_path, num_classes, batch_size,
               data_shape, mean_pixels, resume, finetune, pretrained, epoch,
               prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
               momentum, weight_decay, use_plateau, lr_refactor_step, lr_refactor_ratio,
+              use_global_stats=0,
               freeze_layer_pattern='',
               num_example=10000, label_pad_width=350,
               nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
@@ -239,6 +240,7 @@ def train_net(net, train_path, num_classes, batch_size,
     # load symbol
     net_str = net
     net = get_symbol_train(net, data_shape[1], \
+            use_global_stats=use_global_stats, \
             num_classes=num_classes, ignore_names=ignore_names, \
             nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
 

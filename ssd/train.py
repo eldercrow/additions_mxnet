@@ -67,6 +67,8 @@ def parse_args():
                         help='save training log to file')
     parser.add_argument('--monitor', dest='monitor', type=int, default=0,
                         help='log network parameters every N iters if larger than 0')
+    parser.add_argument('--use-global-stats', dest='use_global_stats', type=int, default=0,
+                        help='use global stats in batchnorm')
     parser.add_argument('--pattern', dest='monitor_pattern', type=str, default=".*",
                         help='monitor parameter pattern, as regex')
     parser.add_argument('--num-class', dest='num_class', type=int, default=20,
@@ -131,6 +133,7 @@ if __name__ == '__main__':
               freeze_layer_pattern=args.freeze_pattern,
               optimizer_name=args.optimizer_name,
               iter_monitor=args.monitor,
+              use_global_stats=args.use_global_stats,
               monitor_pattern=args.monitor_pattern,
               log_file=args.log_file,
               nms_thresh=args.nms_thresh,

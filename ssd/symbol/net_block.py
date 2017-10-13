@@ -143,7 +143,7 @@ def conv_group(data,
     for ii, nf3 in enumerate(num_filter_3x3):
         bn_ = relu_conv_bn(
             bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
-            num_filter=nf3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu,
+            num_filter=nf3, kernel=(3,3), pad=(1,1),
             use_global_stats=use_global_stats)
         cgroup.append(bn_)
 
