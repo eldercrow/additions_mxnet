@@ -3,19 +3,19 @@ python train.py \
     --val-path ./data/VOCdevkit/val.rec \
     --num-class 20 \
     --class-names ./dataset/names/pascal_voc.names \
-    --network dilatenetv5 \
+    --network dilatenetv6 \
     --label-width 350 \
     --batch-size 32 \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ./model/ssd_dilatenetv5_384 \
+    --pretrained none \
     --epoch 1000 \
     --lr 1e-03 \
     --use-plateau 1 \
     --lr-steps 3,3,3,3,4,4 \
     --lr-factor 0.316227766 \
-    --wd 0.0002 \
+    --wd 0.0001 \
     --end-epoch 300 \
     --frequent 100 \
     --gpus 0,1

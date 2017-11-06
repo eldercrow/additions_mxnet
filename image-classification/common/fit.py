@@ -134,9 +134,6 @@ def fit(args, network, data_loader, **kwargs):
 
         return
 
-    # import ipdb
-    # ipdb.set_trace()
-
     # load model
     if 'arg_params' in kwargs and 'aux_params' in kwargs:
         arg_params = kwargs['arg_params']
@@ -199,11 +196,14 @@ def fit(args, network, data_loader, **kwargs):
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
 
     # for debug
-    # internals = network.get_internals()
-    # _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
-    # shape_dict = dict(zip(internals.list_outputs(), out_shapes))
-    # for k, v in sorted(shape_dict.items()):
-    #     print k, v
+    internals = network.get_internals()
+    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 192, 192),)
+    shape_dict = dict(zip(internals.list_outputs(), out_shapes))
+    for k, v in sorted(shape_dict.items()):
+        if 'output' in k:
+            print k, v
+    # import ipdb
+    # ipdb.set_trace()
 
     # run
     if not args.use_plateau:

@@ -117,7 +117,7 @@ def get_config(network, data_shape, **kwargs):
         dense_vh = False
         python_anchor = True
         return locals()
-    elif network in ('dilatenetv5',):
+    elif network in ('dilatenetv5', 'dilatenetv6'):
         from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
