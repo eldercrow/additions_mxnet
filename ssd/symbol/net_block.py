@@ -75,7 +75,7 @@ def relu_conv_bn(data, prefix_name, num_filter,
     conv_name = prefix_name + 'conv'
     bn_name = prefix_name + 'bn'
     syms = {}
-    relu_ = mx.sym.Activation(data, act_type='relu')
+    relu_ = data * mx.sym.Activation(data, act_type='sigmoid')
     syms['relu'] = relu_
 
     conv_ = convolution(relu_, conv_name, num_filter,

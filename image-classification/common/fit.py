@@ -153,6 +153,8 @@ def fit(args, network, data_loader, **kwargs):
     devs = mx.cpu() if args.gpus is None or args.gpus is '' else [
         mx.gpu(int(i)) for i in args.gpus.split(',')]
 
+    import ipdb
+    ipdb.set_trace()
     # create model
     if args.use_plateau:
         logging.info('Using plateau module.')

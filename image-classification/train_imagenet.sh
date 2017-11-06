@@ -2,7 +2,7 @@
 
 python train_imagenet.py \
     --data-train ~/dataset/ILSVRC2012_cls/ILSVRC2012_train.rec \
-    --network dilatenetv4 \
+    --network mobilenet_group \
     --image-shape '3,192,192' \
     --batch-size 192 \
     --optimizer nadam \

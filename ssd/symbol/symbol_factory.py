@@ -117,7 +117,7 @@ def get_config(network, data_shape, **kwargs):
         dense_vh = False
         python_anchor = True
         return locals()
-    elif network in ('dilatenetv4', 'dilatenetv3'):
+    elif network in ('dilatenetv4', 'dilatenetv3', 'hypernetv4', 'hypernetv5'):
         from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6
@@ -156,28 +156,27 @@ def get_config(network, data_shape, **kwargs):
         dense_vh = True
         python_anchor = True
         return locals()
-    elif network == 'pva101':
+    elif network in ('pva101v3',):
         # network = 'pva101'
         assert data_shape == 384
-        from_layers = ['hyper2/relu', 'hyper3/relu', 'hyper4/relu', '', '', '']
-        num_filters = [-1, -1, -1, 512, 256, 256]
-        strides = [-1, -1, -1, 2, 2, 2]
-        pads = [-1, -1, -1, 1, 1, 1]
-        r1 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0)]
-        r2 = [1, np.sqrt(3.0), 1.0 / np.sqrt(3.0), 3.0, 1.0 / 3.0]
-        ratios = [r1, r2, r2, r2, r1, r1]
-        del r1, r2
-        sizes = [[32, 24], [64, 48], [128, 96], \
-                 [256, 192], [data_shape-64, data_shape-48], [data_shape-32, data_shape]]
+        from_layers = [('hyper{}_0/relu'.format(i), 'hyper{}_1/relu'.format(i)) for i in range(6)]
+        num_filters = [-1] * 6
+        strides = [-1] * 6
+        pads = [-1] * 6
+        ratios = [[1.0, 2.0, 0.5] for _ in from_layers]
+        sizes = [[36, 24], [72, 48], [144, 96], \
+                 [288, 192], [data_shape-72, data_shape-48], [data_shape-24, data_shape]]
         sizes = np.array(sizes) / float(data_shape)
         sizes = sizes.tolist()
+        sizes[-1] = [sizes[-1][0],]
         normalizations = -1
         steps = []
-        th_small = 16.0 / data_shape
-        mimic_fc = 2
+        th_small = 8.0 / data_shape
+        mimic_fc = 0
+        dense_vh = False
         python_anchor = True
         return locals()
-    elif network in ('pva101v2', 'pva101v3', 'pva101v4'):
+    elif network in ('pva101v2', 'pva101v4'):
         # network = 'pva101'
         assert data_shape == 384
         from_layers = [('hyper{}_0/relu'.format(i), 'hyper{}_1/relu'.format(i)) for i in range(6)]

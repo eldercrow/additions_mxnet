@@ -211,9 +211,9 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
 
     groups = [conv3, inc3e, inc4e]
 
-    nf_remain = [192, 192, 128]
+    nf_remain = [192, 192, 192]
     convi = conv_bn_relu(inc4e, 'inc4e/dilate', num_filter=256,
-            kernel=(3, 3), pad=(3, 3), dilate=(3, 3), use_global_stats=use_global_stats)
+            kernel=(3, 3), pad=(4, 4), dilate=(4, 4), use_global_stats=use_global_stats)
     for i, nf in enumerate(nf_remain, 3):
         kernel = (2, 2) if i < 5 else (3, 3)
         conv1x1 = conv_bn_relu(convi, 'g{}/conv1x1'.format(i), num_filter=nf,
@@ -224,7 +224,7 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
         groups.append(convi)
 
     up_groups = [[] for _ in groups]
-    nf_up = [64, 64, 0, 0, 0]
+    nf_up = [96, 64, 0, 0, 0]
     scale_up = [2, 2, 2, 2, 3]
     for i, (g, nfu, ss) in enumerate(zip(groups[1:], nf_up, scale_up)):
         if nfu > 0:
@@ -235,23 +235,26 @@ def pvanet_preact(data, use_global_stats=True, no_bias=False):
             num_filter_proj=256, num_filter_upsample=64, use_global_stats=use_global_stats)
     up_groups[0].append(u20)
 
-    nf_group = [192, 256, 256, 192, 192, 128] #[384, 512, 512, 384, 384, 256]
-    n_unit = [2, 2, 1, 1, 1, 1]
+    nf_group = [384, 512, 512, 384, 384, 384]
     for i, (g, u, nf) in enumerate(zip(groups, up_groups, nf_group)):
         g = mx.sym.concat(*([g] + u)) if u else g
-        for j in range(n_unit[i]):
-            g = conv_bn_relu(g, 'gp1x1/{}/{}'.format(i, j), num_filter=nf,
-                    kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
-            g = conv_bn_relu(g, 'gp3x3/{}/{}'.format(i, j), num_filter=nf,
-                    kernel=(3, 3), pad=(1, 1), use_global_stats=use_global_stats)
+        g = conv_bn_relu(g, 'gp{}'.format(i), num_filter=nf/2,
+                kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        g = conv_bn_relu(g, 'gf{}'.format(i), num_filter=nf,
+                kernel=(3, 3), pad=(1, 1), use_global_stats=use_global_stats)
         groups[i] = g
 
     hyper_group = []
-    nf_hyper = [192, 256, 256, 192, 192, 128]
+    nf_hyper = [192, 256, 256, 192, 192, 192]
     for i, (g, nf) in enumerate(zip(groups, nf_hyper)):
-        hyper0 = conv_bn_relu(g, 'hyper{}_0'.format(i), num_filter=nf,
+        p0 = conv_bn_relu(g, 'hyper{}_cls'.format(i), num_filter=nf,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
-        hyper1 = conv_bn_relu(g, 'hyper{}_1'.format(i), num_filter=nf,
+        hyper0 = conv_bn_relu(p0, 'hyper{}_0'.format(i), num_filter=nf,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+
+        p1 = conv_bn_relu(g, 'hyper{}_reg'.format(i), num_filter=nf,
+            kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
+        hyper1 = conv_bn_relu(p1, 'hyper{}_1'.format(i), num_filter=nf,
             kernel=(1, 1), pad=(0, 0), use_global_stats=use_global_stats)
         hyper_group.append(mx.sym.concat(hyper0, hyper1))
 

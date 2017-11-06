@@ -8,11 +8,11 @@ python train.py \
     --data-shape 384 \
     --optimizer-name nadam \
     --freeze '' \
-    --pretrained ~/github/model_mxnet/pva100/pva100 \
-    --epoch 0 \
-    --lr 1e-03 \
+    --pretrained ./model/ssd_pva101v3_384 \
+    --epoch 1000 \
+    --lr 1e-05 \
     --use-plateau 1 \
-    --lr-steps 2,2,3,3,4,4,5,5 \
+    --lr-steps 4,4 \
     --lr-factor 0.316227766 \
     --end-epoch 300 \
     --frequent 50 \

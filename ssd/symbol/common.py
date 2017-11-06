@@ -4,7 +4,7 @@ import numpy as np
 from config.config import cfg
 from collections import Iterable
 from layer.multibox_prior_layer import *
-from net_block import subpixel_upsample
+from net_block import subpixel_upsample, relu_conv_bn
 
 @mx.init.register
 class FocalBiasInit(mx.init.Initializer):
@@ -257,20 +257,16 @@ def multibox_layer(from_layers, num_classes, sizes=[.2, .95],
         else:
             num_hidden = int(layer.attr('num_filter'))
         print 'nf for {} = {}'.format(from_name, num_hidden)
-        fc = layer
+        fc = layer.get_children()[0]
         for i in range(n_iter):
-            fcp = mx.sym.Convolution(fc, name='{}_fc{}/p'.format(from_name, i),
-                    num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
-            fc3 = mx.sym.Convolution(fc, name='{}=fc{}/3'.format(from_name, i),
-                    num_filter=num_hidden / 4, kernel=(3, 3), pad=(1, 1))
-            fc3 = mx.sym.BatchNorm(fc3, name='{}_fc{}/bn/3'.format(from_name, i),
-                    use_global_stats=use_global_stats, fix_gamma=False)
-            fc3 = mx.sym.Activation(fc3, act_type='relu')
-            fc1 = mx.sym.Convolution(fc3, name='{}=fc{}/1'.format(from_name, i),
-                    num_filter=num_hidden, kernel=(1, 1), pad=(0, 0))
-            fc = mx.sym.BatchNorm(fcp+fc1, name='{}_fc{}/bn'.format(from_name, i),
-                    use_global_stats=use_global_stats, fix_gamma=False)
-            fc = mx.sym.Activation(fc, act_type='relu', name='{}_fc{}/relu'.format(from_name, i))
+            fc1 = relu_conv_bn(fc, '{}_fc1/{}/'.format(from_name, i),
+                    num_filter=num_hidden/2, kernel=(1, 1), pad=(0, 0),
+                    use_global_stats=use_global_stats)
+            fc3 = relu_conv_bn(fc1, '{}_fc3/{}/'.format(from_name, i),
+                    num_filter=num_hidden, kernel=(3, 3), pad=(1, 1),
+                    use_global_stats=use_global_stats)
+            fc = fc + fc3
+        fc = mx.sym.Activation(fc, act_type='relu', name='{}_fc/relu'.format(from_name))
         return fc
 
 

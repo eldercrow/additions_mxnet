@@ -271,13 +271,14 @@ def _compute_overlap(anchors_t, area_anchors_t, img_shape):
     return overlap.asnumpy()
 
 def _compute_loc_target(gt_bb, bb, variances):
+    eps = 1e-07
     loc_target = np.zeros_like(bb)
     aw = (bb[:, 2] - bb[:, 0])
     ah = (bb[:, 3] - bb[:, 1])
     loc_target[:, 0] = ((gt_bb[2] + gt_bb[0]) - (bb[:, 2] + bb[:, 0])) * 0.5 / aw
     loc_target[:, 1] = ((gt_bb[3] + gt_bb[1]) - (bb[:, 3] + bb[:, 1])) * 0.5 / ah
-    loc_target[:, 2] = np.log((gt_bb[2] - gt_bb[0]) / aw)
-    loc_target[:, 3] = np.log((gt_bb[3] - gt_bb[1]) / ah)
+    loc_target[:, 2] = np.log(np.maximum((gt_bb[2] - gt_bb[0]) / aw, np.finfo(np.float32).eps))
+    loc_target[:, 3] = np.log(np.maximum((gt_bb[3] - gt_bb[1]) / ah, np.finfo(np.float32).eps))
     return loc_target / variances, np.ones_like(loc_target)
 
 def _rescale_anchor(anchors_t, sf):
