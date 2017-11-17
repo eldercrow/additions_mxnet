@@ -197,7 +197,7 @@ def fit(args, network, data_loader, **kwargs):
 
     # for debug
     internals = network.get_internals()
-    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 192, 192),)
+    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
     shape_dict = dict(zip(internals.list_outputs(), out_shapes))
     for k, v in sorted(shape_dict.items()):
         if 'output' in k:
