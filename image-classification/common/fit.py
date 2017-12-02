@@ -1,4 +1,5 @@
 import mxnet as mx
+import numpy as np
 import logging
 import os
 import time
@@ -7,11 +8,11 @@ from common.plateau_lr import PlateauScheduler
 from common.plateau_module import PlateauModule
 from common.smoothed_ce_metric import SmoothedCrossEntropy
 
-def _get_lr_scheduler(args, kv):
+def _get_lr_scheduler(args, kv, begin_epoch=None):
     if args.use_plateau:
         plateau_lr = PlateauScheduler(patient_epochs=args.lr_step_epochs, factor=args.lr_factor)
-        # plateau_metric = mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06))
         plateau_metric = mx.metric.CrossEntropy()
+        # plateau_metric = mx.metric.Loss(name='smooth_ce', output_names=['softmax_cls_loss',])
         return (plateau_lr, plateau_metric)
 
     if 'lr_factor' not in args or args.lr_factor >= 1:
@@ -19,7 +20,8 @@ def _get_lr_scheduler(args, kv):
     epoch_size = args.num_examples / args.batch_size
     if 'dist' in args.kv_store:
         epoch_size /= kv.num_workers
-    begin_epoch = args.load_epoch if args.load_epoch else 0
+    if begin_epoch is None:
+        begin_epoch = args.load_epoch if args.load_epoch else 0
     step_epochs = [int(l) for l in args.lr_step_epochs.split(',')]
     lr = args.lr
     for s in step_epochs:
@@ -184,8 +186,9 @@ def fit(args, network, data_loader, **kwargs):
 
     # evaluation metrices
     eval_metrics = ['accuracy']
-    # eval_metrics.append(mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06)))
     eval_metrics.append(mx.metric.CrossEntropy())
+    # eval_metrics = [mx.metric.Accuracy(output_names=['softmax_cls_prob',], label_names=['softmax_label',])]
+    # eval_metrics.append(mx.metric.Loss(name='smooth_ce', output_names=['softmax_cls_loss',]))
     if args.top_k > 0:
         eval_metrics.append(mx.metric.create('top_k_accuracy', top_k=args.top_k))
 
@@ -197,7 +200,7 @@ def fit(args, network, data_loader, **kwargs):
 
     # for debug
     internals = network.get_internals()
-    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
+    _, out_shapes, _ = internals.infer_shape_partial(data=(32, 3, 224, 224),)
     shape_dict = dict(zip(internals.list_outputs(), out_shapes))
     for k, v in sorted(shape_dict.items()):
         if 'output' in k:
@@ -205,15 +208,46 @@ def fit(args, network, data_loader, **kwargs):
     # import ipdb
     # ipdb.set_trace()
 
-    # run
-    if not args.use_plateau:
+    # run with adam and sgd alternatingly
+    begin_epoch = args.load_epoch if args.load_epoch else 0
+    end_epoch = args.num_epochs
+    fit_begins1 = range(begin_epoch, end_epoch-10, 15)
+    fit_begins2 = range(begin_epoch+5, end_epoch, 15)
+
+    fit_begins = [(v1, v2) for (v1, v2) in zip(fit_begins1, fit_begins2)]
+    fit_begins = np.array(fit_begins).ravel().tolist()
+    fit_ends = fit_begins[1:] + [end_epoch]
+
+    for ii, (begin, end) in enumerate(zip(fit_begins, fit_ends)):
+        if begin == 0:
+            logging.info('saving the initial state.')
+            model.bind(data_shapes=train.provide_data, label_shapes=train.provide_label)
+            model.init_params()
+            model.save_checkpoint(args.model_prefix, 0)
+
+        assert not args.use_plateau
+        lr, lr_scheduler = _get_lr_scheduler(args, kv, begin_epoch=begin)
+
+        optimizer_params = {'learning_rate': lr, 'wd' : args.wd, 'lr_scheduler': lr_scheduler}
+        if ii % 2 == 0:
+            logging.info('using NAdam optimizer.')
+            optimizer = 'nadam'
+            optimizer_params['learning_rate'] *= 0.1
+        else:
+            logging.info('using SGD optimizer.')
+            optimizer = 'sgd'
+            optimizer_params['momentum'] = args.mom
+            optimizer_params['multi_precision'] = True
+
+        # model.init_optimizer(optimizer=args.optimizer, optimizer_params=optimizer_params, force_init=True)
+
         model.fit(train,
-            begin_epoch        = args.load_epoch if args.load_epoch else 0,
-            num_epoch          = args.num_epochs,
+            begin_epoch        = begin,
+            num_epoch          = end,
             eval_data          = val,
             eval_metric        = eval_metrics,
             kvstore            = kv,
-            optimizer          = args.optimizer,
+            optimizer          = optimizer,
             optimizer_params   = optimizer_params,
             initializer        = initializer,
             arg_params         = arg_params,
@@ -222,22 +256,55 @@ def fit(args, network, data_loader, **kwargs):
             epoch_end_callback = checkpoint,
             allow_missing      = True,
             monitor            = monitor)
-    else:
-        model.fit(train, lr_scheduler,
-                begin_epoch         = args.load_epoch if args.load_epoch else 0,
-                num_epoch           = args.num_epochs,
-                plateau_metric      = plateau_metric,
-                fn_curr_model       = args.model_prefix+'-1000.params',
-                plateau_backtrace   = False,
-                eval_data           = val,
-                eval_metric         = eval_metrics,
-                kvstore             = kv,
-                optimizer           = args.optimizer,
-                optimizer_params    = optimizer_params,
-                initializer         = initializer,
-                arg_params          = arg_params,
-                aux_params          = aux_params,
-                batch_end_callback  = batch_end_callbacks,
-                epoch_end_callback  = checkpoint,
-                allow_missing       = True,
-                monitor             = monitor)
+
+        arg_params, aux_params = model.get_params()
+        allow_missing = False
+    #
+    # # run
+    # if not args.use_plateau:
+    #     if not args.load_epoch:
+    #         logging.info('saving the initial state.')
+    #         model.bind(data_shapes=train.provide_data, label_shapes=train.provide_label)
+    #         model.init_params()
+    #         model.save_checkpoint(args.model_prefix, 0)
+    #
+    #     model.fit(train,
+    #         begin_epoch        = args.load_epoch if args.load_epoch else 0,
+    #         num_epoch          = args.num_epochs,
+    #         eval_data          = val,
+    #         eval_metric        = eval_metrics,
+    #         kvstore            = kv,
+    #         optimizer          = args.optimizer,
+    #         optimizer_params   = optimizer_params,
+    #         initializer        = initializer,
+    #         arg_params         = arg_params,
+    #         aux_params         = aux_params,
+    #         batch_end_callback = batch_end_callbacks,
+    #         epoch_end_callback = checkpoint,
+    #         allow_missing      = True,
+    #         monitor            = monitor)
+    # else:
+    #     if not args.load_epoch:
+    #         logging.info('saving the initial state.')
+    #         model.bind(data_shapes=train.provide_data, label_shapes=train.provide_label)
+    #         model.init_params()
+    #         model.save_checkpoint(args.model_prefix, 0)
+    #
+    #     model.fit(train, lr_scheduler,
+    #             begin_epoch         = args.load_epoch if args.load_epoch else 0,
+    #             num_epoch           = args.num_epochs,
+    #             plateau_metric      = plateau_metric,
+    #             fn_curr_model       = args.model_prefix+'-1000.params',
+    #             plateau_backtrace   = False,
+    #             eval_data           = val,
+    #             eval_metric         = eval_metrics,
+    #             kvstore             = kv,
+    #             optimizer           = args.optimizer,
+    #             optimizer_params    = optimizer_params,
+    #             initializer         = initializer,
+    #             arg_params          = arg_params,
+    #             aux_params          = aux_params,
+    #             batch_end_callback  = batch_end_callbacks,
+    #             epoch_end_callback  = checkpoint,
+    #             allow_missing       = True,
+    #             monitor             = monitor)

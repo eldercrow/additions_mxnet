@@ -2,16 +2,19 @@
 
 python train_imagenet.py \
     --data-train ~/dataset/ILSVRC2012_cls/ILSVRC2012_train.rec \
-    --network mobilenetv4 \
+    --network mobilenetv6 \
     --image-shape 3,224,224 \
-    --batch-size 128 \
-    --optimizer nadam \
+    --min-random-scale 0.875 \
+    --max-random-scale 1.143 \
+    --batch-size 256 \
+    --optimizer sgd \
     --gpus 0,1 \
-    --disp 200 \
-    --model-prefix ./model/mobilenetv4_imagenet \
-    --lr 1e-03 \
+    --disp 100 \
+    --model-prefix ./model/mobilenetv6_imagenet \
+    --lr 0.05 \
+    --wd 5e-05 \
     --lr-factor 0.1 \
-    --lr-step-epochs 70,100,120 \
-    --num-epoch 140
-    # --use-plateau 0 \
-    # --load-epoch 70 \
+    --lr-step-epochs 75,120 \
+    --num-epoch 150
+    # --use-plateau 1 \
+    # --load-epoch 49 \
