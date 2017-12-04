@@ -22,7 +22,7 @@ if __name__ == '__main__':
         # data
         num_classes      = 1000,
         num_examples     = 1281167,
-        image_shape      = '3,192,192',
+        image_shape      = '3,224,224',
         min_random_scale = 1, # if input image has min size k, suggest to use
                               # 256.0/x, e.g. 0.533 for 480
         # train

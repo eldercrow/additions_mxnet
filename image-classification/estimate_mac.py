@@ -163,7 +163,8 @@ def _estimate_fc(layer, out_shapes, arg_shapes):
 if __name__ == '__main__':
     #
     import sys, os
-    sys.path.append(os.path.abspath('../layer'))
+    # from symbols.smoothed_focal_loss_layer import *
+    # from symbols.smoothed_softmax_layer import *
     # from anchor_box_layer import *
     # from focal_loss_layer import *
     # from rpn_focal_loss_layer import *

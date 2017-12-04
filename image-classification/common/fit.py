@@ -1,4 +1,5 @@
 import mxnet as mx
+import numpy as np
 import logging
 import os
 import time
@@ -6,12 +7,13 @@ import time
 from common.plateau_lr import PlateauScheduler
 from common.plateau_module import PlateauModule
 from common.smoothed_ce_metric import SmoothedCrossEntropy
+from common.sgdnadam import SGDNadam
 
-def _get_lr_scheduler(args, kv):
+def _get_lr_scheduler(args, kv, begin_epoch=None):
     if args.use_plateau:
         plateau_lr = PlateauScheduler(patient_epochs=args.lr_step_epochs, factor=args.lr_factor)
-        # plateau_metric = mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06))
         plateau_metric = mx.metric.CrossEntropy()
+        # plateau_metric = mx.metric.Loss(name='smooth_ce', output_names=['softmax_cls_loss',])
         return (plateau_lr, plateau_metric)
 
     if 'lr_factor' not in args or args.lr_factor >= 1:
@@ -19,7 +21,8 @@ def _get_lr_scheduler(args, kv):
     epoch_size = args.num_examples / args.batch_size
     if 'dist' in args.kv_store:
         epoch_size /= kv.num_workers
-    begin_epoch = args.load_epoch if args.load_epoch else 0
+    if begin_epoch is None:
+        begin_epoch = args.load_epoch if args.load_epoch else 0
     step_epochs = [int(l) for l in args.lr_step_epochs.split(',')]
     lr = args.lr
     for s in step_epochs:
@@ -166,12 +169,9 @@ def fit(args, network, data_loader, **kwargs):
     if not args.use_plateau:
         optimizer_params['lr_scheduler'] = lr_scheduler
 
-    if args.optimizer == 'sgd':
+    if args.optimizer in('sgd', 'nag'):
         optimizer_params['momentum'] = args.mom
         optimizer_params['multi_precision'] = True
-
-    # #7847
-    # model.init_optimizer(optimizer=args.optimizer, optimizer_params=optimizer_params, force_init=True)
 
     monitor = mx.mon.Monitor(args.monitor, pattern=".*") if args.monitor > 0 else None
 
@@ -184,8 +184,9 @@ def fit(args, network, data_loader, **kwargs):
 
     # evaluation metrices
     eval_metrics = ['accuracy']
-    # eval_metrics.append(mx.metric.create(SmoothedCrossEntropy(th_prob=1e-06)))
     eval_metrics.append(mx.metric.CrossEntropy())
+    # eval_metrics = [mx.metric.Accuracy(output_names=['softmax_cls_prob',], label_names=['softmax_label',])]
+    # eval_metrics.append(mx.metric.Loss(name='smooth_ce', output_names=['softmax_cls_loss',]))
     if args.top_k > 0:
         eval_metrics.append(mx.metric.create('top_k_accuracy', top_k=args.top_k))
 
@@ -197,7 +198,7 @@ def fit(args, network, data_loader, **kwargs):
 
     # for debug
     internals = network.get_internals()
-    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
+    _, out_shapes, _ = internals.infer_shape_partial(data=(32, 3, 224, 224),)
     shape_dict = dict(zip(internals.list_outputs(), out_shapes))
     for k, v in sorted(shape_dict.items()):
         if 'output' in k:
@@ -229,6 +230,12 @@ def fit(args, network, data_loader, **kwargs):
             allow_missing      = True,
             monitor            = monitor)
     else:
+        if not args.load_epoch:
+            logging.info('saving the initial state.')
+            model.bind(data_shapes=train.provide_data, label_shapes=train.provide_label)
+            model.init_params()
+            model.save_checkpoint(args.model_prefix, 0)
+
         model.fit(train, lr_scheduler,
                 begin_epoch         = args.load_epoch if args.load_epoch else 0,
                 num_epoch           = args.num_epochs,

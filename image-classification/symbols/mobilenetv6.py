@@ -1,4 +1,6 @@
 import mxnet as mx
+from smoothed_softmax_layer import *
+from smoothed_focal_loss_layer import *
 
 
 def batchnorm(data, name, use_global_stats):
@@ -88,9 +90,12 @@ def depthwise_conv(data, name,
         #     data = channel_shuffle2(Sfl, n_pre_sfl, n_post_sfl)
         #
 
-    conv3x3 = bn_relu_conv(data, name+'3x3/',
-            num_filter=nf_dw, kernel=kernel, pad=pad, stride=stride, num_group=nf_dw,
-            wd_mult=0.0, use_global_stats=use_global_stats)
+    if kernel == (1, 1):
+        conv3x3 = data
+    else:
+        conv3x3 = bn_relu_conv(data, name+'3x3/',
+                num_filter=nf_dw, kernel=kernel, pad=pad, stride=stride, num_group=nf_dw,
+                wd_mult=0.0, use_global_stats=use_global_stats)
 
     if nf_sep == 0:
         conv1x1 = conv3x3
@@ -123,10 +128,10 @@ def inception(data, name,
     k3 = (3, 3) #if not do_pool else (4, 4)
     k5 = (5, 5) #if not do_pool else (6, 6)
     # (7, 7) kernels are slow...
-    # k7 = (7, 7) #if not do_pool else (8, 8)
+    k7 = (7, 7) #if not do_pool else (8, 8)
 
     if do_pool:
-        s0 = mx.sym.Pooling(splited[0], kernel=(4, 4), pad=(1, 1), stride=(2, 2), pool_type='max')
+        s0 = mx.sym.Pooling(splited[0], kernel=(3, 3), pad=(1, 1), stride=(2, 2), pool_type='max')
     else:
         s0 = splited[0]
     s1 = bn_relu_conv(splited[1], name+'3/',
@@ -135,12 +140,12 @@ def inception(data, name,
     s2 = bn_relu_conv(splited[2], name+'5/',
             num_filter=nf_dw/4, kernel=k5, pad=(2, 2), stride=ss, num_group=nf_dw/4,
             wd_mult=0.0, use_global_stats=use_global_stats)
-    s3 = bn_relu_conv(splited[3], name+'3_1/',
-            num_filter=nf_dw/4, kernel=k3, pad=(1, 1), stride=ss, num_group=nf_dw/4,
-            wd_mult=0.0, use_global_stats=use_global_stats)
-    # s3 = bn_relu_conv(splited[3], name+'7/',
-    #         num_filter=nf_dw/4, kernel=k7, pad=(3, 3), stride=ss, num_group=nf_dw/4,
+    # s3 = bn_relu_conv(splited[3], name+'3_1/',
+    #         num_filter=nf_dw/4, kernel=k3, pad=(1, 1), stride=ss, num_group=nf_dw/4,
     #         wd_mult=0.0, use_global_stats=use_global_stats)
+    s3 = bn_relu_conv(splited[3], name+'7/',
+            num_filter=nf_dw/4, kernel=k7, pad=(3, 3), stride=ss, num_group=nf_dw/4,
+            wd_mult=0.0, use_global_stats=use_global_stats)
 
     concat = mx.sym.concat(s0, s1, s2, s3)
 
@@ -156,7 +161,7 @@ def get_symbol(num_classes=1000, **kwargs):
     use_global_stats = kwargs['use_global_stats']
 
     data = mx.symbol.Variable(name="data")
-    label = mx.symbol.Variable(name="label")
+    label = mx.symbol.Variable(name="softmax_label")
 
     conv0 = mx.sym.Convolution(data, name='0/conv',
             num_filter=3, kernel=(3, 3), pad=(1, 1), num_group=3, no_bias=True)
@@ -169,20 +174,20 @@ def get_symbol(num_classes=1000, **kwargs):
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
 
     bn1 = batchnorm(concat1, '2/bn', use_global_stats)
-    pool2 = mx.sym.Pooling(bn1, name='2/pool', kernel=(4, 4), pad=(1, 1), stride=(2, 2), pool_type='max')
+    pool2 = mx.sym.Pooling(bn1, name='2/pool', kernel=(3, 3), pad=(1, 1), stride=(2, 2), pool_type='max')
 
     conv3 = depthwise_conv(pool2, '3/',
             nf_dw=72, nf_sep=72, n_pre_sfl=2, n_post_sfl=2,
             kernel=(3, 3), pad=(1, 1),
             use_global_stats=use_global_stats)
-    # conv3_2 = mx.sym.concat(conv3_1, -conv3_1, name='3_2/concat')
+    conv3 = mx.sym.concat(conv3, -conv3)
     # conv3_2 = depthwise_conv(conv3_1, '3_2/',
     #         nf_dw=64, nf_sep=128, maxout_ratio=2, kernel=(3, 3), pad=(1, 1),
     #         use_global_stats=use_global_stats)
 
-    nf_dw_all = [144, 324, 576]
-    nf_sep_all = [144, 324, 576]
-    n_pre_sfl_all = [2, 4, 6, 8]
+    nf_dw_all = [144, 144, 288]
+    nf_sep_all = [144, 288, 576]
+    n_pre_sfl_all = [4, 4, 6]
     n_post_sfl_all = [4, 6, 8]
     n_unit_all = [2, 5, 3]
 
@@ -199,7 +204,7 @@ def get_symbol(num_classes=1000, **kwargs):
                         do_pool=True, use_global_stats=use_global_stats)
             else:
                 g1 = inception(g, 'g{}/u{}/'.format(i, j),
-                        nf_dw, nf_sep, n_pre_sfl_all[i+1], n_post_sfl_all[i],
+                        nf_dw, nf_sep, n_pre_sfl_all[i], n_post_sfl_all[i],
                         use_global_stats=use_global_stats)
                 g = mx.sym.broadcast_add(g, g1, name='g{}/u{}'.format(i, j))
         groups.append(g)
@@ -228,7 +233,7 @@ def get_symbol(num_classes=1000, **kwargs):
     #             use_global_stats=use_global_stats)
     #     h2 = mx.sym.Activation(p2, name='hyper{}/2'.format(i), act_type='relu')
     #
-    #     hyper_groups.append((h1, h2))
+    #     hyper_groups.append((h0, h2))
     #
     # pooled = []
     # ps = 8
@@ -252,18 +257,31 @@ def get_symbol(num_classes=1000, **kwargs):
     # # softmax = mx.sym.SoftmaxOutput(data=fc2, label=label, name='softmax')
     # return softmax
 
-    conv6 = depthwise_conv(groups[-1], 'convf/',
+    conv6 = depthwise_conv(groups[-1], 'conv6',
             nf_dw=576, nf_sep=1152, n_pre_sfl=8, n_post_sfl=12,
             kernel=(3, 3), pad=(0, 0), stride=(2, 2),
             use_global_stats=use_global_stats)
-    bn6 = batchnorm(conv6, 'bn6', use_global_stats)
-    relu6 = mx.sym.Activation(bn6, name='relu6', act_type='relu')
-
-    # from the original classification network
-    pool6 = mx.sym.Pooling(relu6, name='pool6', kernel=(3, 3), stride=(2, 2), pool_type='max')
-    fc7 = mx.sym.Convolution(pool6, name='fc7',
-            num_filter=num_classes, kernel=(1, 1), pad=(0, 0), no_bias=False)
+    fc7 = depthwise_conv(conv6, 'fc7',
+            nf_dw=1152, nf_sep=1000,
+            kernel=(3, 3), pad=(0, 0), n_pre_sfl=1, n_post_sfl=1,
+            use_global_stats=use_global_stats)
     flatten = mx.sym.flatten(fc7, name='flatten')
 
+    # from the original classification network
+    # pool6 = mx.sym.Pooling(relu6, name='pool6', kernel=(1, 1), global_pool=True, pool_type='avg')
+    # fc7 = mx.sym.Convolution(pool6, name='fc7',
+    #         num_filter=num_classes, kernel=(1, 1), pad=(0, 0), no_bias=False)
+    # flatten = mx.sym.flatten(fc7, name='flatten')
+
+    #
+    # cls_prob = mx.sym.SoftmaxActivation(flatten, name='cls_prob')
+    # th_prob = mx.sym.var(name='th_prob_sce', shape=(1,), dtype=np.float32, \
+    #         init=mx.init.Constant(6.0), wd_mult=0.0, lr_mult=1.0)
+    # th_prob = mx.sym.sigmoid(th_prob)
+    # softmax, cls_loss = mx.sym.Custom(flatten, cls_prob, label, th_prob,
+    #         op_type='smoothed_softmax_loss', name='softmax', w_reg=1000)
+    # return mx.sym.Group([softmax, cls_loss])
+    #
     softmax = mx.sym.SoftmaxOutput(flatten, name='softmax')
     return softmax
+    #
