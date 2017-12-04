@@ -117,7 +117,29 @@ def get_config(network, data_shape, **kwargs):
         dense_vh = False
         python_anchor = True
         return locals()
+<<<<<<< HEAD
     elif network in ('dilatenetv4', 'dilatenetv3', 'hypernetv4', 'hypernetv5'):
+=======
+    elif network in ('dilatenetv5', 'dilatenetv6'):
+        from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
+        num_filters = [-1] * 6
+        strides = [-1] * 6
+        pads = [-1] * 6
+        ratios = [[1.0, 2.0, 0.5] for _ in from_layers]
+        sizes = [[36, 24], [72, 48], [144, 96], \
+                 [288, 192], [data_shape-72, data_shape-48], [data_shape-24, data_shape]]
+        sizes = np.array(sizes) / float(data_shape)
+        sizes = sizes.tolist()
+        sizes[-1] = [sizes[-1][0],]
+        normalizations = -1
+        steps = []
+        th_small = 8.0 / data_shape
+        mimic_fc = 0
+        dense_vh = False
+        python_anchor = True
+        return locals()
+    elif network in ('dilatenetv4', 'hypernetv4', 'dilatenetv3'):
+>>>>>>> d23cd8af5811b6e12c7558bbabd4fb008ec14716
         from_layers = [('hyper{}/1'.format(i), 'hyper{}/2'.format(i)) for i in range(6)]
         num_filters = [-1] * 6
         strides = [-1] * 6

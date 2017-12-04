@@ -56,7 +56,6 @@ cfg.train.rand_mirror_prob = 0.5
 cfg.train.shuffle = True
 np.random.seed()
 cfg.train.seed = np.random.randint(np.iinfo(np.int32).min, np.iinfo(np.int32).max)
-# cfg.train.seed = 0
 cfg.train.preprocess_threads = 32
 
 ### [eldercrow] my additions
@@ -65,8 +64,13 @@ cfg.train.use_focal_loss = True # focal loss
 cfg.train.focal_loss_alpha = 1.0 / 4.0
 cfg.train.focal_loss_gamma = 2.0
 cfg.train.smoothl1_weight = 1.0 if cfg.train.use_focal_loss else 1.0
+<<<<<<< HEAD
 cfg.train.use_smooth_ce = True
 cfg.train.smooth_ce_th = 1e-02
+=======
+cfg.train.use_smooth_ce = False
+cfg.train.smooth_ce_th = 1e-03
+>>>>>>> d23cd8af5811b6e12c7558bbabd4fb008ec14716
 cfg.train.smooth_ce_lambda = 1.0
 
 cfg.train = config_as_dict(cfg.train)  # convert to normal dict
@@ -82,7 +86,7 @@ cfg.valid.seed = 0
 cfg.valid.preprocess_threads = 32
 
 ### [eldercrow] my additions
-cfg.valid.th_pos = 0.25
-cfg.valid.th_nms = 0.35
+cfg.valid.th_pos = 0.15
+cfg.valid.th_nms = 0.45
 
 cfg.valid = config_as_dict(cfg.valid)  # convert to normal dict

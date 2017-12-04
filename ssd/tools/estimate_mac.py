@@ -77,6 +77,12 @@ def estimate_mac(net, data_shape, label_shape=None):
     total_gmac = total_mac / float(2**30)
     print 'Total GMAC = {:,}'.format(total_gmac)
 
+    hyper_mac = 0
+    for l, v in layer_info.items():
+        if 'hyper' in l:
+            hyper_mac += v[1]
+    print 'Total MAC for prediction = {:,}'.format(hyper_mac)
+
     return total_mac, total_gmac
 
 
@@ -94,7 +100,7 @@ def _estimate_conv(layer, out_shapes, arg_shapes):
             bshape = arg_shapes[child.name]
 
     oshape = np.array(oshape)
-    oshape[1] = 1 # num channel is alread in wshape
+    oshape[1] = 1 # num channel is already in wshape
     wshape = np.array(wshape)
     bshape = np.array(bshape)
 
@@ -116,7 +122,7 @@ def _estimate_bn(layer, out_shapes, arg_shapes):
             bshape = arg_shapes[child.name]
 
     oshape = np.array(oshape)
-    oshape[1] = 1 # num channel is alread in wshape
+    oshape[1] = 1 # num channel is already in wshape
     gshape = np.array(gshape)
     bshape = np.array(bshape)
 

@@ -21,8 +21,8 @@ def batchnorm(data, name, use_global_stats, fix_gamma=False, lr_mult=1.0):
     return bn
 
 
-def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pool_type='max'):
-    return mx.sym.Pooling(data, name=name, kernel=kernel, stride=stride, pool_type=pool_type)
+def pool(data, name=None, kernel=(2, 2), stride=(2, 2), pad=(0, 0), pool_type='max'):
+    return mx.sym.Pooling(data, name=name, kernel=kernel, stride=stride, pad=pad, pool_type=pool_type)
 
 
 def subpixel_upsample(data, ch, c, r, name=None):
@@ -63,6 +63,26 @@ def conv_bn(data, prefix_name, num_filter,
     bn_ = batchnorm(conv_, bn_name, use_global_stats, fix_gamma)
 
     return bn_
+
+
+def conv_bn_relu(data, prefix_name, num_filter,
+                 kernel=(3,3), pad=(0,0), stride=(1,1), dilate=(1,1), no_bias=True,
+                 use_crelu=False,
+                 use_global_stats=False, fix_gamma=False):
+    #
+    assert prefix_name != ''
+    conv_name = prefix_name + 'conv'
+    bn_name = prefix_name + 'bn'
+
+    conv_ = convolution(data, conv_name, num_filter,
+            kernel=kernel, pad=pad, stride=stride, dilate=dilate, no_bias=no_bias)
+
+    if use_crelu:
+        conv_ = mx.sym.concat(conv_, -conv_)
+
+    bn_ = batchnorm(conv_, bn_name, use_global_stats, fix_gamma)
+    relu_ = mx.sym.Activation(bn_, act_type='relu')
+    return relu_
 
 
 def relu_conv_bn(data, prefix_name, num_filter,
@@ -123,7 +143,7 @@ def conv_group(data,
     for ii, nf3 in enumerate(num_filter_3x3):
         bn_ = relu_conv_bn(
             bn_, prefix_name=prefix_name + '3x3/{}/'.format(ii),
-            num_filter=nf3, kernel=(3,3), pad=(1,1), use_crelu=use_crelu,
+            num_filter=nf3, kernel=(3,3), pad=(1,1),
             use_global_stats=use_global_stats)
         cgroup.append(bn_)
 
@@ -179,6 +199,16 @@ def proj_add(lhs, rhs, name, num_filter, use_global_stats):
             num_filter=num_filter, kernel=(1, 1), pad=(0, 0),
             use_global_stats=use_global_stats)
     return lhs + rhs
+
+
+def proj_add_relu(lhs, rhs, name, num_filter, use_global_stats):
+    lhs = convolution(lhs, name+'lhs/conv', num_filter,
+            kernel=(1, 1), pad=(0, 0), no_bias=False)
+    rhs = convolution(rhs, name+'rhs/conv', num_filter,
+            kernel=(1, 1), pad=(0, 0), no_bias=False)
+    bn = batchnorm(lhs + rhs, name+'bn', use_global_stats=use_global_stats)
+    relu = mx.sym.Activation(bn, act_type='relu')
+    return relu
 
 
 def multiple_conv(data,

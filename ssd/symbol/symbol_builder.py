@@ -74,7 +74,10 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
     use_smooth_ce = cfg.train['use_smooth_ce']
 
     label = mx.sym.Variable('label')
-    kwargs['use_global_stats'] = False
+    if not 'use_global_stats' in kwargs:
+        import ipdb
+        ipdb.set_trace()
+        kwargs['use_global_stats'] = 0
 
     mimic_fc = 0 if not 'mimic_fc' in kwargs else kwargs['mimic_fc']
     python_anchor = False if not 'python_anchor' in kwargs else kwargs['python_anchor']
@@ -143,6 +146,9 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
         cls_loss = mx.symbol.SoftmaxOutput(data=cls_preds, label=cls_target, \
             ignore_label=-1, use_ignore=True, grad_scale=1., multi_output=True, \
             normalization='valid', name="cls_loss")
+    # loc_preds = mx.sym.Activation(loc_preds, act_type='tanh')
+    # loc_loss_ = mx.sym.square(name='loc_loss_', \
+    #         data=loc_target_mask * (loc_preds - loc_target)) * 10.0
     loc_loss_ = mx.symbol.smooth_l1(name="loc_loss_", \
         data=loc_target_mask * (loc_preds - loc_target), scalar=1.0)
     loc_loss = mx.symbol.MakeLoss(loc_loss_, grad_scale=cfg.train['smoothl1_weight'], \
@@ -171,7 +177,7 @@ def get_symbol_train(network, num_classes, from_layers, num_filters, strides, pa
 
 
 def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
-               strides, pads, normalizations=-1, steps=[], min_filter=128,
+               strides, pads, normalizations=-1, steps=[], min_filter=128, per_cls_reg=False,
                nms_thresh=0.5, force_suppress=False, nms_topk=400, **kwargs):
     """Build network for testing SSD
 
@@ -237,7 +243,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     loc_preds, cls_preds, anchor_boxes = multibox_layer(layers, \
         num_classes, sizes=sizes, ratios=ratios, normalization=normalizations, \
         num_channels=num_filters, clip=False, interm_layer=0, steps=steps, dense_vh=dense_vh, \
-        data_shape=data_shape, mimic_fc=mimic_fc, python_anchor=python_anchor)
+        data_shape=data_shape, per_cls_reg=per_cls_reg, mimic_fc=mimic_fc, python_anchor=python_anchor)
     # body = import_module(network).get_symbol(num_classes, **kwargs)
     # layers = multi_layer_feature(body, from_layers, num_filters, strides, pads,
     #     min_filter=min_filter)
@@ -250,7 +256,7 @@ def get_symbol(network, num_classes, from_layers, num_filters, sizes, ratios,
     ###
     cls_prob = mx.sym.slice_axis(cls_prob, axis=1, begin=1, end=None)
     out = mx.sym.Custom(cls_prob, loc_preds, anchor_boxes, name='detection', op_type='multibox_detection',
-            th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'])
+            th_pos=cfg.valid['th_pos'], th_nms=cfg.valid['th_nms'], per_cls_reg=per_cls_reg)
     ###
     # out = mx.contrib.symbol.MultiBoxDetection(*[cls_prob, loc_preds, anchor_boxes], \
     #         name="detection", nms_threshold=nms_thresh, force_suppress=force_suppress,

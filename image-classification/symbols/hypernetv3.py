@@ -1,41 +1,117 @@
 import mxnet as mx
-from symbols.net_block import *
-from common.smoothed_softmax_layer import *
+from symbols.net_block_sep import *
 
 
-def prepare_groups(group_i, use_global_stats):
+def inception(data, name, f1, f3, f5, do_pool, use_global_stats):
+    #
+    pool1 = pool(data, name=name+'pool1/') if do_pool else data
+
+    kernel = (4, 4) if do_pool else (3, 3)
+    stride = (2, 2) if do_pool else (1, 1)
+
+    # conv1
+    conv1 = relu_conv_bn(pool1, name+'conv1/',
+            num_filter=f1, kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+
+    # conv3
+    conv3_1 = relu_conv_bn(data, name+'conv3_1/',
+            num_filter=f3[0], kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+    conv3_2 = depthwise_conv(conv3_1, name+'conv3_2/',
+            nf_dw=f3[0], nf_sep=f3[1], kernel=kernel, stride=stride,
+            use_global_stats=use_global_stats)
+
+    # conv5
+    conv5_1 = relu_conv_bn(data, name+'conv5_1/',
+            num_filter=f5[0], kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+    conv5_2 = depthwise_conv(conv5_1, name+'conv5_2/',
+            nf_dw=f5[0], nf_sep=f5[1], use_global_stats=use_global_stats)
+    conv5_3 = depthwise_conv(conv5_2, name+'conv5_3/',
+            nf_dw=f5[1], nf_sep=f5[2], kernel=kernel, stride=stride,
+            use_global_stats=use_global_stats)
+
+    return mx.sym.concat(conv1, conv3_2, conv5_3)
+
+
+def proj_add(lhs, rhs, name, num_filter, do_pool, use_global_stats):
+    #
+    lhs = pool(lhs) if do_pool else lhs
+    lhs = relu_conv_bn(lhs, name+'lhs/',
+            num_filter=num_filter, kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+    rhs = relu_conv_bn(rhs, name+'rhs/',
+            num_filter=num_filter, kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+    return mx.sym.broadcast_add(lhs, rhs, name=name+'add/')
+
+
+def topdown_feature(data, updata, name, scale, nf_proj, nf_all, nf_sqz, use_global_stats, n_mix_iter=0):
+    #
+    # upsample, proj, concat, mix
+    updata = mx.sym.UpSampling(updata, scale=scale, sample_type='bilinear',
+            num_filter=nf_all, name=name+'upsample')
+
+    data = mx.sym.concat(data, updata, name=name+'concat')
+    data = relu_conv_bn(data, name+'proj/',
+            num_filter=nf_all, kernel=(1, 1), pad=(0, 0),
+            use_global_stats=use_global_stats)
+
+    data = depthwise_conv(data, name+'mix/',
+            nf_dw=nf_all, nf_sep=nf_all, use_global_stats=use_global_stats)
+
+    for i in range(n_mix_iter):
+        d0 = data
+        data = relu_conv_bn(data, name+'mix1x1/{}/'.format(i),
+                num_filter=nf_sqz, kernel=(1, 1), pad=(0, 0),
+                use_global_stats=use_global_stats)
+        data = depthwise_conv(data, name+'mix3x3/{}/'.format(i),
+                nf_dw=nf_sqz, nf_sep=nf_all, use_global_stats=use_global_stats)
+        data = data + d0
+    return data
+
+
+def prepare_groups(data, use_global_stats):
     ''' prepare basic groups '''
     # 48 24 12 6 3 1
-    nf_3x3 = [(96, 48), (128, 64), (160, 80), (128, 64), (96,), ()]
-    nf_1x1 = [48, 64, 80, 64, 96, 192]
-    n_unit = [2, 3, 3, 1, 1, 1]
+    n_units = [4, 4, 2]
+    filters_1 = [192, 256, 256]
+    filters_3 = [(64, 128), (96, 192), (96, 192)]
+    filters_5 = [(64, 64, 64) for _ in range(4)]
+    filters_a = (384, 512, 512)
 
-    # prepare groups
-    n_group = len(nf_1x1)
-    groups = []
-    for i, (nf3, nf1) in enumerate(zip(nf_3x3, nf_1x1)):
-        kernel = (2, 2) if i < 5 else (3, 3)
-        group_i = pool(group_i, kernel=kernel)
-        g0 = group_i
-
-        for j in range(n_unit[i]):
-            prefix_name = 'g{}/u{}/'.format(i, j)
-            group_i = conv_group(group_i, prefix_name,
-                    num_filter_3x3=nf3, num_filter_1x1=nf1, do_proj=False,
+    groups = [data]
+    g = data
+    for i, (nu, f1, f3, f5, fa) in enumerate(zip(n_units, filters_1, filters_3, filters_5, filters_a)):
+        g0 = g
+        for j in range(nu):
+            name = 'inc{}/{}/'.format(i+3, j+1)
+            g = inception(g, name, f1=f1, f3=f3, f5=f5, do_pool=(j==0),
                     use_global_stats=use_global_stats)
+            if (j+1) % 2 == 0:
+                g = proj_add(g0, g, 'res{}/{}/'.format(i+3, j+1),
+                        num_filter=fa, do_pool=(j==1), use_global_stats=use_global_stats)
+                g0 = g
 
-        group_i = proj_add(g0, group_i, 'g{}/res/'.format(i), sum(nf3)+nf1, use_global_stats)
-        groups.append([group_i])
+        groups.append(g)
 
-    groups[0].append( \
-            upsample_feature(groups[1][0], name='up10/', scale=2,
-                num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
-    groups[0].append( \
-            upsample_feature(groups[2][0], name='up20/', scale=4,
-                num_filter_proj=64, num_filter_upsample=32, use_global_stats=use_global_stats))
-    groups[1].append( \
-            upsample_feature(groups[2][0], name='up21/', scale=2,
-                num_filter_proj=64, num_filter_upsample=64, use_global_stats=use_global_stats))
+    g = depthwise_conv(g, 'g4/1/'.format(i),
+            nf_dw=512, nf_sep=512, kernel=(4, 4), pad=(1, 1), stride=(2, 2),
+            use_global_stats=use_global_stats)
+    g = depthwise_conv(g, 'g4/2/'.format(i),
+            nf_dw=512, nf_sep=512, use_global_stats=use_global_stats)
+    groups.append(g)
+
+    g = depthwise_conv(g, 'g5/1/'.format(i),
+            nf_dw=512, nf_sep=512, pad=(0, 0), use_global_stats=use_global_stats)
+    groups.append(g)
+
+    # top-down features
+    groups[1] = topdown_feature(groups[1], groups[2], 'up1/', scale=2,
+            nf_proj=128, nf_all=512, nf_sqz=256, use_global_stats=use_global_stats)
+    groups[0] = topdown_feature(groups[0], groups[1], 'up0/', scale=2,
+            nf_proj=256, nf_all=512, nf_sqz=256, use_global_stats=use_global_stats)
 
     return groups
 
@@ -46,85 +122,51 @@ def get_symbol(num_classes=1000, **kwargs):
     use_global_stats = kwargs['use_global_stats']
 
     data = mx.symbol.Variable(name="data")
-    label = mx.symbol.Variable(name="softmax_label")
+    # label = mx.symbol.Variable(name="label")
 
-    conv1 = convolution(data, name='1/conv',
-        num_filter=16, kernel=(3, 3), pad=(1, 1), no_bias=True)  # 32, 198
+    conv1 = mx.sym.Convolution(data, name='1/conv',
+            num_filter=16, kernel=(4, 4), pad=(1, 1), stride=(2, 2), no_bias=True)  # 32, 198
     concat1 = mx.sym.concat(conv1, -conv1, name='1/concat')
-    bn1 = batchnorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
-    pool1 = pool(bn1)
+    bn1 = mx.sym.BatchNorm(concat1, name='1/bn', use_global_stats=use_global_stats, fix_gamma=False)
 
-    bn2_1 = relu_conv_bn(pool1, '2_1/',
-            num_filter=24, kernel=(3, 3), pad=(1, 1), use_crelu=True,
-            use_global_stats=use_global_stats)
-    bn2_2 = relu_conv_bn(pool1, '2_2/',
-            num_filter=16, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-    concat2 = mx.sym.concat(bn2_1, bn2_2)
-    bn2 = relu_conv_bn(concat2, '2/',
-            num_filter=128, kernel=(1, 1), pad=(0, 0),
-            use_global_stats=use_global_stats)
-    pool2 = pool(bn2)
-
-    bn3_0 = relu_conv_bn(pool2, '3_0/',
-            num_filter=64, kernel=(1, 1), pad=(0, 0),
-            use_global_stats=use_global_stats)
-    bn3_1 = relu_conv_bn(bn3_0, '3_1/',
-            num_filter=32, kernel=(3, 3), pad=(1, 1), use_crelu=True,
-            use_global_stats=use_global_stats)
-    bn3_2 = relu_conv_bn(bn3_0, '3_2/',
-            num_filter=64, kernel=(3, 3), pad=(1, 1),
-            use_global_stats=use_global_stats)
-    concat3 = mx.sym.concat(bn3_1, bn3_2)
-    bn3 = relu_conv_bn(concat3, '3/',
-            num_filter=192, kernel=(1, 1), pad=(0, 0),
+    bn2 = depthwise_conv(bn1, '2_1/',
+            nf_dw=32, nf_sep=64,use_global_stats=use_global_stats)
+    bn2 = depthwise_conv(bn2, '2_2/',
+            nf_dw=64, nf_sep=64, kernel=(4, 4), pad=(1, 1), stride=(2, 2),
             use_global_stats=use_global_stats)
 
-    groups = prepare_groups(bn3, use_global_stats)
+    bn3 = depthwise_conv(bn2, '3_1/',
+            nf_dw=64, nf_sep=128, use_global_stats=use_global_stats)
+    # bn3 = depthwise_conv(bn3, '3_2/',
+    #         nf_dw=128, nf_sep=128, use_global_stats=use_global_stats)
+    bn3 = depthwise_conv(bn3, '3_3/',
+            nf_dw=128, nf_sep=128, kernel=(4, 4), pad=(1, 1), stride=(2, 2),
+            use_global_stats=use_global_stats)
 
-    nf_group = [384, 512, 512, 384, 384, 256]
-    for i, (g, nf) in enumerate(zip(groups, nf_group)):
-        g = mx.sym.concat(*g) if len(g) > 1 else g[0]
-        g = relu_conv_bn(g, 'gc1x1/{}/'.format(i),
-                num_filter=nf/2, kernel=(1, 1), pad=(0, 0),
-                use_global_stats=use_global_stats)
-        g = relu_conv_bn(g, 'gc3x3/{}/'.format(i),
-                num_filter=nf, kernel=(3, 3), pad=(1, 1),
-                use_global_stats=use_global_stats)
-        groups[i] = g
+    bn4 = depthwise_conv(bn3, '4_1/',
+            nf_dw=128, nf_sep=192, use_global_stats=use_global_stats)
+    # bn4 = depthwise_conv(bn4, '4_2/',
+    #         nf_dw=192, nf_sep=192, use_global_stats=use_global_stats)
+    bn4 = depthwise_conv(bn4, '4_3/',
+            nf_dw=192, nf_sep=256, use_global_stats=use_global_stats)
+    bn4 = depthwise_conv(bn4, '4_4/',
+            nf_dw=256, nf_sep=256, use_global_stats=use_global_stats)
 
-    hyper_groups = []
-    nf_hyper = [192, 256, 256, 192, 192, 128] # 24 12 6 3
+    groups = prepare_groups(bn4, use_global_stats)
 
-    for i, g in enumerate(groups[:-2]):
-        p1 = relu_conv_bn(g, 'hyperc1{}/'.format(i),
-                num_filter=nf_hyper[i], kernel=(1, 1), pad=(0, 0),
-                use_global_stats=use_global_stats)
-        # p2 = relu_conv_bn(g, 'hyperc2{}/'.format(i),
-        #         num_filter=nf_hyper[i], kernel=(1, 1), pad=(0, 0),
-        #         use_global_stats=use_global_stats)
-        h1 = mx.sym.Activation(p1, name='hyper{}/1'.format(i), act_type='relu')
-        # h2 = mx.sym.Activation(p2, name='hyper{}/2'.format(i), act_type='relu')
-        hyper_groups.append(h1) #((h1, h2))
+    g3 = groups[3]
+    g3 = relu_conv_bn(g3, '5/',
+            num_filter=2048, kernel=(3, 3), pad=(0, 0),
+            use_global_stats=use_global_stats)
+    # g3 = depthwise_conv(g3, '5/',
+    #         nf_dw=512, nf_sep=1024, kernel=(3, 3), pad=(0, 0), stride=(2, 2),
+    #         use_global_stats=use_global_stats)
 
-    pooled = []
-    ps = 8
-    for i, h in enumerate(hyper_groups):
-        # hc = mx.sym.concat(h[0], h[1])
-        if ps > 1:
-            p = mx.sym.Pooling(h, kernel=(ps, ps), stride=(ps, ps), pool_type='max')
-        else:
-            p = h
-        ps /= 2
-        pooled.append(p)
+    pool6 = mx.sym.Activation(g3, act_type='relu')
+    # pool6 = mx.sym.Pooling(g3, name='pool6',kernel=(1, 1), global_pool=True, pool_type='avg')
+    fc7 = mx.sym.Convolution(pool6, name='fc7',
+            num_filter=num_classes, kernel=(1, 1), pad=(0, 0), no_bias=False)
+    flatten = mx.sym.Flatten(fc7, name='flatten')
 
-    pooled_all = mx.sym.flatten(mx.sym.concat(*pooled), name='flatten')
-    fc1 = mx.sym.FullyConnected(pooled_all, num_hidden=4096, name='fc1', no_bias=True)
-    bn_fc1 = mx.sym.BatchNorm(fc1, use_global_stats=use_global_stats, fix_gamma=False)
-    relu_fc1 = mx.sym.Activation(bn_fc1, act_type='relu')
-    fc2 = mx.sym.FullyConnected(relu_fc1, num_hidden=num_classes, name='fc2')
-    cls_prob = mx.sym.softmax(fc2, name='cls_prob')
-    softmax = mx.sym.Custom(fc2, cls_prob, label, op_type='smoothed_softmax_loss', name='softmax',
-            th_prob=1e-06, normalization='null')
-    # softmax = mx.sym.SoftmaxOutput(data=fc2, label=label, name='softmax')
+    softmax = mx.sym.SoftmaxOutput(flatten, name='softmax')
     return softmax

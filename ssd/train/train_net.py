@@ -114,7 +114,7 @@ def set_mod_params(mod, args, auxs, logger):
     if args is not None:
         for k in args0:
             if k == 'th_prob_sce':
-                logger.info('Skipping th_prob_sce.')
+                logger.info('skipping th_prob_sce')
                 continue
             if k in args and args0[k].shape == args[k].shape:
                 arg_params[k] = args[k]
@@ -133,6 +133,7 @@ def train_net(net, train_path, num_classes, batch_size,
               data_shape, mean_pixels, resume, finetune, pretrained, epoch,
               prefix, ctx, begin_epoch, end_epoch, frequent, learning_rate,
               momentum, weight_decay, use_plateau, lr_refactor_step, lr_refactor_ratio,
+              use_global_stats=0,
               freeze_layer_pattern='',
               num_example=10000, label_pad_width=350,
               nms_thresh=0.45, force_nms=False, ovp_thresh=0.5,
@@ -239,6 +240,7 @@ def train_net(net, train_path, num_classes, batch_size,
     # load symbol
     net_str = net
     net = get_symbol_train(net, data_shape[1], \
+            use_global_stats=use_global_stats, \
             num_classes=num_classes, ignore_names=ignore_names, \
             nms_thresh=nms_thresh, force_suppress=force_suppress, nms_topk=nms_topk)
 
@@ -331,7 +333,7 @@ def train_net(net, train_path, num_classes, batch_size,
     if voc07_metric:
         map_metric = VOC07MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
         recall_metric = RecallMetric(ovp_thresh, use_difficult, pred_idx=4)
-        valid_metric = mx.metric.create([map_metric, recall_metric]) 
+        valid_metric = mx.metric.create([map_metric, recall_metric])
     else:
         valid_metric = MApMetric(ovp_thresh, use_difficult, class_names, pred_idx=4)
 

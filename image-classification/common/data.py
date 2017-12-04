@@ -52,7 +52,7 @@ def set_data_aug_level(aug, level):
     if level >= 1:
         aug.set_defaults(random_crop=1, random_mirror=1)
     if level >= 2:
-        aug.set_defaults(max_random_h=36, max_random_s=50, max_random_l=50)
+        aug.set_defaults(max_random_h=18, max_random_s=25, max_random_l=25)
     if level >= 3:
         aug.set_defaults(max_random_rotate_angle=10, max_random_shear_ratio=0.1, max_random_aspect_ratio=0.25)
 

@@ -134,9 +134,6 @@ def fit(args, network, data_loader, **kwargs):
 
         return
 
-    # import ipdb
-    # ipdb.set_trace()
-
     # load model
     if 'arg_params' in kwargs and 'aux_params' in kwargs:
         arg_params = kwargs['arg_params']
@@ -153,8 +150,6 @@ def fit(args, network, data_loader, **kwargs):
     devs = mx.cpu() if args.gpus is None or args.gpus is '' else [
         mx.gpu(int(i)) for i in args.gpus.split(',')]
 
-    import ipdb
-    ipdb.set_trace()
     # create model
     if args.use_plateau:
         logging.info('Using plateau module.')
@@ -201,14 +196,23 @@ def fit(args, network, data_loader, **kwargs):
         batch_end_callbacks += cbs if isinstance(cbs, list) else [cbs]
 
     # for debug
-    # internals = network.get_internals()
-    # _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
-    # shape_dict = dict(zip(internals.list_outputs(), out_shapes))
-    # for k, v in sorted(shape_dict.items()):
-    #     print k, v
+    internals = network.get_internals()
+    _, out_shapes, _ = internals.infer_shape(data=(32, 3, 224, 224),)
+    shape_dict = dict(zip(internals.list_outputs(), out_shapes))
+    for k, v in sorted(shape_dict.items()):
+        if 'output' in k:
+            print k, v
+    # import ipdb
+    # ipdb.set_trace()
 
     # run
     if not args.use_plateau:
+        if not args.load_epoch:
+            logging.info('saving the initial state.')
+            model.bind(data_shapes=train.provide_data, label_shapes=train.provide_label)
+            model.init_params()
+            model.save_checkpoint(args.model_prefix, 0)
+
         model.fit(train,
             begin_epoch        = args.load_epoch if args.load_epoch else 0,
             num_epoch          = args.num_epochs,

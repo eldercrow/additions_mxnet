@@ -275,6 +275,11 @@ def _compute_loc_target(gt_bb, bb, variances):
     loc_target = np.zeros_like(bb)
     aw = (bb[:, 2] - bb[:, 0])
     ah = (bb[:, 3] - bb[:, 1])
+    #
+    # a = np.maximum(aw, ah)
+    # loc_target = (gt_bb - bb) / np.hstack((aw, ah, aw, ah))
+    # return loc_target, np.ones_like(loc_target)
+    #
     loc_target[:, 0] = ((gt_bb[2] + gt_bb[0]) - (bb[:, 2] + bb[:, 0])) * 0.5 / aw
     loc_target[:, 1] = ((gt_bb[3] + gt_bb[1]) - (bb[:, 3] + bb[:, 1])) * 0.5 / ah
     loc_target[:, 2] = np.log(np.maximum((gt_bb[2] - gt_bb[0]) / aw, np.finfo(np.float32).eps))

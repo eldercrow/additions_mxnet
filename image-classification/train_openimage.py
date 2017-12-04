@@ -20,7 +20,7 @@ if __name__ == '__main__':
         network          = 'hypernetv6',
         # num_layers       = 50,
         # data
-        num_classes      = 1209,
+        num_classes      = 1208,
         num_examples     = 2680155,
         image_shape      = '3,224,224',
         min_random_scale = 1, # if input image has min size k, suggest to use

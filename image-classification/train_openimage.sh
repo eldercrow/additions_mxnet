@@ -1,8 +1,8 @@
 #!/usr/bin/bash
 
 python train_openimage.py \
-    --data-train /home/hyunjoon/dataset/openimage_cls/train_openimage.rec \
-    --network dilatenetv4 \
+    --data-train /home/hyunjoon/dataset/rec_classification/train_openimage.rec \
+    --network mobilenetv3 \
     --batch-size 192 \
     --image-shape '3,192,192' \
     --optimizer nadam \
@@ -12,5 +12,5 @@ python train_openimage.py \
     --lr-step-epochs 2,2,3,3,4,4 \
     --lr-factor 0.316227766 \
     --disp 200 \
-    --model-prefix ./model/dilatenetv4_openimage
+    --model-prefix ./model/mobilenetv3_openimage
     # --load-epoch 49 \
