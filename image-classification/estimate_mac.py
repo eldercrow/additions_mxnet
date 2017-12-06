@@ -83,7 +83,7 @@ def estimate_mac(net, data_shape, label_shape=None):
         total_mac += v[2]
     total_gmac = np.round(total_mac / float(2**30), 3)
 
-    for li in layer_info:
+    for li in sorted(layer_info, key=operator.itemgetter(2)):
         lname = li[0]
         flop = li[2]
         gflop = np.round(flop / float(2**30), 3)

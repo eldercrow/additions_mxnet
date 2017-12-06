@@ -7,7 +7,7 @@ import time
 from common.plateau_lr import PlateauScheduler
 from common.plateau_module import PlateauModule
 from common.smoothed_ce_metric import SmoothedCrossEntropy
-from common.sgdnadam import SGDNadam
+from common.sgdnadam import SGDNAdam
 
 def _get_lr_scheduler(args, kv, begin_epoch=None):
     if args.use_plateau:

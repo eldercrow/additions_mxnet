@@ -182,7 +182,7 @@ def get_symbol(num_classes=1000, **kwargs):
 
     nf_dw_all = [144, 324, 576]
     nf_sep_all = [144, 324, 576]
-    n_pre_sfl_all = [2, 4, 6, 8]
+    n_pre_sfl_all = [3, 4, 6, 8]
     n_post_sfl_all = [4, 6, 8]
     n_unit_all = [2, 5, 3]
 
